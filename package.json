@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "private": false,
   "description": "A self-operated custom-domain email inbox for your Cloudflare account.",
+  "keywords": [
+    "email",
+    "inbox",
+    "self-hosted",
+    "cloudflare-workers",
+    "cloudflare-d1",
+    "cloudflare-r2",
+    "custom-domain"
+  ],
   "type": "module",
   "license": "MIT",
   "author": "Ashish Sharma",

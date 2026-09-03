@@ -1,5 +1,8 @@
 # Inlet
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Deploy Inlet](https://github.com/sarmaasis/inlet/actions/workflows/deploy.yml/badge.svg)](https://github.com/sarmaasis/inlet/actions/workflows/deploy.yml)
+
 **A small, self-operated inbox for addresses on your own domain.**
 
 Inlet runs on your Cloudflare account. Cloudflare Email Routing delivers mail to a Worker; Inlet stores messages in D1 and, when configured, attachments in R2. It is designed for a personal domain or a small, technically operated mailbox—not as a replacement for a hosted business-email suite.
@@ -110,7 +113,11 @@ Database migrations are deliberately manual: open **Actions → Deploy Inlet →
 
 ## Contributing
 
-Bug reports and focused pull requests are welcome. Please run `npm run check` and `npm run build` before opening a PR, keep changes narrowly scoped, and document any new configuration or migration.
+Bug reports and focused pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR, and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Forking
+
+You can fork Inlet under the [MIT License](LICENSE). Use the **Fork on GitHub** button in the app or on the [repository](https://github.com/sarmaasis/inlet), then update the Worker name, D1 database ID, R2 bucket name, and Cloudflare API secrets for your own account.
 
 ## Security
 

@@ -28,6 +28,7 @@ export default function Landing() {
           </a>
           <nav className="nav-links">
             <a href="#how">How it works</a>
+            <a href="https://github.com/sarmaasis/inlet" target="_blank" rel="noreferrer">GitHub</a>
             <a href="/login" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
             <a className="btn" href={setup ? "/setup" : "/app"} onClick={(e) => { e.preventDefault(); go(setup ? "/setup" : "/app"); }}>
               {setup ? "Create admin" : "Open inbox"}
@@ -81,7 +82,7 @@ export default function Landing() {
 
         <footer className="foot">
           <span>Inlet. MIT License. Ashish Sharma.</span>
-          <span>Deploy on Workers. Keep the keys.</span>
+          <span><a href="https://github.com/sarmaasis/inlet" target="_blank" rel="noreferrer">View source</a> · <a href="https://github.com/sarmaasis/inlet/fork" target="_blank" rel="noreferrer">Fork on GitHub</a></span>
         </footer>
       </div>
     </div>

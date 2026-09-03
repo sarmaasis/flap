@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible problem in Inlet.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Do not include private email content, passwords, tokens, or account IDs.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Inlet version or commit
+  - type: textarea
+    id: environment
+    attributes:
+      label: Cloudflare and browser environment
