@@ -37,6 +37,7 @@ export function buildRawMime(opts: {
 }
 
 function encodeHeader(value: string): string {
+  value = value.replace(/[\r\n]+/g, " ");
   if (/^[\x20-\x7E]*$/.test(value)) return value;
   const bytes = new TextEncoder().encode(value);
   let bin = "";

@@ -12,6 +12,8 @@ const app = new Hono<App>();
 const FOLDERS = new Set(["inbox", "sent", "drafts", "spam", "trash"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+const HEADER_VALUE_RE = /^[^\r\n]*$/;
+const MAX_PASSWORD_LENGTH = 1_024;
 
 app.use("*", async (c, next) => {
   await next();
@@ -37,19 +39,25 @@ app.post("/api/setup", async (c) => {
   const email = (body.email ?? "").trim().toLowerCase();
   const password = body.password ?? "";
   if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
-  if (password.length < 8) return c.json({ error: "Password must be at least 8 characters." }, 400);
+  if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
+    return c.json({ error: "Password must be between 8 and 1,024 characters." }, 400);
+  }
   const id = randomId("usr");
   const now = nowMs();
   try {
     const passwordHash = await hashPassword(password);
-    await c.env.DB.prepare(
-      "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-    )
-      .bind(id, email, passwordHash, now)
-      .run();
+    await c.env.DB.batch([
+      c.env.DB.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
+        .bind(id, email, passwordHash, now),
+      c.env.DB.prepare("INSERT INTO setup_state (id, user_id, created_at) VALUES (1, ?, ?)")
+        .bind(id, now),
+    ]);
     await createSession(c, id);
   } catch (error) {
     console.error("Failed to create the initial Inlet administrator", error);
+    if ((await userCount(c.env.DB)) > 0) {
+      return c.json({ error: "Setup is already complete. Sign in instead." }, 409);
+    }
     return c.json({ error: "Could not create the administrator account. Check the Worker logs for details." }, 500);
   }
   return c.json({ ok: true, user: { id, email } });
@@ -261,8 +269,8 @@ app.get("/api/mail/:id/attachments/:attId", async (c) => {
   if (!obj) return c.json({ error: "Attachment object is missing from R2." }, 404);
   return new Response(obj.body, {
     headers: {
-      "content-type": att.content_type,
-      "content-disposition": `attachment; filename="${att.filename.replace(/"/g, "")}"`,
+      "content-type": safeContentType(att.content_type),
+      "content-disposition": `attachment; filename="${safeFilename(att.filename)}"`,
     },
   });
 });
@@ -311,6 +319,7 @@ app.post("/api/mail/send", async (c) => {
     return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
   }
   if (!subject) return c.json({ error: "Subject is required." }, 400);
+  if (!HEADER_VALUE_RE.test(subject)) return c.json({ error: "Subject cannot contain line breaks." }, 400);
 
   const fromMailbox = await pickFromMailbox(c.env.DB, user.id, body.from);
   if (!fromMailbox) {
@@ -372,6 +381,16 @@ function parseRecipients(value: string): string[] {
   const recipients = value.split(",").map((recipient) => recipient.trim()).filter(Boolean);
   if (recipients.some((recipient) => !EMAIL_RE.test(recipient))) return [];
   return [...new Set(recipients.map((recipient) => recipient.toLowerCase()))];
+}
+
+function safeFilename(value: string): string {
+  return value.replace(/["\r\n]/g, "_").slice(0, 180) || "attachment";
+}
+
+function safeContentType(value: string): string {
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+(?:;[^\r\n]*)?$/i.test(value)
+    ? value
+    : "application/octet-stream";
 }
 
 function dnsRecords(domain: string) {

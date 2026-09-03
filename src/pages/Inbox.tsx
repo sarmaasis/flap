@@ -91,23 +91,25 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         <a className="brand" href="/app" onClick={(e) => { e.preventDefault(); go("/app"); }}>
           Inlet
         </a>
-        <button className="btn" style={{ width: "100%", marginBottom: 10 }} onClick={() => { setShowCompose(true); if (window.location.pathname !== "/app/compose") window.history.replaceState({}, "", "/app/compose"); }}>
+        <button className="btn compose-button" onClick={() => { setShowCompose(true); if (window.location.pathname !== "/app/compose") window.history.replaceState({}, "", "/app/compose"); }}>
           Compose
         </button>
-        {FOLDERS.map((f) => (
-          <button
-            key={f.id}
-            className={`side-btn${folder === f.id ? " active" : ""}`}
-            onClick={() => {
-              setFolder(f.id);
-              setSelected(null);
-              setQ("");
-              go("/app");
-            }}
-          >
-            {f.label}
-          </button>
-        ))}
+        <nav className="folder-nav" aria-label="Mail folders">
+          {FOLDERS.map((f) => (
+            <button
+              key={f.id}
+              className={`side-btn${folder === f.id ? " active" : ""}`}
+              onClick={() => {
+                setFolder(f.id);
+                setSelected(null);
+                setQ("");
+                go("/app");
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </nav>
         <div className="side-foot">
           <button className="side-btn" onClick={() => go("/app/settings")}>Settings</button>
           <button className="side-btn" onClick={() => void logout()}>Sign out</button>
@@ -116,7 +118,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       </aside>
 
       <div className="workspace">
-        <section className="list-pane">
+        <section className={`list-pane${message ? " has-selection" : ""}`}>
           <div className="list-head">
             <h2>{title}</h2>
             <input
@@ -156,11 +158,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </section>
 
-        <section className="read-pane">
+        <section className={`read-pane${message ? " has-message" : ""}`}>
           {!message ? (
             <div className="read-empty">Select a message, or compose a new one.</div>
           ) : (
             <>
+              <button className="mobile-back" onClick={() => setSelected(null)}>Back to {title}</button>
               <div className="read-head">
                 <h2>{message.subject || "(no subject)"}</h2>
                 <div className="read-kv">From {message.from_addr || "(unknown)"}</div>
