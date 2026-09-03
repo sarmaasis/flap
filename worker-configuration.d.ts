@@ -5,4 +5,11 @@ interface Env {
   SEB?: SendEmail;
   SESSION_SECRET: string;
   APP_URL: string;
+  SAAS_MODE?: string;
+  DODO_PAYMENTS_API_KEY?: string;
+  DODO_PAYMENTS_WEBHOOK_KEY?: string;
+  DODO_PAYMENTS_ENVIRONMENT?: string;
+  DODO_PRODUCT_STARTER?: string;
+  DODO_PRODUCT_PRO?: string;
+  DODO_PRODUCT_BUSINESS?: string;
 }

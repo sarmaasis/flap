@@ -11,7 +11,7 @@ export type UserRow = {
 
 type AppEnv = { Bindings: Env };
 
-const COOKIE = "inlet_session";
+const COOKIE = "flap_session";
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function userCount(db: D1Database): Promise<number> {

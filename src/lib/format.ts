@@ -36,7 +36,7 @@ export function extractEmail(value: string) {
 export function quoteHtml(from: string, dateMs: number, html: string, text: string) {
   const when = new Date(dateMs).toLocaleString();
   const inner = html || `<pre>${escapeHtml(text)}</pre>`;
-  return `<p></p><blockquote class="inlet-quote"><p>On ${escapeHtml(when)}, ${escapeHtml(from)} wrote:</p>${inner}</blockquote>`;
+  return `<p></p><blockquote class="flap-quote"><p>On ${escapeHtml(when)}, ${escapeHtml(from)} wrote:</p>${inner}</blockquote>`;
 }
 
 export function escapeHtml(value: string) {

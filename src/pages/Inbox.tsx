@@ -21,7 +21,7 @@ const EMPTY: Record<string, string> = {
   inbox: "You're all caught up. New mail for your domain will land here.",
   starred: "Star messages you want to find again.",
   snoozed: "Nothing is waiting to come back. Snooze a message from the reader.",
-  drafts: "No drafts yet. Inlet saves them as you write.",
+  drafts: "No drafts yet. Flap saves them as you write.",
   scheduled: "No messages waiting to send.",
   sent: "Nothing sent yet. Compose a message to get started.",
   archive: "Archived mail lives here, out of the way.",
@@ -51,6 +51,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [loadingMessage, setLoadingMessage] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [thread, setThread] = useState<MailSummary[]>([]);
+  const [notifyBrowser, setNotifyBrowser] = useState(false);
+  const lastUnreadRef = useRef<number | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setQDebounced(q.trim()), 280);
@@ -65,6 +69,13 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setContacts(data.contacts);
     setTemplates(data.templates);
     setSignatures(data.signatures);
+    setNotifyBrowser(Boolean(data.settings.notify_browser));
+    if (data.mailboxes.length === 0) {
+      const domains = await api.domains().catch(() => ({ domains: [] as { id: string }[] }));
+      setNeedsSetup(domains.domains.length === 0 || data.mailboxes.length === 0);
+    } else {
+      setNeedsSetup(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -96,15 +107,22 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     if (!selected) {
       setMessage(null);
       setAtts([]);
+      setThread([]);
       return;
     }
     const ac = new AbortController();
     setLoadingMessage(true);
     api.message(selected, ac.signal)
-      .then((d) => {
+      .then(async (d) => {
         setMessage(d.message);
         setAtts(d.attachments);
         setList((prev) => prev.map((m) => (m.id === selected ? { ...m, unread: 0 } : m)));
+        try {
+          const t = await api.thread(selected, ac.signal);
+          if (!ac.signal.aborted) setThread(t.messages);
+        } catch {
+          if (!ac.signal.aborted) setThread([]);
+        }
       })
       .catch((ex: unknown) => {
         if (ex instanceof DOMException && ex.name === "AbortError") return;
@@ -121,15 +139,24 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   useEffect(() => {
     const id = window.setInterval(() => {
       void api.counts().then((d) => {
-        setCounts(d.counts);
         const inboxUnread = d.counts.inbox?.unread ?? 0;
-        if (folder === "inbox" && qDebounced.length < 2 && inboxUnread > (counts.inbox?.unread ?? 0)) {
-          void loadList();
+        const prev = lastUnreadRef.current ?? counts.inbox?.unread ?? 0;
+        if (lastUnreadRef.current !== null && inboxUnread > prev) {
+          if (folder === "inbox" && qDebounced.length < 2) void loadList();
+          if (notifyBrowser && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              new Notification("Flap", { body: `You have ${inboxUnread} unread message${inboxUnread === 1 ? "" : "s"}.`, tag: "flap-mail" });
+            } catch {
+              /* ignore notification failures */
+            }
+          }
         }
+        lastUnreadRef.current = inboxUnread;
+        setCounts(d.counts);
       }).catch(() => undefined);
-    }, 20000);
+    }, 8000);
     return () => window.clearInterval(id);
-  }, [counts.inbox?.unread, folder, loadList, qDebounced.length]);
+  }, [counts.inbox?.unread, folder, loadList, notifyBrowser, qDebounced.length]);
 
   const title = useMemo(() => FOLDERS.find((f) => f.id === folder)?.label ?? "Inbox", [folder]);
 
@@ -215,7 +242,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }
 
   const keyCtx = useRef({ list, selected, message, showCompose, folder, openCompose, reply, forward: () => undefined as void, move, toggleStar, onRowClick });
-  keyCtx.current = { list, selected, message, showCompose, folder, openCompose, reply, move, toggleStar, onRowClick, forward: () => undefined };
+  keyCtx.current = { list, selected, message, showCompose, folder, openCompose, reply, move, toggleStar, onRowClick, forward };
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
@@ -234,8 +261,16 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       }
       if (!ctx.message) return;
       if (event.key === "r") { event.preventDefault(); ctx.reply(false); }
+      if (event.key === "f") { event.preventDefault(); ctx.forward(); }
       if (event.key === "e") { event.preventDefault(); void ctx.move(ctx.message.id, "archive"); }
       if (event.key === "s") { event.preventDefault(); void ctx.toggleStar(ctx.message); }
+      if (event.key === "u") {
+        event.preventDefault();
+        void api.flags(ctx.message.id, { unread: true }).then(() => {
+          setList((prev) => prev.map((item) => (item.id === ctx.message!.id ? { ...item, unread: 1 } : item)));
+          setMessage((prev) => (prev ? { ...prev, unread: 1 } : prev));
+        });
+      }
       if (event.key === "#") { event.preventDefault(); void ctx.move(ctx.message.id, "trash"); }
     }
     window.addEventListener("keydown", onKey);
@@ -261,12 +296,24 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       }}
       onLogout={() => void logout()}
     >
+      <div className="mail-main">
+        {needsSetup && folder === "inbox" && !qDebounced ? (
+          <div className="onboarding-banner inbox-onboarding" role="status">
+            <div>
+              <strong>Finish setup to receive mail</strong>
+              <p>Add your domain and create a mailbox in Settings, then point Cloudflare Email Routing at Flap.</p>
+            </div>
+            <button type="button" className="btn" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+              Open setup checklist
+            </button>
+          </div>
+        ) : null}
       <div className="workspace">
         <section className={`list-pane${message ? " has-selection" : ""}`}>
           <div className="list-head">
             <div className="list-title-row">
               <div>
-                <span className="eyebrow">{qDebounced ? "Search results" : "Mailbox"}</span>
+                <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
                 <h2>{qDebounced ? `Results for “${qDebounced}”` : title}</h2>
               </div>
               <span className="mail-count">{loadingList ? "…" : list.length}</span>
@@ -292,8 +339,19 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               </div>
             ) : list.length === 0 ? (
               <div className="empty-panel">
-                <strong>{qDebounced ? "No matches" : `No ${title.toLowerCase()} yet`}</strong>
-                <p>{qDebounced ? "Try a different name, subject, or phrase." : EMPTY[folder]}</p>
+                <strong>{qDebounced ? "No matches" : needsSetup ? "No mailbox yet" : `No ${title.toLowerCase()} yet`}</strong>
+                <p>
+                  {qDebounced
+                    ? "Try a different name, subject, or phrase."
+                    : needsSetup
+                      ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
+                      : EMPTY[folder]}
+                </p>
+                {needsSetup && !qDebounced ? (
+                  <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+                    Start setup
+                  </button>
+                ) : null}
               </div>
             ) : (
               list.map((m) => (
@@ -337,11 +395,37 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                   </div>
                 </div>
               </div>
+              {message.label ? <div className="label-chip">{message.label}</div> : null}
+              {thread.length > 1 ? (
+                <div className="thread-rail" aria-label="Conversation">
+                  <div className="thread-rail-title">Thread · {thread.length}</div>
+                  {thread.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`thread-item${item.id === message.id ? " active" : ""}`}
+                      onClick={() => setSelected(item.id)}
+                    >
+                      <span>
+                        <strong>{item.subject || "(no subject)"}</strong>
+                        {senderName(item.from_addr)}
+                      </span>
+                      <span>{fmtDate(item.date_ms)}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="read-actions">
                 <button type="button" className="btn" onClick={() => reply(false)}>Reply</button>
                 <button type="button" className="btn btn-ghost" onClick={() => reply(true)}>Reply all</button>
                 <button type="button" className="btn btn-ghost" onClick={forward}>Forward</button>
                 <button type="button" className="btn btn-ghost" onClick={() => void toggleStar(message)}>{message.starred ? "Unstar" : "Star"}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => {
+                  void api.flags(message.id, { unread: true }).then(() => {
+                    setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, unread: 1 } : item)));
+                    setMessage({ ...message, unread: 1 });
+                  });
+                }}>Mark unread</button>
                 <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "archive")}>Archive</button>
                 <button type="button" className="btn btn-ghost" onClick={() => setSnoozeOpen((v) => !v)}>Snooze</button>
                 {folder !== "spam" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "spam")}>Spam</button> : null}
@@ -383,6 +467,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           )}
         </section>
       </div>
+      </div>
 
       {showCompose ? (
         <Suspense fallback={<div className="modal-back"><div className="modal"><p className="muted">Opening composer…</p></div></div>}>
@@ -404,16 +489,20 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       {helpOpen ? (
         <div className="modal-back" onClick={() => setHelpOpen(false)}>
           <div className="modal shortcuts-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="compose-title"><h2>Keyboard shortcuts</h2><button type="button" className="icon-btn" onClick={() => setHelpOpen(false)}>×</button></div>
+            <div className="compose-title"><h2>Keyboard shortcuts</h2><button type="button" className="icon-btn" onClick={() => setHelpOpen(false)} aria-label="Close">×</button></div>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Press <kbd>?</kbd> anytime in the inbox. Shortcuts ignore focused inputs.</p>
             <ul className="shortcut-list">
+              <li><kbd>?</kbd> This help</li>
               <li><kbd>c</kbd> Compose</li>
               <li><kbd>r</kbd> Reply</li>
+              <li><kbd>f</kbd> Forward</li>
               <li><kbd>e</kbd> Archive</li>
               <li><kbd>s</kbd> Star</li>
+              <li><kbd>u</kbd> Mark unread</li>
               <li><kbd>#</kbd> Trash</li>
               <li><kbd>j</kbd> / <kbd>k</kbd> Next / previous</li>
               <li><kbd>/</kbd> Search</li>
-              <li><kbd>⌘</kbd>+<kbd>Enter</kbd> Send</li>
+              <li><kbd>⌘</kbd>+<kbd>Enter</kbd> Send (in compose)</li>
             </ul>
           </div>
         </div>
@@ -447,7 +536,7 @@ const MessageRow = memo(function MessageRow({
         </div>
         <div className="mail-summary">
           <div className="subj">{row.subject || "(no subject)"}</div>
-          <span className="message-chip">{row.has_attachments ? "Attachment" : row.folder === "drafts" ? "Draft" : "Message"}</span>
+          <span className="message-chip">{row.label || (row.has_attachments ? "Attachment" : row.folder === "drafts" ? "Draft" : "Message")}</span>
         </div>
         {row.snippet ? <div className="preview">{row.snippet}</div> : null}
       </button>

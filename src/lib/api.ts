@@ -1,6 +1,6 @@
 export type User = { id: string; email: string; created_at?: number };
 export type Mailbox = { id: string; domain_id?: string; local_part?: string; address: string; display_name?: string; created_at?: number; domain?: string };
-export type Domain = { id: string; name: string; created_at: number };
+export type Domain = { id: string; name: string; catch_all_mailbox_id?: string | null; created_at: number };
 export type FolderCounts = Record<string, { total: number; unread: number }>;
 export type MailSummary = {
   id: string;
@@ -18,9 +18,17 @@ export type MailSummary = {
   snooze_until?: number | null;
   scheduled_at?: number | null;
   snippet?: string;
+  label?: string;
+  thread_id?: string | null;
   created_at: number;
 };
-export type MailFull = MailSummary & { text_body: string; html_body: string; in_reply_to?: string | null };
+export type MailFull = MailSummary & {
+  text_body: string;
+  html_body: string;
+  in_reply_to?: string | null;
+  rfc_message_id?: string | null;
+  references_header?: string | null;
+};
 export type Attachment = { id: string; filename: string; content_type: string; size: number };
 export type Contact = { id: string; email: string; name: string; last_used_at: number; created_at?: number };
 export type Template = { id: string; name: string; subject: string; html_body: string; text_body: string; created_at?: number; updated_at?: number };
@@ -32,12 +40,38 @@ export type Filter = {
   match_to: string;
   match_subject: string;
   action: string;
+  forward_to?: string;
+  label?: string;
+  is_catch_all?: number;
   enabled: number;
   created_at: number;
 };
 export type BlockedSender = { id: string; address: string; created_at: number };
 export type ApiKey = { id: string; name: string; key_prefix: string; created_at: number; last_used_at: number | null; token?: string };
-export type Prefs = { vacation_enabled: number; vacation_body: string };
+export type Alias = {
+  id: string;
+  mailbox_id: string;
+  domain_id: string;
+  local_part: string;
+  address: string;
+  label: string;
+  disposable: number;
+  expires_at: number | null;
+  enabled: number;
+  created_at: number;
+};
+export type Webhook = {
+  id: string;
+  name: string;
+  url: string;
+  events: string;
+  enabled: number;
+  created_at: number;
+  last_triggered_at: number | null;
+  secret?: string;
+};
+export type Prefs = { vacation_enabled: number; vacation_body: string; notify_browser?: number };
+export type TeamInvite = { id: string; email: string; role: string; status: string; created_at: number };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -69,14 +103,54 @@ export type SendPayload = {
   attachments?: { filename: string; content_type: string; data: string }[];
 };
 
+export type PlanSummary = {
+  id: string;
+  name: string;
+  price_monthly: number;
+  blurb: string;
+  features: string[];
+  limits: Record<string, number>;
+  highlighted?: boolean;
+  checkout_available?: boolean;
+};
+
+export type BillingSubscription = {
+  plan_id: string;
+  status: string;
+  limits: Record<string, number>;
+  usage: Record<string, number>;
+  checkout_configured?: boolean;
+  portal_available?: boolean;
+  support_email?: string;
+  subscription: {
+    id: string;
+    dodo_subscription_id: string | null;
+    dodo_customer_id?: string | null;
+    current_period_end: number | null;
+    cancel_at_period_end: boolean;
+  };
+  plan: PlanSummary;
+};
+
 export const api = {
-  setupStatus: () => req<{ needs_setup: boolean }>("/api/setup/status"),
+  setupStatus: () => req<{ needs_setup: boolean; signup_open?: boolean }>("/api/setup/status"),
   setup: (email: string, password: string) =>
     req<{ ok: boolean; user: User }>("/api/setup", { method: "POST", body: JSON.stringify({ email, password }) }),
+  signup: (email: string, password: string, name?: string) =>
+    req<{ ok: boolean; user: User }>("/api/signup", { method: "POST", body: JSON.stringify({ email, password, name }) }),
   login: (email: string, password: string) =>
     req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => req<{ ok: boolean }>("/api/logout", { method: "POST" }),
   me: () => req<{ user: User; mailboxes: Mailbox[] }>("/api/me"),
+  billingPlans: () => req<{ plans: PlanSummary[]; checkout_configured?: boolean; support_email?: string }>("/api/billing/plans"),
+  billingSubscription: () => req<BillingSubscription>("/api/billing/subscription"),
+  billingCheckout: (plan: string) =>
+    req<{ checkout_url: string; session_id: string }>("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan }),
+    }),
+  billingPortal: () =>
+    req<{ portal_url: string }>("/api/billing/portal", { method: "POST", body: "{}" }),
   bootstrap: () =>
     req<{
       user: User;
@@ -92,6 +166,8 @@ export const api = {
   domains: () => req<{ domains: Domain[] }>("/api/domains"),
   createDomain: (name: string) =>
     req<{ domain: Domain }>("/api/domains", { method: "POST", body: JSON.stringify({ name }) }),
+  updateDomain: (id: string, catch_all_mailbox_id: string | null) =>
+    req<{ ok: boolean }>(`/api/domains/${id}`, { method: "PATCH", body: JSON.stringify({ catch_all_mailbox_id }) }),
   deleteDomain: (id: string) => req<{ ok: boolean }>(`/api/domains/${id}`, { method: "DELETE" }),
   mailboxes: () => req<{ mailboxes: Mailbox[] }>("/api/mailboxes"),
   createMailbox: (domain_id: string, local_part: string) =>
@@ -106,6 +182,8 @@ export const api = {
       { signal },
     ),
   message: (id: string, signal?: AbortSignal) => req<{ message: MailFull; attachments: Attachment[] }>(`/api/mail/${id}`, { signal }),
+  thread: (id: string, signal?: AbortSignal) =>
+    req<{ thread_id: string; messages: MailSummary[] }>(`/api/mail/${id}/thread`, { signal }),
   move: (id: string, folder: string) =>
     req<{ ok: boolean }>(`/api/mail/${id}/move`, { method: "POST", body: JSON.stringify({ folder }) }),
   flags: (id: string, flags: { unread?: boolean; starred?: boolean; snooze_until?: number | null }) =>
@@ -134,8 +212,16 @@ export const api = {
     req<{ ok: boolean }>(`/api/signatures/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteSignature: (id: string) => req<{ ok: boolean }>(`/api/signatures/${id}`, { method: "DELETE" }),
   filters: () => req<{ filters: Filter[] }>("/api/filters"),
-  createFilter: (body: { name: string; match_from?: string; match_to?: string; match_subject?: string; action: string }) =>
-    req<{ filter: Filter }>("/api/filters", { method: "POST", body: JSON.stringify(body) }),
+  createFilter: (body: {
+    name: string;
+    match_from?: string;
+    match_to?: string;
+    match_subject?: string;
+    action: string;
+    forward_to?: string;
+    label?: string;
+    is_catch_all?: boolean;
+  }) => req<{ filter: Filter }>("/api/filters", { method: "POST", body: JSON.stringify(body) }),
   toggleFilter: (id: string) => req<{ ok: boolean; enabled: number }>(`/api/filters/${id}/toggle`, { method: "POST" }),
   deleteFilter: (id: string) => req<{ ok: boolean }>(`/api/filters/${id}`, { method: "DELETE" }),
   blocked: () => req<{ blocked: BlockedSender[] }>("/api/blocked"),
@@ -144,8 +230,23 @@ export const api = {
   keys: () => req<{ keys: ApiKey[] }>("/api/keys"),
   createKey: (name: string) => req<{ key: ApiKey }>("/api/keys", { method: "POST", body: JSON.stringify({ name }) }),
   deleteKey: (id: string) => req<{ ok: boolean }>(`/api/keys/${id}`, { method: "DELETE" }),
+  aliases: () => req<{ aliases: Alias[] }>("/api/aliases"),
+  createAlias: (body: { mailbox_id: string; local_part: string; label?: string; disposable?: boolean; expires_at?: number | null }) =>
+    req<{ alias: Alias }>("/api/aliases", { method: "POST", body: JSON.stringify(body) }),
+  deleteAlias: (id: string) => req<{ ok: boolean }>(`/api/aliases/${id}`, { method: "DELETE" }),
+  webhooks: () => req<{ webhooks: Webhook[] }>("/api/webhooks"),
+  createWebhook: (body: { name?: string; url: string; events?: string }) =>
+    req<{ webhook: Webhook }>("/api/webhooks", { method: "POST", body: JSON.stringify(body) }),
+  toggleWebhook: (id: string) => req<{ ok: boolean; enabled: number }>(`/api/webhooks/${id}/toggle`, { method: "POST" }),
+  deleteWebhook: (id: string) => req<{ ok: boolean }>(`/api/webhooks/${id}`, { method: "DELETE" }),
+  team: () => req<{ deferred: boolean; message: string; invites: TeamInvite[] }>("/api/team"),
+  inviteTeam: (email: string, role?: string) =>
+    req<{ invite: TeamInvite; deferred: boolean; message: string }>("/api/team/invites", {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
-  savePrefs: (body: { vacation_enabled: boolean; vacation_body: string }) =>
+  savePrefs: (body: { vacation_enabled?: boolean; vacation_body?: string; notify_browser?: boolean }) =>
     req<{ ok: boolean }>("/api/settings/prefs", { method: "PUT", body: JSON.stringify(body) }),
   exportBackup: async () => {
     const res = await fetch("/api/export", { credentials: "same-origin" });
@@ -154,10 +255,12 @@ export const api = {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "inlet-backup.json";
+    a.download = "flap-backup.json";
     a.click();
     URL.revokeObjectURL(url);
   },
+  restoreBackup: (payload: unknown) =>
+    req<{ ok: boolean; restored: number }>("/api/restore", { method: "POST", body: JSON.stringify(payload) }),
 };
 
 export type DnsRecords = {

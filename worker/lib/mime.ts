@@ -11,7 +11,7 @@ export function buildRawMime(opts: {
   inReplyTo?: string;
 }): string {
   const date = new Date().toUTCString();
-  const messageId = opts.messageId ?? `<${crypto.randomUUID()}@inlet.local>`;
+  const messageId = opts.messageId ?? `<${crypto.randomUUID()}@flap.local>`;
   const subject = encodeHeader(opts.subject);
   const headers = [
     `From: ${opts.from}`,
@@ -25,8 +25,8 @@ export function buildRawMime(opts: {
   ];
 
   if (opts.attachments?.length) {
-    const mixedBoundary = `inlet_mixed_${crypto.randomUUID().replace(/-/g, "")}`;
-    const alternative = buildAlternative(opts, `inlet_alt_${crypto.randomUUID().replace(/-/g, "")}`);
+    const mixedBoundary = `flap_mixed_${crypto.randomUUID().replace(/-/g, "")}`;
+    const alternative = buildAlternative(opts, `flap_alt_${crypto.randomUUID().replace(/-/g, "")}`);
     headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
     const attachments = opts.attachments.map((attachment) => {
       const filename = safeMimeFilename(attachment.filename);
@@ -36,7 +36,7 @@ export function buildRawMime(opts: {
   }
 
   if (opts.html) {
-    const boundary = `inlet_${crypto.randomUUID().replace(/-/g, "")}`;
+    const boundary = `flap_${crypto.randomUUID().replace(/-/g, "")}`;
     headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
     return (
       headers.join("\r\n") +

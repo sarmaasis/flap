@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { FolderCounts } from "../lib/api";
 import { go } from "../lib/nav";
+import BrandMark from "./BrandMark";
 
 export const FOLDERS = [
   { id: "inbox", label: "Inbox" },
@@ -37,16 +38,16 @@ export default function AppShell({
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="/app" onClick={(e) => { e.preventDefault(); go("/app"); }}>
-          <span className="app-mark" aria-hidden>i</span>
-          <span>Inlet</span>
+          <BrandMark />
+          <span>Flap</span>
         </a>
         {onCompose ? (
           <button className="btn compose-button" type="button" onClick={onCompose}>
-            <span aria-hidden>＋</span> Compose
+            Compose
           </button>
         ) : (
           <button className="btn compose-button" type="button" onClick={() => go("/app/compose")}>
-            <span aria-hidden>＋</span> Compose
+            Compose
           </button>
         )}
         <nav className="folder-nav" aria-label="Mail folders">
@@ -73,9 +74,13 @@ export default function AppShell({
           })}
         </nav>
         <div className="side-foot">
-          <button type="button" className={`side-btn${current === "settings" ? " active" : ""}`} onClick={() => go("/app/settings")}>Settings</button>
-          <button type="button" className="side-btn" onClick={() => void onLogout()}>Sign out</button>
-          <div className="muted side-email">{email}</div>
+          <button type="button" className={`side-btn${current === "settings" ? " active" : ""}`} onClick={() => go("/app/settings")}>
+            Settings
+          </button>
+          <button type="button" className="side-btn" onClick={() => void onLogout()}>
+            Sign out
+          </button>
+          <div className="muted side-email" title={email}>{email}</div>
         </div>
       </aside>
       {children}

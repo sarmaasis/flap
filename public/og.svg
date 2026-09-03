@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#0b0d12"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#g)"/>
+  <defs>
+    <radialGradient id="g" cx="20%" cy="0%" r="70%">
+      <stop offset="0%" stop-color="#3dd6c3" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#0b0d12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="72" y="72" width="72" height="72" rx="14" fill="#3dd6c3"/>
+  <path d="M88 98.5L108 112l20-13.5V128a4 4 0 0 1-4 4H92a4 4 0 0 1-4-4V98.5z" fill="#061412"/>
+  <path d="M88 98.5L108 112l20-13.5L108 88 88 98.5z" fill="#1a6f66"/>
+  <text x="72" y="220" fill="#eef1f6" font-family="Sora, system-ui, sans-serif" font-size="84" font-weight="700">Flap</text>
+  <text x="72" y="290" fill="#9aa6b8" font-family="Chakra Petch, system-ui, sans-serif" font-size="36">Custom-domain email that ships as a product</text>
+  <text x="72" y="540" fill="#3dd6c3" font-family="IBM Plex Mono, monospace" font-size="28">useflap.online</text>
+</svg>

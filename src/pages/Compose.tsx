@@ -135,7 +135,7 @@ export default function Compose({
     try {
       const encoded = await Promise.all(selected.map(async (file) => ({ filename: file.name, content_type: file.type || "application/octet-stream", data: await fileToDataUrl(file) })));
       const total = [...attachments, ...encoded].reduce((size, file) => size + Math.ceil(file.data.length * 0.75), 0);
-      if (total > 25 * 1024 * 1024) { setErr("Attachments exceed Inlet’s 25 MB limit."); return; }
+      if (total > 25 * 1024 * 1024) { setErr("Attachments exceed Flap’s 25 MB limit."); return; }
       setAttachments((current) => [...current, ...encoded]);
       markDirty();
     } catch { setErr("Could not read one of the selected files."); }

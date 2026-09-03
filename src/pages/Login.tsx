@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import BrandMark from "../components/BrandMark";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
 import { go } from "../lib/nav";
 
@@ -32,21 +36,39 @@ export default function Login() {
   return (
     <div className="auth-shell">
       <form className="auth-card" onSubmit={onSubmit}>
-        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }} style={{ marginBottom: 18 }}>Inlet</a>
+        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
+          <BrandMark /> Flap
+        </a>
         <h1>Sign in</h1>
-        <p className="sub">Use the admin you created on this Worker.</p>
-        {err ? <div className="err">{err}</div> : null}
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input id="email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <p className="muted">Access your Flap workspace at useflap.online.</p>
+        {err ? <p className="error" role="alert">{err}</p> : null}
+        <div className="stack gap-3">
+          <div className="stack gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="stack gap-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? "Signing in…" : "Sign in"}
+          </Button>
         </div>
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </div>
-        <button className="btn" type="submit" disabled={busy} style={{ width: "100%" }}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+        <p className="muted mt-4 text-sm">
+          New here?{" "}
+          <a href="/signup" onClick={(e) => { e.preventDefault(); go("/signup"); }}>Create a free workspace</a>
+        </p>
+        <p className="muted mt-2 text-xs">
+          Need help? <a href="mailto:support@useflap.online">support@useflap.online</a>
+        </p>
       </form>
     </div>
   );

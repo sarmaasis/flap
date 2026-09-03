@@ -2,7 +2,15 @@ import PostalMime from "postal-mime";
 import { randomId, nowMs } from "./lib/ids";
 import { splitHeadersBody } from "./lib/mime";
 import { isNoReply, makeSnippet } from "./lib/mailutil";
-import { applyInboundPolicy, maybeVacationReply, touchContact } from "./lib/workspace";
+import {
+  applyInboundPolicy,
+  fireWebhooks,
+  maybeForwardInbound,
+  maybeVacationReply,
+  normalizeMessageId,
+  resolveThreadId,
+  touchContact,
+} from "./lib/workspace";
 
 type MailboxRow = {
   id: string;
@@ -14,7 +22,7 @@ type MailboxRow = {
 export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   const rawBuf = await new Response(message.raw).arrayBuffer();
   if (rawBuf.byteLength > 25 * 1024 * 1024) {
-    message.setReject("This message exceeds Inlet's 25 MB inbound size limit.");
+    message.setReject("This message exceeds Flap's 25 MB inbound size limit.");
     return;
   }
   const parsed = await parseMessage(rawBuf);
@@ -27,7 +35,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
 
   const mailbox = await resolveMailbox(env.DB, recipients);
   if (!mailbox) {
-    message.setReject("This recipient is not configured in Inlet.");
+    message.setReject("This recipient is not configured in Flap.");
     return;
   }
   const userId = mailbox.user_id;
@@ -41,6 +49,10 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   const id = randomId("msg");
   const now = nowMs();
   const dateMs = parsed.dateMs ?? now;
+  const rfcMessageId = normalizeMessageId(parsed.messageId) || `<${id}@flap.local>`;
+  const inReplyTo = normalizeMessageId(parsed.inReplyTo);
+  const referencesHeader = (parsed.references || "").slice(0, 4000);
+  const threadId = await resolveThreadId(env.DB, userId, rfcMessageId, inReplyTo, referencesHeader);
   const storeAtt = Boolean(parsed.attachments.length && env.INLET_ATTACHMENTS);
   const hasAttachments = storeAtt ? 1 : 0;
   if (parsed.attachments.length && !env.INLET_ATTACHMENTS) {
@@ -48,12 +60,15 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   }
 
   await env.DB.prepare(
-    `INSERT INTO messages (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+    `INSERT INTO messages
+      (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body,
+       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
       userId,
-      mailbox?.id ?? null,
+      mailbox.id,
       policy.folder,
       parsed.from,
       recipients.join(", ") || message.to,
@@ -65,6 +80,11 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
       hasAttachments,
       policy.starred,
       snippet,
+      inReplyTo || null,
+      rfcMessageId,
+      referencesHeader,
+      threadId,
+      policy.label,
       now,
     )
     .run();
@@ -72,6 +92,19 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   if (policy.folder === "inbox" && !isNoReply(parsed.from)) {
     await maybeVacationReply(env, userId, mailbox.address, parsed.from).catch((error) => console.warn("vacation", error));
   }
+  if (policy.forward_to) {
+    await maybeForwardInbound(env, mailbox.address, policy.forward_to, parsed.subject, parsed.text, parsed.html).catch(
+      (error) => console.warn("forward", error),
+    );
+  }
+  await fireWebhooks(env, userId, "mail.received", {
+    id,
+    from: parsed.from,
+    to: recipients.join(", ") || message.to,
+    subject: parsed.subject,
+    folder: policy.folder,
+    label: policy.label,
+  }).catch((error) => console.warn("webhook", error));
 
   if (storeAtt && env.INLET_ATTACHMENTS) {
     for (const att of parsed.attachments) {
@@ -100,6 +133,9 @@ type Parsed = {
   dateMs: number | null;
   text: string;
   html: string;
+  messageId: string;
+  inReplyTo: string;
+  references: string;
   attachments: ParsedAtt[];
 };
 
@@ -117,6 +153,9 @@ async function parseMessage(raw: ArrayBuffer): Promise<Parsed> {
       dateMs: email.date ? Date.parse(email.date) || null : null,
       text: email.text ?? "",
       html: email.html ?? "",
+      messageId: email.messageId ?? "",
+      inReplyTo: email.inReplyTo ?? "",
+      references: email.references ?? "",
       attachments: (email.attachments ?? []).map((a) => ({
         filename: a.filename || "attachment",
         mimeType: a.mimeType || "application/octet-stream",
@@ -137,18 +176,50 @@ async function parseMessage(raw: ArrayBuffer): Promise<Parsed> {
       dateMs: split.headers["date"] ? Date.parse(split.headers["date"]) || null : null,
       text: split.text,
       html: split.html,
+      messageId: split.headers["message-id"] ?? "",
+      inReplyTo: split.headers["in-reply-to"] ?? "",
+      references: split.headers["references"] ?? "",
       attachments: [],
     };
   }
 }
 
 async function resolveMailbox(db: D1Database, addresses: string[]): Promise<MailboxRow | null> {
+  const now = nowMs();
   for (const addr of addresses) {
+    const lower = addr.toLowerCase();
     const row = await db
       .prepare("SELECT id, user_id, address, domain_id FROM mailboxes WHERE lower(address) = ?")
-      .bind(addr.toLowerCase())
+      .bind(lower)
       .first<MailboxRow>();
     if (row) return row;
+
+    const alias = await db
+      .prepare(
+        `SELECT m.id, m.user_id, m.address, m.domain_id
+         FROM aliases a
+         JOIN mailboxes m ON m.id = a.mailbox_id
+         WHERE lower(a.address) = ? AND a.enabled = 1
+           AND (a.expires_at IS NULL OR a.expires_at > ?)`,
+      )
+      .bind(lower, now)
+      .first<MailboxRow>();
+    if (alias) return alias;
+  }
+
+  for (const addr of addresses) {
+    const domainName = addr.split("@")[1]?.toLowerCase();
+    if (!domainName) continue;
+    const catchAll = await db
+      .prepare(
+        `SELECT m.id, m.user_id, m.address, m.domain_id
+         FROM domains d
+         JOIN mailboxes m ON m.id = d.catch_all_mailbox_id
+         WHERE lower(d.name) = ?`,
+      )
+      .bind(domainName)
+      .first<MailboxRow>();
+    if (catchAll) return catchAll;
   }
   return null;
 }
@@ -160,7 +231,7 @@ function formatAddr(from: { address?: string; name?: string } | undefined): stri
 }
 
 function extractAddresses(value: string): string[] {
-  const found = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+.[A-Z]{2,}/gi);
+  const found = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
   return found ?? [];
 }
 

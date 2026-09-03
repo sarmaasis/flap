@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { EmailMessage } from "cloudflare:email";
 import { requireUser } from "./auth";
+import { assertWithinLimit } from "./billing";
 import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
 import {
@@ -14,9 +15,14 @@ import {
 
 type App = { Bindings: Env };
 
-export type InboundPolicy = { folder: string; starred: number };
+export type InboundPolicy = {
+  folder: string;
+  starred: number;
+  label: string;
+  forward_to: string;
+};
 
-const FILTER_ACTIONS = new Set(["archive", "spam", "trash", "star", "inbox"]);
+const FILTER_ACTIONS = new Set(["archive", "spam", "trash", "star", "inbox", "label", "forward"]);
 
 export async function touchContact(db: D1Database, userId: string, address: string, name = ""): Promise<void> {
   const email = extractEmail(address);
@@ -45,37 +51,153 @@ export async function applyInboundPolicy(
     .prepare("SELECT id FROM blocked_senders WHERE user_id = ? AND address = ?")
     .bind(userId, from)
     .first();
-  if (blocked) return { folder: "spam", starred: 0 };
+  if (blocked) return { folder: "spam", starred: 0, label: "", forward_to: "" };
 
   const filters = await db
-    .prepare("SELECT match_from, match_to, match_subject, action FROM filters WHERE user_id = ? AND enabled = 1 ORDER BY created_at ASC")
+    .prepare(
+      `SELECT match_from, match_to, match_subject, action, forward_to, label, is_catch_all
+       FROM filters WHERE user_id = ? AND enabled = 1
+       ORDER BY is_catch_all ASC, created_at ASC`,
+    )
     .bind(userId)
-    .all<{ match_from: string; match_to: string; match_subject: string; action: string }>();
+    .all<{
+      match_from: string;
+      match_to: string;
+      match_subject: string;
+      action: string;
+      forward_to: string;
+      label: string;
+      is_catch_all: number;
+    }>();
 
+  let catchAll: InboundPolicy | null = null;
   for (const filter of filters.results ?? []) {
-    if (filter.match_from && !from.includes(filter.match_from.toLowerCase())) continue;
-    if (filter.match_to && !parsed.to.toLowerCase().includes(filter.match_to.toLowerCase())) continue;
-    if (filter.match_subject && !parsed.subject.toLowerCase().includes(filter.match_subject.toLowerCase())) continue;
-    if (!filter.match_from && !filter.match_to && !filter.match_subject) continue;
-    if (filter.action === "star") return { folder: "inbox", starred: 1 };
-    if (filter.action === "archive") return { folder: "archive", starred: 0 };
-    if (filter.action === "spam" || filter.action === "trash" || filter.action === "inbox") {
-      return { folder: filter.action, starred: 0 };
+    const isCatch = Boolean(filter.is_catch_all);
+    if (!isCatch) {
+      if (filter.match_from && !from.includes(filter.match_from.toLowerCase())) continue;
+      if (filter.match_to && !parsed.to.toLowerCase().includes(filter.match_to.toLowerCase())) continue;
+      if (filter.match_subject && !parsed.subject.toLowerCase().includes(filter.match_subject.toLowerCase())) continue;
+      if (!filter.match_from && !filter.match_to && !filter.match_subject) continue;
     }
+    const policy = policyFromAction(filter.action, filter.label, filter.forward_to);
+    if (isCatch) {
+      catchAll = policy;
+      continue;
+    }
+    return policy;
   }
-  return { folder: "inbox", starred: 0 };
+  return catchAll ?? { folder: "inbox", starred: 0, label: "", forward_to: "" };
+}
+
+function policyFromAction(action: string, label: string, forwardTo: string): InboundPolicy {
+  if (action === "star") return { folder: "inbox", starred: 1, label: "", forward_to: "" };
+  if (action === "label") return { folder: "inbox", starred: 0, label: label.trim(), forward_to: "" };
+  if (action === "forward") {
+    return { folder: "inbox", starred: 0, label: "", forward_to: extractEmail(forwardTo) };
+  }
+  if (action === "archive") return { folder: "archive", starred: 0, label: "", forward_to: "" };
+  if (action === "spam" || action === "trash" || action === "inbox") {
+    return { folder: action, starred: 0, label: "", forward_to: "" };
+  }
+  return { folder: "inbox", starred: 0, label: "", forward_to: "" };
 }
 
 export async function loadSettings(db: D1Database, userId: string) {
   return (
     (await db
-      .prepare("SELECT vacation_enabled, vacation_body FROM user_settings WHERE user_id = ?")
+      .prepare("SELECT vacation_enabled, vacation_body, notify_browser FROM user_settings WHERE user_id = ?")
       .bind(userId)
-      .first<{ vacation_enabled: number; vacation_body: string }>()) ?? {
+      .first<{ vacation_enabled: number; vacation_body: string; notify_browser: number }>()) ?? {
       vacation_enabled: 0,
       vacation_body: "",
+      notify_browser: 0,
     }
   );
+}
+
+export function normalizeMessageId(value: string | null | undefined): string {
+  if (!value) return "";
+  const match = value.match(/<[^>]+>/);
+  return (match ? match[0] : value.trim()).slice(0, 998);
+}
+
+export async function resolveThreadId(
+  db: D1Database,
+  userId: string,
+  rfcMessageId: string,
+  inReplyTo: string,
+  referencesHeader: string,
+): Promise<string> {
+  const candidates = [
+    ...referencesHeader.matchAll(/<[^>]+>/g),
+  ].map((m) => m[0]);
+  if (inReplyTo) candidates.unshift(inReplyTo);
+  for (const candidate of candidates) {
+    const row = await db
+      .prepare("SELECT thread_id FROM messages WHERE user_id = ? AND (rfc_message_id = ? OR id = ?) LIMIT 1")
+      .bind(userId, candidate, candidate.replace(/^<|>$/g, ""))
+      .first<{ thread_id: string | null }>();
+    if (row?.thread_id) return row.thread_id;
+  }
+  return rfcMessageId || randomId("thr");
+}
+
+export async function fireWebhooks(
+  env: Env,
+  userId: string,
+  event: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const rows = await env.DB.prepare(
+    "SELECT id, url, secret, events FROM webhooks WHERE user_id = ? AND enabled = 1",
+  )
+    .bind(userId)
+    .all<{ id: string; url: string; secret: string; events: string }>();
+  const body = JSON.stringify({ event, at: new Date().toISOString(), ...payload });
+  for (const hook of rows.results ?? []) {
+    const events = hook.events.split(",").map((e) => e.trim()).filter(Boolean);
+    if (events.length && !events.includes(event) && !events.includes("*")) continue;
+    try {
+      const signature = await sha256Hex(`${hook.secret}.${body}`);
+      await fetch(hook.url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-flap-event": event,
+          "x-flap-signature": signature,
+        },
+        body,
+      });
+      await env.DB.prepare("UPDATE webhooks SET last_triggered_at = ? WHERE id = ?")
+        .bind(nowMs(), hook.id)
+        .run();
+    } catch (error) {
+      console.warn("Webhook failed", hook.id, error);
+    }
+  }
+}
+
+export async function maybeForwardInbound(
+  env: Env,
+  fromMailbox: string,
+  forwardTo: string,
+  subject: string,
+  text: string,
+  html: string,
+): Promise<void> {
+  if (!env.SEB || !EMAIL_RE.test(forwardTo)) return;
+  const raw = buildRawMime({
+    from: fromMailbox,
+    to: forwardTo,
+    subject: subject.toLowerCase().startsWith("fwd:") ? subject : `Fwd: ${subject}`,
+    text,
+    html: html || undefined,
+  });
+  try {
+    await env.SEB.send(new EmailMessage(fromMailbox, forwardTo, raw));
+  } catch (error) {
+    console.warn("Inbound forward failed", error);
+  }
 }
 
 export async function maybeVacationReply(
@@ -158,7 +280,7 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
   if (!recipients.length) return "No valid recipients.";
   const attachments = await loadAttachmentContents(env, message.id);
   const envelopeFrom = extractEmail(message.from_addr) || message.from_addr;
-  const domain = envelopeFrom.split("@")[1] || "inlet.local";
+  const domain = envelopeFrom.split("@")[1] || "flap.local";
   const raw = buildRawMime({
     from: message.from_addr,
     to: message.to_addr,
@@ -436,16 +558,50 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       match_to?: string;
       match_subject?: string;
       action?: string;
+      forward_to?: string;
+      label?: string;
+      is_catch_all?: boolean;
     };
     const name = (body.name ?? "").trim();
     const action = (body.action ?? "").toLowerCase();
     if (!name) return c.json({ error: "Name is required." }, 400);
-    if (!FILTER_ACTIONS.has(action)) return c.json({ error: "Choose archive, spam, trash, star, or inbox." }, 400);
+    if (!FILTER_ACTIONS.has(action)) {
+      return c.json({ error: "Choose archive, spam, trash, star, inbox, label, or forward." }, 400);
+    }
+    if (action === "forward" && !EMAIL_RE.test(extractEmail(body.forward_to ?? ""))) {
+      return c.json({ error: "Forward rules need a valid destination address." }, 400);
+    }
+    if (action === "label" && !(body.label ?? "").trim()) {
+      return c.json({ error: "Label rules need a label name." }, 400);
+    }
+    const isCatchAll = Boolean(body.is_catch_all);
+    if (
+      !isCatchAll &&
+      !(body.match_from ?? "").trim() &&
+      !(body.match_to ?? "").trim() &&
+      !(body.match_subject ?? "").trim()
+    ) {
+      return c.json({ error: "Add a match condition, or mark the rule as catch-all." }, 400);
+    }
     const id = randomId("flt");
     await c.env.DB.prepare(
-      "INSERT INTO filters (id, user_id, name, match_from, match_to, match_subject, action, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
+      `INSERT INTO filters
+        (id, user_id, name, match_from, match_to, match_subject, action, forward_to, label, is_catch_all, enabled, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
     )
-      .bind(id, user.id, name, (body.match_from ?? "").trim().toLowerCase(), (body.match_to ?? "").trim().toLowerCase(), (body.match_subject ?? "").trim().toLowerCase(), action, nowMs())
+      .bind(
+        id,
+        user.id,
+        name,
+        (body.match_from ?? "").trim().toLowerCase(),
+        (body.match_to ?? "").trim().toLowerCase(),
+        (body.match_subject ?? "").trim().toLowerCase(),
+        action,
+        extractEmail(body.forward_to ?? ""),
+        (body.label ?? "").trim(),
+        isCatchAll ? 1 : 0,
+        nowMs(),
+      )
       .run();
     return c.json({ filter: { id, name, action } }, 201);
   });
@@ -524,7 +680,12 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const body = await c.req.json().catch(() => ({})) as { name?: string };
     const name = (body.name ?? "").trim() || "Transactional";
-    const token = `inl_${randomId("").slice(0, 32)}`;
+    const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?")
+      .bind(user.id)
+      .first<{ n: number }>();
+    const limit = await assertWithinLimit(c.env.DB, user.id, "api_keys", Number(count?.n ?? 0));
+    if (!limit.ok) return c.json({ error: limit.error }, limit.status);
+    const token = `flap_${randomId("").slice(0, 32)}`;
     const id = randomId("key");
     await c.env.DB.prepare(
       "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -553,14 +714,28 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.put("/api/settings/prefs", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const body = await c.req.json().catch(() => ({})) as { vacation_enabled?: boolean; vacation_body?: string };
+    const body = await c.req.json().catch(() => ({})) as {
+      vacation_enabled?: boolean;
+      vacation_body?: string;
+      notify_browser?: boolean;
+    };
     const now = nowMs();
+    const current = await loadSettings(c.env.DB, user.id);
+    const vacationEnabled =
+      typeof body.vacation_enabled === "boolean" ? (body.vacation_enabled ? 1 : 0) : current.vacation_enabled;
+    const vacationBody = typeof body.vacation_body === "string" ? body.vacation_body : current.vacation_body;
+    const notifyBrowser =
+      typeof body.notify_browser === "boolean" ? (body.notify_browser ? 1 : 0) : current.notify_browser;
     await c.env.DB.prepare(
-      `INSERT INTO user_settings (user_id, vacation_enabled, vacation_body, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET vacation_enabled = excluded.vacation_enabled, vacation_body = excluded.vacation_body, updated_at = excluded.updated_at`,
+      `INSERT INTO user_settings (user_id, vacation_enabled, vacation_body, notify_browser, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         vacation_enabled = excluded.vacation_enabled,
+         vacation_body = excluded.vacation_body,
+         notify_browser = excluded.notify_browser,
+         updated_at = excluded.updated_at`,
     )
-      .bind(user.id, body.vacation_enabled ? 1 : 0, body.vacation_body ?? "", now)
+      .bind(user.id, vacationEnabled, vacationBody, notifyBrowser, now)
       .run();
     return c.json({ ok: true });
   });
@@ -568,9 +743,9 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/export", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const [messages, mailboxes, contacts, templates, signatures] = await Promise.all([
+    const [messages, mailboxes, contacts, templates, signatures, filters, aliases] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, created_at
+        `SELECT id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, label, thread_id, rfc_message_id, created_at
          FROM messages WHERE user_id = ? ORDER BY date_ms DESC LIMIT 5000`,
       )
         .bind(user.id)
@@ -587,22 +762,268 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       c.env.DB.prepare("SELECT name, html_body, text_body, is_default FROM signatures WHERE user_id = ?")
         .bind(user.id)
         .all(),
+      c.env.DB.prepare(
+        "SELECT name, match_from, match_to, match_subject, action, forward_to, label, is_catch_all FROM filters WHERE user_id = ?",
+      )
+        .bind(user.id)
+        .all(),
+      c.env.DB.prepare("SELECT address, label, disposable, expires_at FROM aliases WHERE user_id = ?")
+        .bind(user.id)
+        .all(),
     ]);
     const payload = {
       exported_at: new Date().toISOString(),
+      version: 2,
       user: { email: user.email },
       mailboxes: mailboxes.results ?? [],
       contacts: contacts.results ?? [],
       templates: templates.results ?? [],
       signatures: signatures.results ?? [],
+      filters: filters.results ?? [],
+      aliases: aliases.results ?? [],
       messages: messages.results ?? [],
     };
     return new Response(JSON.stringify(payload, null, 2), {
       headers: {
         "content-type": "application/json; charset=utf-8",
-        "content-disposition": `attachment; filename="inlet-backup.json"`,
+        "content-disposition": `attachment; filename="flap-backup.json"`,
       },
     });
+  });
+
+  app.post("/api/restore", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const body = await c.req.json().catch(() => null) as {
+      contacts?: Array<{ email?: string; name?: string }>;
+      templates?: Array<{ name?: string; subject?: string; html_body?: string; text_body?: string }>;
+      signatures?: Array<{ name?: string; html_body?: string; text_body?: string; is_default?: number }>;
+      filters?: Array<{
+        name?: string;
+        match_from?: string;
+        match_to?: string;
+        match_subject?: string;
+        action?: string;
+        forward_to?: string;
+        label?: string;
+        is_catch_all?: number;
+      }>;
+    } | null;
+    if (!body || typeof body !== "object") return c.json({ error: "Upload a valid Flap backup JSON." }, 400);
+    const now = nowMs();
+    let restored = 0;
+    for (const contact of body.contacts ?? []) {
+      const email = extractEmail(contact.email ?? "");
+      if (!EMAIL_RE.test(email)) continue;
+      await touchContact(c.env.DB, user.id, email, (contact.name ?? "").trim());
+      restored += 1;
+    }
+    for (const template of body.templates ?? []) {
+      const name = (template.name ?? "").trim();
+      if (!name) continue;
+      await c.env.DB.prepare(
+        "INSERT INTO templates (id, user_id, name, subject, html_body, text_body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(randomId("tpl"), user.id, name, template.subject ?? "", template.html_body ?? "", template.text_body ?? "", now, now)
+        .run();
+      restored += 1;
+    }
+    for (const signature of body.signatures ?? []) {
+      const name = (signature.name ?? "").trim();
+      if (!name) continue;
+      await c.env.DB.prepare(
+        "INSERT INTO signatures (id, user_id, name, html_body, text_body, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(randomId("sig"), user.id, name, signature.html_body ?? "", signature.text_body ?? "", signature.is_default ? 1 : 0, now)
+        .run();
+      restored += 1;
+    }
+    for (const filter of body.filters ?? []) {
+      const name = (filter.name ?? "").trim();
+      const action = (filter.action ?? "").toLowerCase();
+      if (!name || !FILTER_ACTIONS.has(action)) continue;
+      await c.env.DB.prepare(
+        `INSERT INTO filters
+          (id, user_id, name, match_from, match_to, match_subject, action, forward_to, label, is_catch_all, enabled, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      )
+        .bind(
+          randomId("flt"),
+          user.id,
+          name,
+          (filter.match_from ?? "").toLowerCase(),
+          (filter.match_to ?? "").toLowerCase(),
+          (filter.match_subject ?? "").toLowerCase(),
+          action,
+          filter.forward_to ?? "",
+          filter.label ?? "",
+          filter.is_catch_all ? 1 : 0,
+          now,
+        )
+        .run();
+      restored += 1;
+    }
+    return c.json({ ok: true, restored });
+  });
+
+  app.get("/api/aliases", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const rows = await c.env.DB.prepare(
+      `SELECT id, mailbox_id, domain_id, local_part, address, label, disposable, expires_at, enabled, created_at
+       FROM aliases WHERE user_id = ? ORDER BY created_at DESC`,
+    )
+      .bind(user.id)
+      .all();
+    return c.json({ aliases: rows.results ?? [] });
+  });
+
+  app.post("/api/aliases", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const body = await c.req.json().catch(() => ({})) as {
+      mailbox_id?: string;
+      local_part?: string;
+      label?: string;
+      disposable?: boolean;
+      expires_at?: number | null;
+    };
+    const local = (body.local_part ?? "").trim().toLowerCase();
+    if (!/^[a-z0-9._+-]{1,64}$/.test(local)) return c.json({ error: "Alias local-part is invalid." }, 400);
+    const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM aliases WHERE user_id = ?")
+      .bind(user.id)
+      .first<{ n: number }>();
+    const limit = await assertWithinLimit(c.env.DB, user.id, "aliases", Number(count?.n ?? 0));
+    if (!limit.ok) return c.json({ error: limit.error }, limit.status);
+    const mailbox = await c.env.DB.prepare(
+      "SELECT id, domain_id FROM mailboxes WHERE id = ? AND user_id = ?",
+    )
+      .bind(body.mailbox_id ?? "", user.id)
+      .first<{ id: string; domain_id: string }>();
+    if (!mailbox) return c.json({ error: "Choose a destination mailbox." }, 400);
+    const domain = await c.env.DB.prepare("SELECT id, name FROM domains WHERE id = ? AND user_id = ?")
+      .bind(mailbox.domain_id, user.id)
+      .first<{ id: string; name: string }>();
+    if (!domain) return c.json({ error: "Domain not found." }, 404);
+    const address = `${local}@${domain.name}`;
+    const id = randomId("als");
+    const expiresAt = body.disposable
+      ? (typeof body.expires_at === "number" ? body.expires_at : nowMs() + 7 * 24 * 60 * 60 * 1000)
+      : null;
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO aliases
+          (id, user_id, mailbox_id, domain_id, local_part, address, label, disposable, expires_at, enabled, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      )
+        .bind(id, user.id, mailbox.id, domain.id, local, address, (body.label ?? "").trim(), body.disposable ? 1 : 0, expiresAt, nowMs())
+        .run();
+    } catch {
+      return c.json({ error: "That alias address already exists." }, 409);
+    }
+    return c.json({ alias: { id, address, mailbox_id: mailbox.id, disposable: body.disposable ? 1 : 0, expires_at: expiresAt } }, 201);
+  });
+
+  app.delete("/api/aliases/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const res = await c.env.DB.prepare("DELETE FROM aliases WHERE id = ? AND user_id = ?")
+      .bind(c.req.param("id"), user.id)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "Alias not found." }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/webhooks", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const rows = await c.env.DB.prepare(
+      "SELECT id, name, url, events, enabled, created_at, last_triggered_at FROM webhooks WHERE user_id = ? ORDER BY created_at DESC",
+    )
+      .bind(user.id)
+      .all();
+    return c.json({ webhooks: rows.results ?? [] });
+  });
+
+  app.post("/api/webhooks", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const body = await c.req.json().catch(() => ({})) as { name?: string; url?: string; events?: string };
+    const name = (body.name ?? "").trim() || "Inbound hook";
+    const url = (body.url ?? "").trim();
+    if (!/^https:\/\//i.test(url)) return c.json({ error: "Webhook URL must be https." }, 400);
+    const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM webhooks WHERE user_id = ?")
+      .bind(user.id)
+      .first<{ n: number }>();
+    const limit = await assertWithinLimit(c.env.DB, user.id, "webhooks", Number(count?.n ?? 0));
+    if (!limit.ok) return c.json({ error: limit.error }, limit.status);
+    const id = randomId("wh");
+    const secret = randomId("sec").slice(0, 32);
+    const events = (body.events ?? "mail.received").trim() || "mail.received";
+    await c.env.DB.prepare(
+      "INSERT INTO webhooks (id, user_id, name, url, secret, events, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+    )
+      .bind(id, user.id, name, url, secret, events, nowMs())
+      .run();
+    return c.json({ webhook: { id, name, url, events, secret } }, 201);
+  });
+
+  app.post("/api/webhooks/:id/toggle", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const row = await c.env.DB.prepare("SELECT enabled FROM webhooks WHERE id = ? AND user_id = ?")
+      .bind(c.req.param("id"), user.id)
+      .first<{ enabled: number }>();
+    if (!row) return c.json({ error: "Webhook not found." }, 404);
+    const next = row.enabled ? 0 : 1;
+    await c.env.DB.prepare("UPDATE webhooks SET enabled = ? WHERE id = ? AND user_id = ?")
+      .bind(next, c.req.param("id"), user.id)
+      .run();
+    return c.json({ ok: true, enabled: next });
+  });
+
+  app.delete("/api/webhooks/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const res = await c.env.DB.prepare("DELETE FROM webhooks WHERE id = ? AND user_id = ?")
+      .bind(c.req.param("id"), user.id)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "Webhook not found." }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/team", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const invites = await c.env.DB.prepare(
+      "SELECT id, email, role, status, created_at FROM workspace_invites WHERE invited_by = ? ORDER BY created_at DESC",
+    )
+      .bind(user.id)
+      .all();
+    return c.json({
+      deferred: true,
+      message: "Shared inboxes are on the Business roadmap. Record interest below — Flap workspaces are single-operator today.",
+      invites: invites.results ?? [],
+    });
+  });
+
+  app.post("/api/team/invites", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const body = await c.req.json().catch(() => ({})) as { email?: string; role?: string };
+    const email = extractEmail(body.email ?? "");
+    if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid invite email." }, 400);
+    const id = randomId("inv");
+    await c.env.DB.prepare(
+      "INSERT INTO workspace_invites (id, invited_by, email, role, status, created_at) VALUES (?, ?, ?, ?, 'deferred', ?)",
+    )
+      .bind(id, user.id, email, (body.role ?? "member").trim() || "member", nowMs())
+      .run();
+    return c.json({
+      invite: { id, email, status: "deferred" },
+      deferred: true,
+      message: "Invite recorded for a future shared-inbox release. No access is granted yet.",
+    }, 201);
   });
 
   app.post("/api/v1/send", async (c) => {

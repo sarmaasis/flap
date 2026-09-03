@@ -1,24 +1,44 @@
 import { useEffect, useState } from "react";
 import {
   api,
+  type Alias,
   type ApiKey,
+  type BillingSubscription,
   type BlockedSender,
   type Contact,
   type DnsRecords,
   type Domain,
   type Filter,
   type Mailbox,
+  type PlanSummary,
   type Prefs,
   type Signature,
+  type TeamInvite,
   type Template,
+  type Webhook,
 } from "../lib/api";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 
-type Tab = "setup" | "compose" | "contacts" | "filters" | "privacy";
+type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "developers" | "privacy" | "billing" | "team";
+
+function initialTab(): Tab {
+  const q = new URLSearchParams(window.location.search).get("tab");
+  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "developers", "privacy", "billing", "team"];
+  return allowed.includes(q as Tab) ? (q as Tab) : "setup";
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("setup");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [email, setEmail] = useState("");
   const [domains, setDomains] = useState<Domain[]>([]);
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -35,13 +55,26 @@ export default function Settings() {
   const [filters, setFilters] = useState<Filter[]>([]);
   const [blocked, setBlocked] = useState<BlockedSender[]>([]);
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "" });
+  const [aliases, setAliases] = useState<Alias[]>([]);
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "", notify_browser: 0 });
   const [newToken, setNewToken] = useState("");
+  const [newWebhookSecret, setNewWebhookSecret] = useState("");
+  const [billing, setBilling] = useState<BillingSubscription | null>(null);
+  const [plans, setPlans] = useState<PlanSummary[]>([]);
+  const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [checkoutConfigured, setCheckoutConfigured] = useState(true);
+  const [supportEmail, setSupportEmail] = useState("support@useflap.online");
+  const [onboardingBanner, setOnboardingBanner] = useState(
+    () => new URLSearchParams(window.location.search).get("onboarding") === "1",
+  );
 
   async function refresh() {
     const me = await api.me();
     setEmail(me.user.email);
-    const [d, m, s, t, c, f, b, k, p] = await Promise.all([
+    const [d, m, s, t, c, f, b, k, a, w, p, team, bill, planList] = await Promise.all([
       api.domains(),
       api.mailboxes(),
       api.signatures(),
@@ -50,7 +83,12 @@ export default function Settings() {
       api.filters(),
       api.blocked(),
       api.keys(),
+      api.aliases(),
+      api.webhooks(),
       api.prefs(),
+      api.team(),
+      api.billingSubscription().catch(() => null),
+      api.billingPlans().catch(() => ({ plans: [] as PlanSummary[], checkout_configured: false, support_email: "support@useflap.online" })),
     ]);
     setDomains(d.domains);
     if (!domainId && d.domains[0]) setDomainId(d.domains[0].id);
@@ -61,13 +99,30 @@ export default function Settings() {
     setFilters(f.filters);
     setBlocked(b.blocked);
     setKeys(k.keys);
+    setAliases(a.aliases);
+    setWebhooks(w.webhooks);
     setPrefs(p.settings);
+    setInvites(team.invites);
+    setBilling(bill);
+    setPlans(planList.plans);
+    setCheckoutConfigured(bill?.checkout_configured ?? planList.checkout_configured ?? false);
+    setSupportEmail(bill?.support_email || planList.support_email || "support@useflap.online");
     const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
     if (focus) setDns((await api.dns(focus.name)).records);
   }
 
   useEffect(() => {
     refresh().catch(() => go("/login"));
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "done") {
+      setNotice("Checkout complete. Plan entitlements update when Dodo confirms the subscription webhook.");
+      setTab("billing");
+    }
+    if (params.get("onboarding") === "1") {
+      setOnboardingBanner(true);
+      setTab("setup");
+      setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -110,9 +165,47 @@ export default function Settings() {
     go("/");
   }
 
-  const selectedName = domains.find((d) => d.id === domainId)?.name ?? "your-domain.com";
+  const selectedDomain = domains.find((d) => d.id === domainId);
+  const selectedName = selectedDomain?.name ?? "your-domain.com";
   const hasDomain = domains.length > 0;
   const hasMailbox = mailboxes.length > 0;
+  const domainMailboxes = mailboxes.filter((m) => m.domain_id === domainId);
+
+  const tabs: Array<[Tab, string]> = [
+    ["setup", "Setup"],
+    ["compose", "Compose"],
+    ["contacts", "Contacts"],
+    ["filters", "Rules"],
+    ["aliases", "Aliases"],
+    ["developers", "Developers"],
+    ["privacy", "Privacy"],
+    ["billing", "Billing"],
+    ["team", "Team"],
+  ];
+
+  async function startCheckout(planId: string) {
+    setErr("");
+    setCheckoutBusy(planId);
+    try {
+      const session = await api.billingCheckout(planId);
+      window.location.href = session.checkout_url;
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not start checkout.");
+      setCheckoutBusy(null);
+    }
+  }
+
+  async function openPortal() {
+    setErr("");
+    setPortalBusy(true);
+    try {
+      const session = await api.billingPortal();
+      window.location.href = session.portal_url;
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not open billing portal.");
+      setPortalBusy(false);
+    }
+  }
 
   return (
     <AppShell email={email} current="settings" onLogout={() => void logout()}>
@@ -120,10 +213,19 @@ export default function Settings() {
         <div className="settings-intro">
           <p className="eyebrow">Workspace</p>
           <h1>Settings</h1>
-          <p className="lede">Connect your domain, then polish how Inlet sends, files, and remembers people.</p>
+          <p className="lede">Wire your domain, route mail, automate delivery, and keep developer hooks under one roof.</p>
         </div>
+        {onboardingBanner ? (
+          <div className="onboarding-banner" role="status">
+            <div>
+              <strong>Get your domain live</strong>
+              <p>Add a domain → create a mailbox → point Cloudflare Email Routing → send a test. Upgrade anytime from Billing.</p>
+            </div>
+            <button type="button" className="btn" onClick={() => setOnboardingBanner(false)}>Dismiss</button>
+          </div>
+        ) : null}
         <div className="settings-tabs" role="tablist">
-          {([["setup", "Setup"], ["compose", "Compose"], ["contacts", "Contacts"], ["filters", "Filters"], ["privacy", "Privacy"]] as const).map(([id, label]) => (
+          {tabs.map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} className={`tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{label}</button>
           ))}
         </div>
@@ -140,7 +242,10 @@ export default function Settings() {
                 <span>2</span><div><strong>Create an address</strong><small>{hasMailbox ? `${mailboxes.length} mailbox${mailboxes.length === 1 ? "" : "es"} ready` : "For example, hello@your-domain.com"}</small></div>
               </li>
               <li className={hasMailbox ? "current" : ""}>
-                <span>3</span><div><strong>Route email in Cloudflare</strong><small>Create the matching Worker routing rule</small></div>
+                <span>3</span><div><strong>Route email in Cloudflare</strong><small>MX + Worker routing rule for each address</small></div>
+              </li>
+              <li className={hasMailbox ? "current" : ""}>
+                <span>4</span><div><strong>Send a test &amp; pick a plan</strong><small>Compose from Inbox · upgrade in Billing if you need more room</small></div>
               </li>
             </ol>
             <section className="settings-card" aria-labelledby="domains-title">
@@ -150,12 +255,32 @@ export default function Settings() {
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
                 <button className="btn" type="submit">Add domain</button>
               </form>
-              {domains.length ? <table className="table"><thead><tr><th>Name</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-                {domains.map((d) => <tr key={d.id}><td><button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button></td><td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) void api.deleteDomain(d.id).then(refresh); }}>Remove</button></td></tr>)}
+              {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+                {domains.map((d) => (
+                  <tr key={d.id}>
+                    <td><button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button></td>
+                    <td>
+                      <select
+                        value={d.catch_all_mailbox_id ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value || null;
+                          void api.updateDomain(d.id, value).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
+                        }}
+                        aria-label={`Catch-all for ${d.name}`}
+                      >
+                        <option value="">Off</option>
+                        {mailboxes.filter((m) => m.domain_id === d.id).map((m) => (
+                          <option key={m.id} value={m.id}>{m.address}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) void api.deleteDomain(d.id).then(refresh); }}>Remove</button></td>
+                  </tr>
+                ))}
               </tbody></table> : <p className="empty-state">No domains yet. Add the domain you plan to receive mail on.</p>}
             </section>
             <section className="settings-card" aria-labelledby="mailboxes-title">
-              <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Inlet accepts mail only for addresses listed here.</p></div></div>
+              <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Flap accepts mail for addresses listed here, plus aliases and catch-all when enabled.</p></div></div>
               <form className="row-form" onSubmit={addMailbox}>
                 <label className="sr-only" htmlFor="local-part">Mailbox name</label>
                 <input id="local-part" placeholder="hello" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
@@ -239,14 +364,14 @@ export default function Settings() {
 
         {tab === "filters" ? (
           <section className="settings-card">
-            <div className="section-heading"><div><h2>Smart rules</h2><p>Route incoming mail to archive, spam, trash, or star it automatically.</p></div></div>
+            <div className="section-heading"><div><h2>Email rules</h2><p>Catch-all, auto-label, archive, forward, or keep mail in inbox. Blocked senders still go to spam first.</p></div></div>
             <FilterForm onSave={async (body) => { await api.createFilter(body); await refresh(); setNotice("Filter added."); }} />
             {filters.length ? <table className="table"><thead><tr><th>Name</th><th>Match</th><th>Action</th><th /></tr></thead><tbody>
               {filters.map((f) => (
                 <tr key={f.id}>
-                  <td>{f.name}</td>
-                  <td className="muted">{[f.match_from && `from ${f.match_from}`, f.match_to && `to ${f.match_to}`, f.match_subject && `subject ${f.match_subject}`].filter(Boolean).join(" · ") || "—"}</td>
-                  <td>{f.action}{f.enabled ? "" : " (off)"}</td>
+                  <td>{f.name}{f.is_catch_all ? " · catch-all" : ""}</td>
+                  <td className="muted">{f.is_catch_all ? "All unmatched mail" : [f.match_from && `from ${f.match_from}`, f.match_to && `to ${f.match_to}`, f.match_subject && `subject ${f.match_subject}`].filter(Boolean).join(" · ") || "—"}</td>
+                  <td>{f.action}{f.label ? `:${f.label}` : ""}{f.forward_to ? ` → ${f.forward_to}` : ""}{f.enabled ? "" : " (off)"}</td>
                   <td className="row-actions">
                     <button type="button" className="text-button" onClick={() => void api.toggleFilter(f.id).then(refresh)}>{f.enabled ? "Disable" : "Enable"}</button>
                     <button type="button" className="btn btn-danger" onClick={() => void api.deleteFilter(f.id).then(refresh)}>Remove</button>
@@ -257,11 +382,124 @@ export default function Settings() {
           </section>
         ) : null}
 
+        {tab === "aliases" ? (
+          <section className="settings-card">
+            <div className="section-heading"><div><h2>Aliases & disposable addresses</h2><p>Route extra local-parts to an existing mailbox. Disposable aliases can expire automatically.</p></div></div>
+            <AliasForm
+              mailboxes={mailboxes}
+              onSave={async (body) => {
+                await api.createAlias(body);
+                await refresh();
+                setNotice("Alias created. Point Cloudflare Email Routing at this Worker for that address (or use catch-all).");
+              }}
+            />
+            {aliases.length ? <table className="table"><thead><tr><th>Address</th><th>Delivers to</th><th>Type</th><th /></tr></thead><tbody>
+              {aliases.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.address}</td>
+                  <td className="muted">{mailboxes.find((m) => m.id === a.mailbox_id)?.address ?? a.mailbox_id}</td>
+                  <td>{a.disposable ? `Disposable${a.expires_at ? ` · ends ${new Date(a.expires_at).toLocaleDateString()}` : ""}` : a.label || "Alias"}</td>
+                  <td><button type="button" className="btn btn-danger" onClick={() => void api.deleteAlias(a.id).then(refresh)}>Remove</button></td>
+                </tr>
+              ))}
+            </tbody></table> : <p className="empty-state">No aliases yet. Handy for newsletters and one-off signups.</p>}
+            {!domainMailboxes.length && hasDomain ? <p className="muted">Select a domain with at least one mailbox to create aliases.</p> : null}
+          </section>
+        ) : null}
+
+        {tab === "developers" ? (
+          <>
+            <section className="settings-card">
+              <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token.</p></div></div>
+              <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("keyname") as HTMLInputElement; void api.createKey(input.value || "Transactional").then((res) => { setNewToken(res.key.token ?? ""); input.value = ""; return refresh(); }); }}>
+                <input name="keyname" placeholder="Key name" />
+                <button className="btn" type="submit">Create key</button>
+              </form>
+              {newToken ? <div className="notice">Copy this key now. It will not be shown again: <code>{newToken}</code></div> : null}
+              {keys.length ? <table className="table"><thead><tr><th>Name</th><th>Prefix</th><th /></tr></thead><tbody>
+                {keys.map((k) => <tr key={k.id}><td>{k.name}</td><td><code>{k.key_prefix}…</code></td><td><button type="button" className="btn btn-danger" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</button></td></tr>)}
+              </tbody></table> : <p className="empty-state">No API keys yet.</p>}
+            </section>
+            <section className="settings-card">
+              <div className="section-heading"><div><h2>Webhooks</h2><p>HTTPS POST on <code>mail.received</code>. Signature header: <code>x-flap-signature</code> = SHA-256 of <code>secret.body</code>.</p></div></div>
+              <form className="stack-form" onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const name = (form.elements.namedItem("whname") as HTMLInputElement).value;
+                const url = (form.elements.namedItem("whurl") as HTMLInputElement).value;
+                void api.createWebhook({ name, url, events: "mail.received" }).then((res) => {
+                  setNewWebhookSecret(res.webhook.secret ?? "");
+                  form.reset();
+                  return refresh();
+                }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not create webhook."));
+              }}>
+                <div className="row-form">
+                  <input name="whname" placeholder="Hook name" />
+                  <input name="whurl" placeholder="https://example.com/hooks/flap" required />
+                </div>
+                <button className="btn" type="submit">Add webhook</button>
+              </form>
+              {newWebhookSecret ? <div className="notice">Copy this signing secret now: <code>{newWebhookSecret}</code></div> : null}
+              {webhooks.length ? <table className="table"><thead><tr><th>Name</th><th>URL</th><th>Status</th><th /></tr></thead><tbody>
+                {webhooks.map((w) => (
+                  <tr key={w.id}>
+                    <td>{w.name}</td>
+                    <td className="muted">{w.url}</td>
+                    <td>{w.enabled ? "On" : "Off"}</td>
+                    <td className="row-actions">
+                      <button type="button" className="text-button" onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
+                      <button type="button" className="btn btn-danger" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody></table> : <p className="empty-state">No webhooks yet.</p>}
+            </section>
+          </>
+        ) : null}
+
         {tab === "privacy" ? (
           <>
             <section className="settings-card">
+              <div className="section-heading"><div><h2>Browser notifications</h2><p>Desktop alerts while Flap is open in a tab. Press ? in the inbox for keyboard shortcuts.</p></div></div>
+              <form className="stack-form" onSubmit={(e) => {
+                e.preventDefault();
+                void (async () => {
+                  if (prefs.notify_browser && typeof Notification !== "undefined") {
+                    if (Notification.permission === "denied") {
+                      setErr("Notifications are blocked in this browser. Allow them for useflap.online in site settings, then try again.");
+                      return;
+                    }
+                    if (Notification.permission !== "granted") {
+                      const perm = await Notification.requestPermission();
+                      if (perm !== "granted") {
+                        setErr("Notification permission was not granted.");
+                        return;
+                      }
+                    }
+                  }
+                  await api.savePrefs({
+                    vacation_enabled: Boolean(prefs.vacation_enabled),
+                    vacation_body: prefs.vacation_body,
+                    notify_browser: Boolean(prefs.notify_browser),
+                  });
+                  setErr("");
+                  setNotice(prefs.notify_browser ? "Notifications on. Keep a Flap tab open to receive alerts." : "Notifications disabled.");
+                })();
+              }}>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(prefs.notify_browser)}
+                    onChange={(e) => setPrefs((p) => ({ ...p, notify_browser: e.target.checked ? 1 : 0 }))}
+                  />
+                  Enable browser notifications for new mail
+                </label>
+                <button className="btn" type="submit">Save notifications</button>
+              </form>
+            </section>
+            <section className="settings-card">
               <div className="section-heading"><div><h2>Automatic replies</h2><p>Send one vacation reply per sender every seven days.</p></div></div>
-              <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void api.savePrefs({ vacation_enabled: Boolean(prefs.vacation_enabled), vacation_body: prefs.vacation_body }).then(() => setNotice("Automatic replies updated.")); }}>
+              <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void api.savePrefs({ vacation_enabled: Boolean(prefs.vacation_enabled), vacation_body: prefs.vacation_body, notify_browser: Boolean(prefs.notify_browser) }).then(() => setNotice("Automatic replies updated.")); }}>
                 <label className="check-row"><input type="checkbox" checked={Boolean(prefs.vacation_enabled)} onChange={(e) => setPrefs((p) => ({ ...p, vacation_enabled: e.target.checked ? 1 : 0 }))} /> Enable automatic replies</label>
                 <textarea value={prefs.vacation_body} onChange={(e) => setPrefs((p) => ({ ...p, vacation_body: e.target.value }))} placeholder="Thanks for writing — I’ll get back to you soon." />
                 <button className="btn" type="submit">Save replies</button>
@@ -278,21 +516,174 @@ export default function Settings() {
               </tbody></table> : <p className="empty-state">Nobody is blocked.</p>}
             </section>
             <section className="settings-card">
-              <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token.</p></div></div>
-              <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("keyname") as HTMLInputElement; void api.createKey(input.value || "Transactional").then((res) => { setNewToken(res.key.token ?? ""); input.value = ""; return refresh(); }); }}>
-                <input name="keyname" placeholder="Key name" />
-                <button className="btn" type="submit">Create key</button>
-              </form>
-              {newToken ? <div className="notice">Copy this key now. It will not be shown again: <code>{newToken}</code></div> : null}
-              {keys.length ? <table className="table"><thead><tr><th>Name</th><th>Prefix</th><th /></tr></thead><tbody>
-                {keys.map((k) => <tr key={k.id}><td>{k.name}</td><td><code>{k.key_prefix}…</code></td><td><button type="button" className="btn btn-danger" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</button></td></tr>)}
-              </tbody></table> : <p className="empty-state">No API keys yet.</p>}
-            </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Backup</h2><p>Download messages, contacts, templates, and signatures as JSON.</p></div></div>
-              <button type="button" className="btn" onClick={() => void api.exportBackup().catch((ex) => setErr(ex instanceof Error ? ex.message : "Export failed."))}>Download backup</button>
+              <div className="section-heading"><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
+              <div className="row-form">
+                <button type="button" className="btn" onClick={() => void api.exportBackup().catch((ex) => setErr(ex instanceof Error ? ex.message : "Export failed."))}>Download backup</button>
+                <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
+                  Restore JSON
+                  <input
+                    type="file"
+                    accept="application/json,.json"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        try {
+                          const payload = JSON.parse(String(reader.result));
+                          void api.restoreBackup(payload).then((res) => {
+                            setNotice(`Restored ${res.restored} items.`);
+                            return refresh();
+                          }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Restore failed."));
+                        } catch {
+                          setErr("That file is not valid JSON.");
+                        }
+                      };
+                      reader.readAsText(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
             </section>
           </>
+        ) : null}
+
+        {tab === "billing" ? (
+          <section className="settings-card">
+            <div className="section-heading">
+              <div>
+                <h2>Plan & usage</h2>
+                <p>Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
+              </div>
+              {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : null}
+            </div>
+            {!checkoutConfigured ? (
+              <div className="deferred-banner" style={{ marginBottom: 16 }}>
+                Self-serve checkout is not configured on this deployment yet. Email{" "}
+                <a href={`mailto:${supportEmail}`}>{supportEmail}</a> to upgrade, or set Dodo product IDs and API keys in Worker secrets.
+              </div>
+            ) : null}
+            {billing ? (
+              <div className="grid-2" style={{ marginBottom: 20 }}>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Domains</p>
+                  <strong>{billing.usage.domains} / {billing.limits.domains}</strong>
+                </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Mailboxes</p>
+                  <strong>{billing.usage.mailboxes} / {billing.limits.mailboxes}</strong>
+                </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Aliases</p>
+                  <strong>{billing.usage.aliases} / {billing.limits.aliases}</strong>
+                </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Storage</p>
+                  <strong>{formatBytes(billing.usage.storage_bytes)} / {formatBytes(billing.limits.storage_bytes)}</strong>
+                </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>API keys</p>
+                  <strong>{billing.usage.api_keys} / {billing.limits.api_keys}</strong>
+                </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Webhooks</p>
+                  <strong>{billing.usage.webhooks} / {billing.limits.webhooks}</strong>
+                </div>
+              </div>
+            ) : (
+              <p className="empty-state">Billing data unavailable. Apply migration 0005_billing and reload.</p>
+            )}
+            <div className="row-form" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+              {billing?.portal_available ? (
+                <Button variant="outline" disabled={portalBusy} onClick={() => void openPortal()}>
+                  {portalBusy ? "Opening…" : "Manage subscription"}
+                </Button>
+              ) : billing && billing.plan_id !== "free" ? (
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                  To cancel or change payment methods, email{" "}
+                  <a href={`mailto:${supportEmail}?subject=Flap%20subscription`}>{supportEmail}</a>
+                  {" "}or complete a portal-linked checkout first.
+                </p>
+              ) : (
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                  Cancel anytime after upgrading via the customer portal, or contact{" "}
+                  <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
+                </p>
+              )}
+            </div>
+            <div className="grid-2">
+              {plans.filter((p) => p.id !== "free").map((plan) => {
+                const available = plan.checkout_available !== false && checkoutConfigured;
+                const isCurrent = billing?.plan_id === plan.id;
+                return (
+                  <div key={plan.id} className="settings-card" style={{ margin: 0, padding: 16 }}>
+                    <div className="row-form" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                      <strong>{plan.name}</strong>
+                      <span>${plan.price_monthly}/mo</span>
+                    </div>
+                    <p className="muted" style={{ marginTop: 0 }}>{plan.blurb}</p>
+                    <ul className="muted" style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 13 }}>
+                      {plan.features.slice(0, 4).map((f) => <li key={f}>{f}</li>)}
+                    </ul>
+                    <Button
+                      disabled={isCurrent || checkoutBusy === plan.id || !available}
+                      onClick={() => void startCheckout(plan.id)}
+                    >
+                      {isCurrent
+                        ? "Current plan"
+                        : checkoutBusy === plan.id
+                          ? "Redirecting…"
+                          : !available
+                            ? "Contact to upgrade"
+                            : `Upgrade to ${plan.name}`}
+                    </Button>
+                    {!available && !isCurrent ? (
+                      <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                        <a href={`mailto:${supportEmail}?subject=Upgrade%20to%20${plan.name}`}>{supportEmail}</a>
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="muted" style={{ marginTop: 16, fontSize: 12 }}>
+              See <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a> for renewals and cancellation.
+            </p>
+          </section>
+        ) : null}
+
+        {tab === "team" ? (
+          <section className="settings-card">
+            <div className="section-heading">
+              <div>
+                <h2>Team &amp; shared inboxes</h2>
+                <p>Business plan roadmap — not enabled yet.</p>
+              </div>
+              <Badge variant="secondary">Coming soon</Badge>
+            </div>
+            <div className="deferred-banner">
+              Shared inboxes and multi-seat access are on the Business roadmap. Flap workspaces are single-admin today.
+              You can record interest below; invites do not grant access yet.
+            </div>
+            <form className="row-form" onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const input = form.elements.namedItem("invite") as HTMLInputElement;
+              void api.inviteTeam(input.value).then((res) => {
+                setNotice(res.message || "Interest recorded. We’ll reach out when shared inboxes ship.");
+                input.value = "";
+                return refresh();
+              }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not record invite."));
+            }}>
+              <input name="invite" type="email" placeholder="teammate@example.com" required />
+              <button className="btn" type="submit">Record interest</button>
+            </form>
+            {invites.length ? <table className="table"><thead><tr><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>
+              {invites.map((i) => <tr key={i.id}><td>{i.email}</td><td>{i.role}</td><td>{i.status}</td></tr>)}
+            </tbody></table> : <p className="empty-state">No interest recorded yet. Prefer email? Write {supportEmail}.</p>}
+          </section>
         ) : null}
       </main>
     </AppShell>
@@ -341,13 +732,46 @@ function ContactForm({ onSave }: { onSave: (email: string, name: string) => Prom
   );
 }
 
-function FilterForm({ onSave }: { onSave: (body: { name: string; match_from?: string; match_to?: string; match_subject?: string; action: string }) => Promise<void> }) {
+function FilterForm({ onSave }: { onSave: (body: {
+  name: string;
+  match_from?: string;
+  match_to?: string;
+  match_subject?: string;
+  action: string;
+  forward_to?: string;
+  label?: string;
+  is_catch_all?: boolean;
+}) => Promise<void> }) {
   const [name, setName] = useState("");
   const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [action, setAction] = useState("archive");
+  const [forwardTo, setForwardTo] = useState("");
+  const [label, setLabel] = useState("");
+  const [catchAll, setCatchAll] = useState(false);
   return (
-    <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void onSave({ name, match_from: from, match_subject: subject, action }).then(() => { setName(""); setFrom(""); setSubject(""); }); }}>
+    <form className="stack-form" onSubmit={(e) => {
+      e.preventDefault();
+      void onSave({
+        name,
+        match_from: from,
+        match_to: to,
+        match_subject: subject,
+        action,
+        forward_to: forwardTo,
+        label,
+        is_catch_all: catchAll,
+      }).then(() => {
+        setName("");
+        setFrom("");
+        setTo("");
+        setSubject("");
+        setForwardTo("");
+        setLabel("");
+        setCatchAll(false);
+      });
+    }}>
       <div className="row-form">
         <input placeholder="Rule name" value={name} onChange={(e) => setName(e.target.value)} required />
         <select value={action} onChange={(e) => setAction(e.target.value)}>
@@ -355,14 +779,64 @@ function FilterForm({ onSave }: { onSave: (body: { name: string; match_from?: st
           <option value="spam">Spam</option>
           <option value="trash">Trash</option>
           <option value="star">Star</option>
+          <option value="label">Auto-label</option>
+          <option value="forward">Forward</option>
           <option value="inbox">Keep in inbox</option>
         </select>
       </div>
       <div className="row-form">
-        <input placeholder="From contains" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <input placeholder="Subject contains" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <input placeholder="From contains" value={from} onChange={(e) => setFrom(e.target.value)} disabled={catchAll} />
+        <input placeholder="To contains" value={to} onChange={(e) => setTo(e.target.value)} disabled={catchAll} />
+        <input placeholder="Subject contains" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={catchAll} />
       </div>
+      {action === "forward" ? <input placeholder="Forward to email" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} required /> : null}
+      {action === "label" ? <input placeholder="Label name" value={label} onChange={(e) => setLabel(e.target.value)} required /> : null}
+      <label className="check-row"><input type="checkbox" checked={catchAll} onChange={(e) => setCatchAll(e.target.checked)} /> Catch-all (apply when no other rule matches)</label>
       <button className="btn" type="submit">Add rule</button>
+    </form>
+  );
+}
+
+function AliasForm({
+  mailboxes,
+  onSave,
+}: {
+  mailboxes: Mailbox[];
+  onSave: (body: { mailbox_id: string; local_part: string; label?: string; disposable?: boolean; expires_at?: number | null }) => Promise<void>;
+}) {
+  const [localPart, setLocalPart] = useState("");
+  const [mailboxId, setMailboxId] = useState(mailboxes[0]?.id ?? "");
+  const [label, setLabel] = useState("");
+  const [disposable, setDisposable] = useState(false);
+  useEffect(() => {
+    if (!mailboxId && mailboxes[0]) setMailboxId(mailboxes[0].id);
+  }, [mailboxId, mailboxes]);
+  return (
+    <form className="stack-form" onSubmit={(e) => {
+      e.preventDefault();
+      void onSave({
+        mailbox_id: mailboxId,
+        local_part: localPart,
+        label,
+        disposable,
+        expires_at: disposable ? Date.now() + 7 * 24 * 60 * 60 * 1000 : null,
+      }).then(() => {
+        setLocalPart("");
+        setLabel("");
+        setDisposable(false);
+      });
+    }}>
+      <div className="row-form">
+        <input placeholder="local-part" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
+        <select value={mailboxId} onChange={(e) => setMailboxId(e.target.value)} required>
+          {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}</option>)}
+        </select>
+      </div>
+      <div className="row-form">
+        <input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <label className="check-row"><input type="checkbox" checked={disposable} onChange={(e) => setDisposable(e.target.checked)} /> Disposable (7 days)</label>
+      </div>
+      <button className="btn" type="submit" disabled={!mailboxId}>Add alias</button>
     </form>
   );
 }

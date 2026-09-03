@@ -1,2 +1,22 @@
 SESSION_SECRET=change-me-to-a-long-random-string
 APP_URL=http://localhost:5173
+# true = open signup; false = first-boot setup only after users exist
+SAAS_MODE=true
+
+# Dodo Payments (https://docs.dodopayments.com)
+# Dashboard → Developer → API keys / Webhooks
+# Leave blank for demos: checkout buttons show “contact support” instead of failing silently.
+DODO_PAYMENTS_API_KEY=
+DODO_PAYMENTS_WEBHOOK_KEY=
+# test_mode | live_mode  (live_mode requires DODO_PAYMENTS_WEBHOOK_KEY)
+DODO_PAYMENTS_ENVIRONMENT=test_mode
+# Product IDs from Dodo dashboard (subscription products)
+DODO_PRODUCT_STARTER=
+DODO_PRODUCT_PRO=
+DODO_PRODUCT_BUSINESS=
+
+# Production secrets (wrangler secret put …):
+# SESSION_SECRET, APP_URL=https://useflap.online
+# DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT
+# DODO_PRODUCT_STARTER, DODO_PRODUCT_PRO, DODO_PRODUCT_BUSINESS
+# Webhook URL: https://useflap.online/api/billing/webhook

@@ -30,7 +30,7 @@ const editorTheme = {
 };
 
 const initialConfig = {
-  namespace: "inlet-compose",
+  namespace: "flap-compose",
   theme: editorTheme,
   nodes: [ListNode, ListItemNode, LinkNode, HeadingNode, QuoteNode],
   onError(error: Error) {
