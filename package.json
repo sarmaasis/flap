@@ -1,14 +1,15 @@
 {
   "name": "inlet",
   "version": "1.0.0",
-  "private": true,
-  "description": "Self-hosted custom-domain email inbox on your Cloudflare account.",
+  "private": false,
+  "description": "A self-operated custom-domain email inbox for your Cloudflare account.",
   "type": "module",
   "license": "MIT",
   "author": "Ashish Sharma",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "types": "wrangler types",

@@ -38,7 +38,7 @@ export default function Landing() {
         <section className="hero">
           <h1>Mail for your domain, kept on your account.</h1>
           <p className="lede">
-            Inlet is a self-hosted inbox that runs as a Cloudflare Worker. Receive and send on addresses you own.
+            Inlet is a self-operated inbox that runs in your Cloudflare account. Receive and send on addresses you own.
             Messages live in your D1 database. Attachments go to your R2 bucket.
           </p>
           <div className="hero-actions">
@@ -52,7 +52,7 @@ export default function Landing() {
         <section className="grid-3" id="how">
           <article className="card">
             <h3>Your Cloudflare, your store</h3>
-            <p>Inlet does not hold tenant mail on a shared product account. Deploy the worker, bind D1 and optional R2, and the data stays with the operator.</p>
+            <p>Inlet does not hold mail in a shared product account. Deploy the Worker, bind D1 and R2, and keep control with the operator.</p>
           </article>
           <article className="card">
             <h3>Inbound on Email Routing</h3>

@@ -11,6 +11,16 @@ const app = new Hono<App>();
 
 const FOLDERS = new Set(["inbox", "sent", "drafts", "spam", "trash"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  c.header("Content-Security-Policy", "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'");
+});
 
 app.get("/api/health", (c) => c.json({ ok: true, name: "Inlet" }));
 
@@ -287,8 +297,12 @@ app.post("/api/mail/send", async (c) => {
   const to = (body.to ?? "").trim();
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
-  if (!EMAIL_RE.test(to.split(",")[0]?.trim() ?? "")) {
-    return c.json({ error: "Enter a valid recipient address." }, 400);
+  if (to.length > 4_096 || subject.length > 998 || text.length > 1_000_000) {
+    return c.json({ error: "Message fields exceed Inlet's supported size limits." }, 400);
+  }
+  const recipients = parseRecipients(to);
+  if (!recipients.length || recipients.length > 20) {
+    return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
   }
   if (!subject) return c.json({ error: "Subject is required." }, 400);
 
@@ -321,7 +335,7 @@ app.post("/api/mail/send", async (c) => {
   });
 
   try {
-    await c.env.SEB.send(new EmailMessage(fromMailbox.address, to.split(",")[0].trim(), raw));
+    await Promise.all(recipients.map((recipient) => c.env.SEB!.send(new EmailMessage(fromMailbox.address, recipient, raw))));
   } catch (err) {
     const hint = err instanceof Error ? err.message : "send failed";
     return c.json(
@@ -344,7 +358,14 @@ app.post("/api/mail/send", async (c) => {
 });
 
 function normalizeDomain(raw: string): string {
-  return raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
+  const domain = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
+  return DOMAIN_RE.test(domain) ? domain : "";
+}
+
+function parseRecipients(value: string): string[] {
+  const recipients = value.split(",").map((recipient) => recipient.trim()).filter(Boolean);
+  if (recipients.some((recipient) => !EMAIL_RE.test(recipient))) return [];
+  return [...new Set(recipients.map((recipient) => recipient.toLowerCase()))];
 }
 
 function dnsRecords(domain: string) {

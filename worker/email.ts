@@ -11,6 +11,10 @@ type MailboxRow = {
 
 export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   const rawBuf = await new Response(message.raw).arrayBuffer();
+  if (rawBuf.byteLength > 25 * 1024 * 1024) {
+    message.setReject("This message exceeds Inlet's 25 MB inbound size limit.");
+    return;
+  }
   const parsed = await parseMessage(rawBuf);
 
   const recipients = uniqueAddresses([
@@ -20,15 +24,11 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   ]);
 
   const mailbox = await resolveMailbox(env.DB, recipients);
-  let userId = mailbox?.user_id ?? null;
-  if (!userId) {
-    const first = await env.DB.prepare("SELECT id FROM users ORDER BY created_at ASC LIMIT 1").first<{ id: string }>();
-    userId = first?.id ?? null;
-  }
-  if (!userId) {
-    message.setReject("Inlet has no operator account yet. Complete /setup first.");
+  if (!mailbox) {
+    message.setReject("This recipient is not configured in Inlet.");
     return;
   }
+  const userId = mailbox.user_id;
 
   const id = randomId("msg");
   const now = nowMs();
@@ -127,17 +127,6 @@ async function resolveMailbox(db: D1Database, addresses: string[]): Promise<Mail
     const row = await db
       .prepare("SELECT id, user_id, address, domain_id FROM mailboxes WHERE lower(address) = ?")
       .bind(addr.toLowerCase())
-      .first<MailboxRow>();
-    if (row) return row;
-  }
-  for (const addr of addresses) {
-    const domain = addr.split("@")[1]?.toLowerCase();
-    if (!domain) continue;
-    const row = await db
-      .prepare(
-        `SELECT m.id, m.user_id, m.address, m.domain_id FROM mailboxes m JOIN domains d ON d.id = m.domain_id WHERE lower(d.name) = ? ORDER BY m.created_at ASC LIMIT 1`,
-      )
-      .bind(domain)
       .first<MailboxRow>();
     if (row) return row;
   }
