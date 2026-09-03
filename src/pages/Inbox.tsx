@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Attachment, type MailFull, type MailSummary, type Mailbox } from "../lib/api";
 import { go } from "../lib/nav";
-import Compose from "./Compose";
+const Compose = lazy(() => import("./Compose"));
 
 const FOLDERS = [
   { id: "inbox", label: "Inbox" },
@@ -15,6 +15,14 @@ function fmtDate(ms: number) {
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function senderName(address: string) {
+  return address.split("@")[0]?.replace(/[._-]/g, " ") || "Unknown";
+}
+
+function initials(address: string) {
+  return senderName(address).slice(0, 2).toUpperCase();
 }
 
 export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
@@ -89,12 +97,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="/app" onClick={(e) => { e.preventDefault(); go("/app"); }}>
-          Inlet
+          <span className="app-mark" aria-hidden>i</span>
+          <span>Inlet</span>
         </a>
         <button className="btn compose-button" onClick={() => { setShowCompose(true); if (window.location.pathname !== "/app/compose") window.history.replaceState({}, "", "/app/compose"); }}>
-          Compose
+          <span aria-hidden>＋</span> Compose
         </button>
         <nav className="folder-nav" aria-label="Mail folders">
+          <span className="sidebar-section">Mailbox</span>
           {FOLDERS.map((f) => (
             <button
               key={f.id}
@@ -120,13 +130,8 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       <div className="workspace">
         <section className={`list-pane${message ? " has-selection" : ""}`}>
           <div className="list-head">
-            <h2>{title}</h2>
-            <input
-              placeholder="Search mail"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="Search mail"
-            />
+            <div className="list-title-row"><div><span className="eyebrow">{q ? "Search results" : "Mailbox"}</span><h2>{q ? `Results for “${q}”` : title}</h2></div><span className="mail-count">{list.length}</span></div>
+            <div className="search-field"><span aria-hidden>⌕</span><input placeholder="Search mail" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mail" /></div>
             {mailboxes.length > 1 ? (
               <select style={{ marginTop: 8 }} value={mailbox} onChange={(e) => setMailbox(e.target.value)} aria-label="Mailbox">
                 <option value="">All mailboxes</option>
@@ -147,11 +152,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                   className={`msg-row${selected === m.id ? " active" : ""}${m.unread ? " unread" : ""}`}
                   onClick={() => setSelected(m.id)}
                 >
+                  <span className="mail-avatar" aria-hidden>{initials(folder === "sent" ? m.to_addr : m.from_addr)}</span>
                   <div className="msg-meta">
-                    <span>{folder === "sent" ? m.to_addr : m.from_addr || "(unknown)"}</span>
+                    <span>{senderName(folder === "sent" ? m.to_addr : m.from_addr)}</span>
                     <span>{fmtDate(m.date_ms)}</span>
                   </div>
-                  <div className="subj">{m.subject || "(no subject)"}</div>
+                  <div className="mail-summary"><div className="subj">{m.subject || "(no subject)"}</div><span className="message-chip">{m.has_attachments ? "Attachment" : "Message"}</span></div>
                 </button>
               ))
             )}
@@ -165,10 +171,8 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             <>
               <button className="mobile-back" onClick={() => setSelected(null)}>Back to {title}</button>
               <div className="read-head">
-                <h2>{message.subject || "(no subject)"}</h2>
-                <div className="read-kv">From {message.from_addr || "(unknown)"}</div>
-                <div className="read-kv">To {message.to_addr || "(unknown)"}</div>
-                <div className="read-kv">{fmtDate(message.date_ms)}</div>
+                <div className="read-subject-row"><h2>{message.subject || "(no subject)"}</h2><span className="read-date">{fmtDate(message.date_ms)}</span></div>
+                <div className="sender-card"><span className="mail-avatar large" aria-hidden>{initials(message.from_addr)}</span><div><strong>{senderName(message.from_addr)}</strong><div className="read-kv">{message.from_addr || "(unknown)"} <span>→</span> {message.to_addr || "(unknown)"}</div></div></div>
               </div>
               <div className="read-actions">
                 {folder !== "spam" ? <button className="btn btn-ghost" onClick={() => void move(message.id, "spam")}>Spam</button> : null}
@@ -202,19 +206,21 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       </div>
 
       {showCompose ? (
-        <Compose
-          mailboxes={mailboxes}
-          onClose={() => {
-            setShowCompose(false);
-            go("/app");
-          }}
-          onSent={async () => {
-            setShowCompose(false);
-            setFolder("sent");
-            go("/app");
-            await loadList();
-          }}
-        />
+        <Suspense fallback={null}>
+          <Compose
+            mailboxes={mailboxes}
+            onClose={() => {
+              setShowCompose(false);
+              go("/app");
+            }}
+            onSent={async () => {
+              setShowCompose(false);
+              setFolder("sent");
+              go("/app");
+              await loadList();
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

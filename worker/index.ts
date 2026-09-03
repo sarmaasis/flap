@@ -291,15 +291,6 @@ app.post("/api/mail/:id/move", async (c) => {
 app.post("/api/mail/send", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  if (!c.env.SEB) {
-    return c.json(
-      {
-        error:
-          "The send_email binding (SEB) is not configured. Add it in wrangler.jsonc and enable Email Routing. Sending requires a paid Workers plan.",
-      },
-      501,
-    );
-  }
   const body = await c.req.json().catch(() => ({})) as {
     to?: string;
     subject?: string;
@@ -311,15 +302,27 @@ app.post("/api/mail/send", async (c) => {
   const to = (body.to ?? "").trim();
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
-  if (to.length > 4_096 || subject.length > 998 || text.length > 1_000_000) {
+  const html = body.html ?? "";
+  const draft = body.draft === true;
+  if (to.length > 4_096 || subject.length > 998 || text.length > 1_000_000 || html.length > 1_500_000) {
     return c.json({ error: "Message fields exceed Inlet's supported size limits." }, 400);
   }
   const recipients = parseRecipients(to);
-  if (!recipients.length || recipients.length > 20) {
+  if (!draft && (!recipients.length || recipients.length > 20)) {
     return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
   }
-  if (!subject) return c.json({ error: "Subject is required." }, 400);
+  if (!draft && !subject) return c.json({ error: "Subject is required." }, 400);
   if (!HEADER_VALUE_RE.test(subject)) return c.json({ error: "Subject cannot contain line breaks." }, 400);
+
+  if (!draft && !c.env.SEB) {
+    return c.json(
+      {
+        error:
+          "The send_email binding (SEB) is not configured. Add it in wrangler.jsonc and enable Email Routing. Sending requires a paid Workers plan.",
+      },
+      501,
+    );
+  }
 
   const fromMailbox = await pickFromMailbox(c.env.DB, user.id, body.from);
   if (!fromMailbox) {
@@ -329,13 +332,13 @@ app.post("/api/mail/send", async (c) => {
   const id = randomId("msg");
   const now = nowMs();
 
-  if (body.draft) {
+  if (draft) {
     await c.env.DB.prepare(
       `INSERT INTO messages
         (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
        VALUES (?, ?, ?, 'drafts', ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
     )
-      .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, body.html ?? "", now)
+      .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, now)
       .run();
     return c.json({ ok: true, draft: true, id });
   }
@@ -345,7 +348,7 @@ app.post("/api/mail/send", async (c) => {
     to,
     subject,
     text,
-    html: body.html,
+    html: html || undefined,
     messageId: `<${id}@${fromMailbox.address.split("@")[1]}>`,
   });
 
@@ -366,7 +369,7 @@ app.post("/api/mail/send", async (c) => {
       (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
      VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
   )
-    .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, body.html ?? "", now)
+    .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, now)
     .run();
 
   return c.json({ ok: true, id });
