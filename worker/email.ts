@@ -1,6 +1,8 @@
 import PostalMime from "postal-mime";
 import { randomId, nowMs } from "./lib/ids";
 import { splitHeadersBody } from "./lib/mime";
+import { isNoReply, makeSnippet } from "./lib/mailutil";
+import { applyInboundPolicy, maybeVacationReply, touchContact } from "./lib/workspace";
 
 type MailboxRow = {
   id: string;
@@ -30,6 +32,12 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   }
   const userId = mailbox.user_id;
 
+  const policy = await applyInboundPolicy(env.DB, userId, {
+    from: parsed.from,
+    to: recipients.join(", ") || message.to,
+    subject: parsed.subject,
+  });
+  const snippet = makeSnippet(parsed.text, parsed.html);
   const id = randomId("msg");
   const now = nowMs();
   const dateMs = parsed.dateMs ?? now;
@@ -40,22 +48,30 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   }
 
   await env.DB.prepare(
-    `INSERT INTO messages (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at) VALUES (?, ?, ?, 'inbox', ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    `INSERT INTO messages (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
   )
     .bind(
       id,
       userId,
       mailbox?.id ?? null,
+      policy.folder,
       parsed.from,
       recipients.join(", ") || message.to,
+      parsed.cc,
       parsed.subject,
       dateMs,
       parsed.text,
       parsed.html,
       hasAttachments,
+      policy.starred,
+      snippet,
       now,
     )
     .run();
+  await touchContact(env.DB, userId, parsed.from).catch(() => undefined);
+  if (policy.folder === "inbox" && !isNoReply(parsed.from)) {
+    await maybeVacationReply(env, userId, mailbox.address, parsed.from).catch((error) => console.warn("vacation", error));
+  }
 
   if (storeAtt && env.INLET_ATTACHMENTS) {
     for (const att of parsed.attachments) {
@@ -78,6 +94,7 @@ type ParsedAtt = { filename: string; mimeType: string; content: ArrayBuffer | Ui
 type Parsed = {
   from: string;
   to: string;
+  cc: string;
   toList: string[];
   subject: string;
   dateMs: number | null;
@@ -90,9 +107,11 @@ async function parseMessage(raw: ArrayBuffer): Promise<Parsed> {
   try {
     const email = await PostalMime.parse(raw);
     const toList = (email.to ?? []).flatMap((a) => (a.address ? [a.address] : []));
+    const ccList = (email.cc ?? []).flatMap((a) => (a.address ? [a.address] : []));
     return {
       from: formatAddr(email.from),
       to: toList.join(", "),
+      cc: ccList.join(", "),
       toList,
       subject: email.subject ?? "(no subject)",
       dateMs: email.date ? Date.parse(email.date) || null : null,
@@ -112,6 +131,7 @@ async function parseMessage(raw: ArrayBuffer): Promise<Parsed> {
     return {
       from: split.headers["from"] ?? "",
       to,
+      cc: split.headers["cc"] ?? "",
       toList: extractAddresses(to),
       subject: split.headers["subject"] ?? "(no subject)",
       dateMs: split.headers["date"] ? Date.parse(split.headers["date"]) || null : null,

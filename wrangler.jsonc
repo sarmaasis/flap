@@ -38,6 +38,9 @@
 			"name": "SEB"
 		}
 	],
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
 	"observability": {
 		"enabled": true
 	}

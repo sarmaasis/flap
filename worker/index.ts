@@ -1,18 +1,17 @@
 import { Hono } from "hono";
-import { EmailMessage } from "cloudflare:email";
 import { createSession, destroySession, getSessionUser, requireUser, userCount, type UserRow } from "./lib/auth";
 import { randomId, nowMs } from "./lib/ids";
 import { hashPassword, verifyPassword } from "./lib/password";
-import { buildRawMime } from "./lib/mime";
 import { handleEmail } from "./email";
+import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
+import { dispatchStoredMessage, flushScheduled, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 
 type App = { Bindings: Env };
 const app = new Hono<App>();
 
-const FOLDERS = new Set(["inbox", "sent", "drafts", "spam", "trash"]);
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FOLDERS = new Set(["inbox", "sent", "drafts", "spam", "trash", "archive", "scheduled"]);
+const VIRTUAL_FOLDERS = new Set(["starred", "snoozed"]);
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
-const HEADER_VALUE_RE = /^[^\r\n]*$/;
 const MAX_PASSWORD_LENGTH = 1_024;
 const MAX_OUTBOUND_ATTACHMENTS = 10;
 const MAX_OUTBOUND_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -24,7 +23,10 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "DENY");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  c.header("Content-Security-Policy", "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'");
+  c.header(
+    "Content-Security-Policy",
+    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: cid:; frame-src 'self'",
+  );
 });
 
 app.get("/api/health", (c) => c.json({ ok: true, name: "Inlet" }));
@@ -89,10 +91,10 @@ app.get("/api/me", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ user: null }, 401);
   const mailboxes = await c.env.DB.prepare(
-    "SELECT id, address FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC",
+    "SELECT id, address, display_name FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC",
   )
     .bind(user.id)
-    .all<{ id: string; address: string }>();
+    .all<{ id: string; address: string; display_name: string }>();
   return c.json({
     user: { id: user.id, email: user.email, created_at: user.created_at },
     mailboxes: mailboxes.results ?? [],
@@ -141,7 +143,7 @@ app.get("/api/mailboxes", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   const rows = await c.env.DB.prepare(
-    `SELECT m.id, m.domain_id, m.local_part, m.address, m.created_at, d.name AS domain
+    `SELECT m.id, m.domain_id, m.local_part, m.address, m.display_name, m.created_at, d.name AS domain
      FROM mailboxes m
      JOIN domains d ON d.id = m.domain_id
      WHERE m.user_id = ?
@@ -178,6 +180,17 @@ app.post("/api/mailboxes", async (c) => {
   return c.json({ mailbox: { id, domain_id: domain.id, local_part: local, address } }, 201);
 });
 
+app.patch("/api/mailboxes/:id", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json().catch(() => ({})) as { display_name?: string };
+  const res = await c.env.DB.prepare("UPDATE mailboxes SET display_name = ? WHERE id = ? AND user_id = ?")
+    .bind((body.display_name ?? "").trim().slice(0, 80), c.req.param("id"), user.id)
+    .run();
+  if (!res.meta.changes) return c.json({ error: "Mailbox not found." }, 404);
+  return c.json({ ok: true });
+});
+
 app.delete("/api/mailboxes/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -195,15 +208,30 @@ app.get("/api/dns", async (c) => {
   return c.json({ records: dnsRecords(domain || "your-domain.com") });
 });
 
+const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, created_at`;
+
 app.get("/api/mail", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  await flushScheduled(c.env).catch(() => undefined);
   const folder = (c.req.query("folder") ?? "inbox").toLowerCase();
-  if (!FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
+  if (!FOLDERS.has(folder) && !VIRTUAL_FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
   const mailboxId = c.req.query("mailbox");
-  let sql = `SELECT id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, has_attachments, unread, created_at
-             FROM messages WHERE user_id = ? AND folder = ?`;
-  const binds: unknown[] = [user.id, folder];
+  const now = nowMs();
+  let sql = `SELECT ${LIST_COLUMNS} FROM messages WHERE user_id = ?`;
+  const binds: unknown[] = [user.id];
+  if (folder === "starred") {
+    sql += " AND starred = 1 AND folder NOT IN ('trash', 'spam')";
+  } else if (folder === "snoozed") {
+    sql += " AND snooze_until > ?";
+    binds.push(now);
+  } else if (folder === "inbox") {
+    sql += " AND folder = 'inbox' AND (snooze_until IS NULL OR snooze_until <= ?)";
+    binds.push(now);
+  } else {
+    sql += " AND folder = ?";
+    binds.push(folder);
+  }
   if (mailboxId) {
     sql += " AND mailbox_id = ?";
     binds.push(mailboxId);
@@ -220,14 +248,14 @@ app.get("/api/search", async (c) => {
   if (q.length < 2) return c.json({ error: "Type at least two characters." }, 400);
   const like = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
   const rows = await c.env.DB.prepare(
-    `SELECT id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, has_attachments, unread, created_at
+    `SELECT ${LIST_COLUMNS}
      FROM messages
      WHERE user_id = ?
-       AND (subject LIKE ? ESCAPE '\\' OR from_addr LIKE ? ESCAPE '\\' OR to_addr LIKE ? ESCAPE '\\' OR text_body LIKE ? ESCAPE '\\')
+       AND (subject LIKE ? ESCAPE '\\' OR from_addr LIKE ? ESCAPE '\\' OR to_addr LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\' OR text_body LIKE ? ESCAPE '\\')
      ORDER BY date_ms DESC
      LIMIT 100`,
   )
-    .bind(user.id, like, like, like, like)
+    .bind(user.id, like, like, like, like, like)
     .all();
   return c.json({ q, messages: rows.results ?? [] });
 });
@@ -284,42 +312,99 @@ app.post("/api/mail/:id/move", async (c) => {
   const body = await c.req.json().catch(() => ({})) as { folder?: string };
   const folder = (body.folder ?? "").toLowerCase();
   if (!FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
-  const res = await c.env.DB.prepare("UPDATE messages SET folder = ? WHERE id = ? AND user_id = ?")
+  const res = await c.env.DB.prepare("UPDATE messages SET folder = ?, snooze_until = NULL WHERE id = ? AND user_id = ?")
     .bind(folder, c.req.param("id"), user.id)
     .run();
   if (!res.meta.changes) return c.json({ error: "Message not found." }, 404);
   return c.json({ ok: true, folder });
 });
 
+app.post("/api/mail/:id/flags", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json().catch(() => ({})) as {
+    unread?: boolean;
+    starred?: boolean;
+    snooze_until?: number | null;
+  };
+  const row = await c.env.DB.prepare("SELECT id, starred, unread FROM messages WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), user.id)
+    .first<{ id: string; starred: number; unread: number }>();
+  if (!row) return c.json({ error: "Message not found." }, 404);
+  const starred = body.starred === undefined ? row.starred : body.starred ? 1 : 0;
+  const unread = body.unread === undefined ? row.unread : body.unread ? 1 : 0;
+  if (body.snooze_until === undefined) {
+    await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ? WHERE id = ? AND user_id = ?")
+      .bind(starred, unread, row.id, user.id)
+      .run();
+  } else {
+    await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ?, snooze_until = ?, folder = 'inbox' WHERE id = ? AND user_id = ?")
+      .bind(starred, unread, body.snooze_until, row.id, user.id)
+      .run();
+  }
+  return c.json({ ok: true, starred, unread, snooze_until: body.snooze_until ?? null });
+});
+
+app.delete("/api/mail/:id", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const row = await c.env.DB.prepare("SELECT id, folder FROM messages WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), user.id)
+    .first<{ id: string; folder: string }>();
+  if (!row) return c.json({ error: "Message not found." }, 404);
+  if (row.folder !== "trash" && row.folder !== "spam" && row.folder !== "drafts" && row.folder !== "scheduled") {
+    return c.json({ error: "Move the message to Trash before deleting it permanently." }, 400);
+  }
+  const atts = await c.env.DB.prepare("SELECT r2_key FROM attachments WHERE message_id = ?")
+    .bind(row.id)
+    .all<{ r2_key: string }>();
+  if (c.env.INLET_ATTACHMENTS) {
+    await Promise.all((atts.results ?? []).map((att) => c.env.INLET_ATTACHMENTS!.delete(att.r2_key).catch(() => undefined)));
+  }
+  await c.env.DB.prepare("DELETE FROM attachments WHERE message_id = ?").bind(row.id).run();
+  await c.env.DB.prepare("DELETE FROM messages WHERE id = ? AND user_id = ?").bind(row.id, user.id).run();
+  return c.json({ ok: true });
+});
+
 app.post("/api/mail/send", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   const body = await c.req.json().catch(() => ({})) as {
+    id?: string;
     to?: string;
+    cc?: string;
+    bcc?: string;
     subject?: string;
     text?: string;
     html?: string;
     from?: string;
     draft?: boolean;
+    scheduled_at?: number | null;
+    in_reply_to?: string;
     attachments?: OutboundAttachment[];
   };
   const to = (body.to ?? "").trim();
+  const cc = (body.cc ?? "").trim();
+  const bcc = (body.bcc ?? "").trim();
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
   const html = body.html ?? "";
   const draft = body.draft === true;
+  const scheduledAt = typeof body.scheduled_at === "number" && body.scheduled_at > nowMs() ? body.scheduled_at : null;
   const incomingAttachments = Array.isArray(body.attachments) ? body.attachments : [];
-  if (to.length > 4_096 || subject.length > 998 || text.length > 1_000_000 || html.length > 1_500_000) {
+  if (to.length > 4_096 || cc.length > 4_096 || bcc.length > 4_096 || subject.length > 998 || text.length > 1_000_000 || html.length > 1_500_000) {
     return c.json({ error: "Message fields exceed Inlet's supported size limits." }, 400);
   }
-  const recipients = parseRecipients(to);
-  if (!draft && (!recipients.length || recipients.length > 20)) {
+  const uniqueRecipients = [...new Set([...parseRecipients(to), ...parseRecipients(cc), ...parseRecipients(bcc)])];
+  if (!draft && !scheduledAt && (!uniqueRecipients.length || uniqueRecipients.length > 20)) {
     return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
   }
-  if (!draft && !subject) return c.json({ error: "Subject is required." }, 400);
+  if (!draft && !scheduledAt && !subject) return c.json({ error: "Subject is required." }, 400);
   if (!HEADER_VALUE_RE.test(subject)) return c.json({ error: "Subject cannot contain line breaks." }, 400);
+  if (cc && !parseRecipients(cc).length) return c.json({ error: "Cc contains an invalid address." }, 400);
+  if (bcc && !parseRecipients(bcc).length) return c.json({ error: "Bcc contains an invalid address." }, 400);
 
-  if (!draft && !c.env.SEB) {
+  if (!draft && !scheduledAt && !c.env.SEB) {
     return c.json(
       {
         error:
@@ -334,7 +419,6 @@ app.post("/api/mail/send", async (c) => {
     return c.json({ error: "Add a mailbox in Settings before sending." }, 400);
   }
 
-  const id = randomId("msg");
   const now = nowMs();
   const attachments = decodeOutboundAttachments(incomingAttachments);
   if (attachments instanceof Response) return attachments;
@@ -342,49 +426,69 @@ app.post("/api/mail/send", async (c) => {
     return c.json({ error: "Attachments require the INLET_ATTACHMENTS R2 binding." }, 501);
   }
 
-  if (draft) {
+  const snippet = makeSnippet(text, html);
+  const folder = scheduledAt ? "scheduled" : "drafts";
+  let id = (body.id ?? "").trim();
+  if (id) {
+    const existing = await c.env.DB.prepare("SELECT id, folder FROM messages WHERE id = ? AND user_id = ?")
+      .bind(id, user.id)
+      .first<{ id: string; folder: string }>();
+    if (!existing || (existing.folder !== "drafts" && existing.folder !== "scheduled")) {
+      return c.json({ error: "Draft not found." }, 404);
+    }
+    await c.env.DB.prepare(
+      `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to)
+       WHERE id = ? AND user_id = ?`,
+    )
+      .bind(fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, body.in_reply_to ?? null, id, user.id)
+      .run();
+  } else {
+    id = randomId("msg");
     await c.env.DB.prepare(
       `INSERT INTO messages
-        (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
-       VALUES (?, ?, ?, 'drafts', ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, scheduled_at, in_reply_to, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
     )
-      .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, attachments.length ? 1 : 0, now)
+      .bind(id, user.id, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, body.in_reply_to ?? null, now)
       .run();
+  }
+  if (attachments.length) {
     await saveOutboundAttachments(c.env, id, attachments, now);
-    return c.json({ ok: true, draft: true, id });
   }
 
-  const raw = buildRawMime({
-    from: fromMailbox.address,
-    to,
-    subject,
-    text,
-    html: html || undefined,
-    attachments,
-    messageId: `<${id}@${fromMailbox.address.split("@")[1]}>`,
-  });
+  for (const address of uniqueRecipients) {
+    await touchContact(c.env.DB, user.id, address);
+  }
 
-  try {
-    await Promise.all(recipients.map((recipient) => c.env.SEB!.send(new EmailMessage(fromMailbox.address, recipient, raw))));
-  } catch (err) {
-    const hint = err instanceof Error ? err.message : "send failed";
+  if (draft) return c.json({ ok: true, draft: true, id });
+  if (scheduledAt) return c.json({ ok: true, scheduled: true, id, scheduled_at: scheduledAt });
+
+  const error = await dispatchStoredMessage(c.env, {
+    id,
+    mailbox_id: fromMailbox.id,
+    from_addr: fromMailbox.fromHeader,
+    to_addr: to,
+    cc_addr: cc,
+    bcc_addr: bcc,
+    subject,
+    text_body: text,
+    html_body: html,
+    in_reply_to: body.in_reply_to ?? null,
+  });
+  if (error) {
     return c.json(
       {
-        error: `Outbound send failed: ${hint}. Confirm Email Routing destination addresses and a paid Workers plan.`,
+        error: `Outbound send failed: ${error}. The message was saved as a draft. Confirm Email Routing destination addresses and a paid Workers plan.`,
+        id,
+        draft: true,
       },
       502,
     );
   }
 
-  await c.env.DB.prepare(
-    `INSERT INTO messages
-      (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
-     VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-  )
-    .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, attachments.length ? 1 : 0, now)
+  await c.env.DB.prepare("UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0 WHERE id = ? AND user_id = ?")
+    .bind(now, id, user.id)
     .run();
-  await saveOutboundAttachments(c.env, id, attachments, now);
-
   return c.json({ ok: true, id });
 });
 
@@ -420,12 +524,6 @@ async function saveOutboundAttachments(env: Env, messageId: string, attachments:
 function normalizeDomain(raw: string): string {
   const domain = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
   return DOMAIN_RE.test(domain) ? domain : "";
-}
-
-function parseRecipients(value: string): string[] {
-  const recipients = value.split(",").map((recipient) => recipient.trim()).filter(Boolean);
-  if (recipients.some((recipient) => !EMAIL_RE.test(recipient))) return [];
-  return [...new Set(recipients.map((recipient) => recipient.toLowerCase()))];
 }
 
 function safeFilename(value: string): string {
@@ -466,20 +564,30 @@ function dnsRecords(domain: string) {
 }
 
 async function pickFromMailbox(db: D1Database, userId: string, from?: string) {
-  if (from) {
-    const row = await db
-      .prepare("SELECT id, address FROM mailboxes WHERE user_id = ? AND lower(address) = ?")
-      .bind(userId, from.trim().toLowerCase())
-      .first<{ id: string; address: string }>();
-    if (row) return row;
-  }
-  return db
-    .prepare("SELECT id, address FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC LIMIT 1")
-    .bind(userId)
-    .first<{ id: string; address: string }>();
+  const row = from
+    ? await db
+        .prepare("SELECT id, address, display_name FROM mailboxes WHERE user_id = ? AND lower(address) = ?")
+        .bind(userId, from.trim().toLowerCase())
+        .first<{ id: string; address: string; display_name: string }>()
+    : await db
+        .prepare("SELECT id, address, display_name FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC LIMIT 1")
+        .bind(userId)
+        .first<{ id: string; address: string; display_name: string }>();
+  if (!row) return null;
+  const name = (row.display_name ?? "").trim().replace(/["\r\n]/g, "");
+  return {
+    id: row.id,
+    address: row.address,
+    fromHeader: name ? `"${name}" <${row.address}>` : row.address,
+  };
 }
+
+registerWorkspaceRoutes(app);
 
 export default {
   fetch: app.fetch,
   email: handleEmail,
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(flushScheduled(env));
+  },
 };

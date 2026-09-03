@@ -66,19 +66,19 @@ export default function Landing() {
             <p>Inlet does not hold mail in a shared product account. Deploy the Worker, bind D1 and R2, and keep control with the operator.</p>
           </article>
           <article className="card">
-            <h3>Inbound on Email Routing</h3>
-            <p>Point MX at Cloudflare, then send matching addresses to this Worker. Inlet parses the message and files it under Inbox.</p>
+            <h3>A complete mailbox</h3>
+            <p>Inbox, starred, snoozed, drafts, scheduled, sent, archive, spam, and trash. Search, filters, and live unread counts stay close at hand.</p>
           </article>
           <article className="card">
-            <h3>Outbound you control</h3>
-            <p>Compose from a mailbox you added. Sending uses the send_email binding. A paid Workers plan is required to send.</p>
+            <h3>Compose that keeps up</h3>
+            <p>Rich replies with Cc/Bcc, templates, signatures, autosaved drafts, attachments, and send-later — from addresses you added.</p>
           </article>
         </section>
 
         <section className="grid-3">
           <article className="card">
-            <h3>Folders that stay boring</h3>
-            <p>Inbox, Sent, Drafts, Spam, and Trash. Search subject, parties, and body text. Move a message when it no longer belongs.</p>
+            <h3>People and rules</h3>
+            <p>Contacts grow as you write. Block senders, star or file mail automatically, and export a JSON backup when you want a copy.</p>
           </article>
           <article className="card">
             <h3>DNS you can check</h3>

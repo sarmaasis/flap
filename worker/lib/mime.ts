@@ -2,11 +2,13 @@
 export function buildRawMime(opts: {
   from: string;
   to: string;
+  cc?: string;
   subject: string;
   text: string;
   html?: string;
   attachments?: Array<{ filename: string; contentType: string; content: Uint8Array }>;
   messageId?: string;
+  inReplyTo?: string;
 }): string {
   const date = new Date().toUTCString();
   const messageId = opts.messageId ?? `<${crypto.randomUUID()}@inlet.local>`;
@@ -14,9 +16,11 @@ export function buildRawMime(opts: {
   const headers = [
     `From: ${opts.from}`,
     `To: ${opts.to}`,
+    ...(opts.cc ? [`Cc: ${opts.cc}`] : []),
     `Subject: ${subject}`,
     `Date: ${date}`,
     `Message-ID: ${messageId}`,
+    ...(opts.inReplyTo ? [`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.inReplyTo}`] : []),
     "MIME-Version: 1.0",
   ];
 
