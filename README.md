@@ -56,7 +56,7 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-Visit the Worker URL and create the first administrator account. Then open **Settings**, add your domain, and add each address you want Inlet to accept.
+Visit the `inlet` Worker URL and create the first administrator account. Then open **Settings**, add your domain, and add each address you want Inlet to accept. You can rename the Worker later in `wrangler.jsonc` if you prefer a different deployment name.
 
 ### 5. Route email to Inlet
 

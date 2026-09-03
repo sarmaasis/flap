@@ -40,12 +40,18 @@ app.post("/api/setup", async (c) => {
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters." }, 400);
   const id = randomId("usr");
   const now = nowMs();
-  await c.env.DB.prepare(
-    "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-  )
-    .bind(id, email, await hashPassword(password), now)
-    .run();
-  await createSession(c, id);
+  try {
+    const passwordHash = await hashPassword(password);
+    await c.env.DB.prepare(
+      "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+    )
+      .bind(id, email, passwordHash, now)
+      .run();
+    await createSession(c, id);
+  } catch (error) {
+    console.error("Failed to create the initial Inlet administrator", error);
+    return c.json({ error: "Could not create the administrator account. Check the Worker logs for details." }, 500);
+  }
   return c.json({ ok: true, user: { id, email } });
 });
 
@@ -389,7 +395,7 @@ function dnsRecords(domain: string) {
         "Copy the DKIM TXT value from Cloudflare Dashboard > Email Routing > Settings. Inlet does not generate DKIM keys.",
     },
     worker_rule:
-      "Email Routing > Routing rules: match the mailbox address (or a catch-all) and set the action to Send to a Worker, selecting this Inlet worker.",
+      "Email Routing > Routing rules: match the mailbox address (or a catch-all) and set the action to Send to a Worker, selecting this Inlet Worker.",
     send_note:
       "Outbound mail uses the SEB send_email binding. Sending requires a paid Workers plan. Destination addresses must be allowed in Email Routing.",
   };
