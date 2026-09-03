@@ -54,7 +54,7 @@ export const api = {
   message: (id: string) => req<{ message: MailFull; attachments: Attachment[] }>(`/api/mail/${id}`),
   move: (id: string, folder: string) =>
     req<{ ok: boolean }>(`/api/mail/${id}/move`, { method: "POST", body: JSON.stringify({ folder }) }),
-  send: (body: { to: string; subject: string; text: string; html?: string; from?: string; draft?: boolean }) =>
+  send: (body: { to: string; subject: string; text: string; html?: string; from?: string; draft?: boolean; attachments?: { filename: string; content_type: string; data: string }[] }) =>
     req<{ ok: boolean; id: string; draft?: boolean }>("/api/mail/send", { method: "POST", body: JSON.stringify(body) }),
   search: (q: string) => req<{ q: string; messages: MailSummary[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 };

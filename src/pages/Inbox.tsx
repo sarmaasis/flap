@@ -213,9 +213,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               setShowCompose(false);
               go("/app");
             }}
-            onSent={async () => {
+            onSent={async (draft) => {
               setShowCompose(false);
-              setFolder("sent");
+              setFolder(draft ? "drafts" : "sent");
               go("/app");
               await loadList();
             }}

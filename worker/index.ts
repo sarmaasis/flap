@@ -14,6 +14,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 const HEADER_VALUE_RE = /^[^\r\n]*$/;
 const MAX_PASSWORD_LENGTH = 1_024;
+const MAX_OUTBOUND_ATTACHMENTS = 10;
+const MAX_OUTBOUND_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+type OutboundAttachment = { filename?: string; content_type?: string; data?: string };
 
 app.use("*", async (c, next) => {
   await next();
@@ -298,12 +301,14 @@ app.post("/api/mail/send", async (c) => {
     html?: string;
     from?: string;
     draft?: boolean;
+    attachments?: OutboundAttachment[];
   };
   const to = (body.to ?? "").trim();
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
   const html = body.html ?? "";
   const draft = body.draft === true;
+  const incomingAttachments = Array.isArray(body.attachments) ? body.attachments : [];
   if (to.length > 4_096 || subject.length > 998 || text.length > 1_000_000 || html.length > 1_500_000) {
     return c.json({ error: "Message fields exceed Inlet's supported size limits." }, 400);
   }
@@ -331,15 +336,21 @@ app.post("/api/mail/send", async (c) => {
 
   const id = randomId("msg");
   const now = nowMs();
+  const attachments = decodeOutboundAttachments(incomingAttachments);
+  if (attachments instanceof Response) return attachments;
+  if (attachments.length && !c.env.INLET_ATTACHMENTS) {
+    return c.json({ error: "Attachments require the INLET_ATTACHMENTS R2 binding." }, 501);
+  }
 
   if (draft) {
     await c.env.DB.prepare(
       `INSERT INTO messages
         (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
-       VALUES (?, ?, ?, 'drafts', ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+       VALUES (?, ?, ?, 'drafts', ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     )
-      .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, now)
+      .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, attachments.length ? 1 : 0, now)
       .run();
+    await saveOutboundAttachments(c.env, id, attachments, now);
     return c.json({ ok: true, draft: true, id });
   }
 
@@ -349,6 +360,7 @@ app.post("/api/mail/send", async (c) => {
     subject,
     text,
     html: html || undefined,
+    attachments,
     messageId: `<${id}@${fromMailbox.address.split("@")[1]}>`,
   });
 
@@ -367,13 +379,43 @@ app.post("/api/mail/send", async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO messages
       (id, user_id, mailbox_id, folder, from_addr, to_addr, subject, date_ms, text_body, html_body, has_attachments, unread, created_at)
-     VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+     VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
   )
-    .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, now)
+    .bind(id, user.id, fromMailbox.id, fromMailbox.address, to, subject, now, text, html, attachments.length ? 1 : 0, now)
     .run();
+  await saveOutboundAttachments(c.env, id, attachments, now);
 
   return c.json({ ok: true, id });
 });
+
+function decodeOutboundAttachments(input: OutboundAttachment[]): Array<{ filename: string; contentType: string; content: Uint8Array }> | Response {
+  if (input.length > MAX_OUTBOUND_ATTACHMENTS) return new Response(JSON.stringify({ error: `Attach at most ${MAX_OUTBOUND_ATTACHMENTS} files.` }), { status: 400, headers: { "content-type": "application/json" } });
+  let total = 0;
+  const files: Array<{ filename: string; contentType: string; content: Uint8Array }> = [];
+  for (const item of input) {
+    if (typeof item.data !== "string" || !item.data.startsWith("data:")) return new Response(JSON.stringify({ error: "An attachment is malformed." }), { status: 400, headers: { "content-type": "application/json" } });
+    const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(item.data);
+    if (!match) return new Response(JSON.stringify({ error: "Attachments must be base64 data URLs." }), { status: 400, headers: { "content-type": "application/json" } });
+    const binary = atob(match[2]);
+    const content = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    total += content.byteLength;
+    if (total > MAX_OUTBOUND_ATTACHMENT_BYTES) return new Response(JSON.stringify({ error: "Attachments exceed Inlet's 25 MB limit." }), { status: 400, headers: { "content-type": "application/json" } });
+    files.push({ filename: safeFilename(item.filename ?? "attachment"), contentType: safeContentType(item.content_type ?? match[1]), content });
+  }
+  return files;
+}
+
+async function saveOutboundAttachments(env: Env, messageId: string, attachments: Array<{ filename: string; contentType: string; content: Uint8Array }>, now: number) {
+  if (!attachments.length || !env.INLET_ATTACHMENTS) return;
+  for (const attachment of attachments) {
+    const id = randomId("att");
+    const key = `attachments/${messageId}/${id}/${safeFilename(attachment.filename)}`;
+    await env.INLET_ATTACHMENTS.put(key, attachment.content, { httpMetadata: { contentType: attachment.contentType } });
+    await env.DB.prepare("INSERT INTO attachments (id, message_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, messageId, key, attachment.filename, attachment.contentType, attachment.content.byteLength, now)
+      .run();
+  }
+}
 
 function normalizeDomain(raw: string): string {
   const domain = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
