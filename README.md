@@ -90,7 +90,7 @@ npm run build
 
 The included [deployment workflow](.github/workflows/deploy.yml) validates every production deployment, then deploys the Worker when changes are pushed to `main`. It does not deploy documentation-only changes.
 
-Before enabling it, create a GitHub Environment named `production` and add these environment secrets:
+Before enabling it, create a GitHub Environment named `Deploy` and add these environment secrets:
 
 - `CLOUDFLARE_API_TOKEN` — a scoped Cloudflare API token allowed to deploy this Worker and manage its bound resources.
 - `CLOUDFLARE_ACCOUNT_ID` — the Cloudflare account ID that owns the Worker.

@@ -45,7 +45,7 @@ jobs:
     needs: validate
     if: ${{ inputs.run_migrations == true }}
     runs-on: ubuntu-latest
-    environment: production
+    environment: Deploy
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -56,6 +56,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing Deploy environment secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing Deploy environment secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Apply pending migrations
         run: npm run db:migrate:remote
         env:
@@ -67,7 +74,7 @@ jobs:
     needs: [validate, migrate]
     if: ${{ always() && needs.validate.result == 'success' && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') }}
     runs-on: ubuntu-latest
-    environment: production
+    environment: Deploy
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -78,6 +85,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing Deploy environment secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing Deploy environment secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy to Cloudflare
         run: npm run deploy
         env:
