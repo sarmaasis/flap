@@ -24,7 +24,7 @@
 			"binding": "DB",
 			"database_name": "inlet",
 			"database_id": "4e9d434d-1893-4510-8d4b-b898939aaf48",
-      "migrations_dir": "migrations"
+			"migrations_dir": "migrations"
 		}
 	],
 	"r2_buckets": [
