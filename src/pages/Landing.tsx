@@ -37,16 +37,26 @@ export default function Landing() {
         </header>
 
         <section className="hero">
-          <h1>Mail for your domain, kept on your account.</h1>
-          <p className="lede">
-            Inlet is a self-operated inbox that runs in your Cloudflare account. Receive and send on addresses you own.
-            Messages live in your D1 database. Attachments go to your R2 bucket.
-          </p>
-          <div className="hero-actions">
-            <a className="btn" href={setup ? "/setup" : "/login"} onClick={(e) => { e.preventDefault(); go(setup ? "/setup" : "/login"); }}>
-              {setup ? "Start first-run setup" : "Sign in to Inlet"}
-            </a>
-            <a className="btn btn-ghost" href="#how">Read the operator path</a>
+          <div className="hero-copy">
+            <p className="eyebrow">Your address. Your infrastructure.</p>
+            <h1>Email that feels like it belongs to you.</h1>
+            <p className="lede">
+              Inlet is a focused inbox for your own domain, running inside your Cloudflare account.
+              Receive, reply, and keep control of every message.
+            </p>
+            <div className="hero-actions">
+              <a className="btn" href={setup ? "/setup" : "/login"} onClick={(e) => { e.preventDefault(); go(setup ? "/setup" : "/login"); }}>
+                {setup ? "Start first-run setup" : "Open your inbox"}
+              </a>
+              <a className="btn btn-ghost" href="#how">See how it works</a>
+            </div>
+          </div>
+          <div className="hero-preview" aria-label="Example inbox preview">
+            <div className="preview-top"><span className="preview-dot" /><strong>Inbox</strong><span className="preview-count">3 new</span></div>
+            <div className="preview-message highlight"><span className="avatar coral">A</span><div><strong>Ava at Northstar</strong><small>Welcome to your new address</small></div><time>9:41</time></div>
+            <div className="preview-message"><span className="avatar violet">C</span><div><strong>Cloudflare</strong><small>Your routing rule is active</small></div><time>Yesterday</time></div>
+            <div className="preview-message"><span className="avatar mint">M</span><div><strong>Mom</strong><small>Call me when you can</small></div><time>Mon</time></div>
+            <div className="preview-footer">hello@yourdomain.com <span>•</span> yours to keep</div>
           </div>
         </section>
 
