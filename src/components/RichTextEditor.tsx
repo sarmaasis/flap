@@ -1,5 +1,6 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect } from "react";
@@ -29,10 +30,12 @@ export default function RichTextEditor({ value, onChange }: Props) {
       StarterKit.configure({ heading: { levels: [2, 3] } }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+      Placeholder.configure({ placeholder: "Write a message…" }),
     ],
     content: value,
     editorProps: {
       attributes: {
+        id: "body",
         class: "rich-editor-content",
         "aria-label": "Message body",
       },
@@ -41,7 +44,8 @@ export default function RichTextEditor({ value, onChange }: Props) {
   });
 
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) editor.commands.setContent(value, { emitUpdate: false });
+    const nextContent = value || "<p></p>";
+    if (editor && nextContent !== editor.getHTML()) editor.commands.setContent(nextContent, { emitUpdate: false });
   }, [editor, value]);
 
   function addLink() {
