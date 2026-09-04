@@ -121,7 +121,7 @@ export default function Landing() {
     });
     setJsonLd("flap-faq", faqPageLd(FAQS));
     trackOnce("landing", "landing_view");
-    Promise.all([api.setupStatus().catch(() => ({ needs_setup: false })), api.me().then(() => true).catch(() => false)])
+    Promise.all([api.setupStatus().catch(() => ({ needs_setup: false })), api.me().then((me) => me.user.email_verified !== false).catch(() => false)])
       .then(([setup, signedIn]) => {
         if (setup.needs_setup) setAuth("setup");
         else if (signedIn) setAuth("user");

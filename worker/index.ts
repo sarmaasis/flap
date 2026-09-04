@@ -175,11 +175,6 @@ app.get("/api/me", async (c) => {
   const preferred = getCookie(c, "flap_ws") || undefined;
   const ctx = await resolveWorkspace(c.env.DB, user.id, preferred);
   const mailboxes = await listAccessibleMailboxes(c.env.DB, ctx);
-  const flags = await c.env.DB.prepare(
-    "SELECT email_verified_at FROM users WHERE id = ?",
-  )
-    .bind(user.id)
-    .first<{ email_verified_at: number | null }>();
   const credential = await c.env.DB.prepare(
     `SELECT id FROM account WHERE userId = ? AND providerId = 'credential' AND password IS NOT NULL AND password != ''`,
   )
@@ -190,7 +185,7 @@ app.get("/api/me", async (c) => {
       id: user.id,
       email: user.email,
       created_at: user.created_at,
-      email_verified: Boolean(flags?.email_verified_at),
+      email_verified: user.emailVerified,
     },
     workspace: {
       id: ctx.workspaceId,

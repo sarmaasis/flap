@@ -73,6 +73,8 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      // Explicit: never mint a session on email/password signup until verified.
+      autoSignIn: false,
       minPasswordLength: 8,
       maxPasswordLength: 128,
       sendResetPassword: async ({ user, url }) => {
@@ -91,6 +93,8 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
     },
     emailVerification: {
       sendOnSignUp: true,
+      // Resend when an unverified user tries password sign-in.
+      sendOnSignIn: true,
       autoSignInAfterVerification: true,
       // Match Settings copy + verify-email template.
       expiresIn: 48 * 60 * 60,

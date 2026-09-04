@@ -4,8 +4,9 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
-import { authClient, authErrorMessage } from "../lib/auth-client";
+import { authClient, authErrorMessage, handleUnverifiedSignIn } from "../lib/auth-client";
 import { go } from "../lib/nav";
+import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
 function OAuthButtons({ invite }: { invite?: string }) {
   const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
@@ -52,7 +53,14 @@ export default function Login() {
     api.setupStatus().then((s) => {
       if (s.needs_setup) go("/setup");
     }).catch(() => undefined);
-    api.me().then(() => go("/app")).catch(() => undefined);
+    api.me().then((me) => {
+      if (me.user.email_verified === false) {
+        storePendingVerifyEmail(me.user.email);
+        go(verifyEmailPath(me.user.email, "signin"));
+        return;
+      }
+      go("/app");
+    }).catch(() => undefined);
   }, []);
 
   async function onMagicLink(e: React.FormEvent) {
@@ -67,7 +75,7 @@ export default function Login() {
         errorCallbackURL: "/login?error=magic",
       });
       if (error) throw error;
-      setNotice("Check your email for a sign-in link. It expires in 15 minutes.");
+      setNotice("Check your email for a sign-in link. It expires in 15 minutes and verifies your email when you click.");
     } catch (ex) {
       setErr(authErrorMessage(ex, "Could not send magic link."));
     } finally {
@@ -86,9 +94,13 @@ export default function Login() {
         password,
         callbackURL: "/app",
       });
-      if (error) throw error;
+      if (error) {
+        if (handleUnverifiedSignIn(email, error)) return;
+        throw error;
+      }
       go("/app");
     } catch (ex) {
+      if (handleUnverifiedSignIn(email, ex)) return;
       setErr(authErrorMessage(ex, "Email or password is incorrect."));
     } finally {
       setBusy(false);
@@ -102,7 +114,11 @@ export default function Login() {
           <BrandMark /> Flap
         </a>
         <h1>Sign in</h1>
-        <p className="muted">Access your brand inbox at useflap.online.</p>
+        <p className="muted">
+          {mode === "magic"
+            ? "Magic link signs you in without a password. Email & password accounts must verify email before opening the app."
+            : "Password sign-in requires a verified email. Unverified accounts stay on the verify screen until you confirm."}
+        </p>
         {err ? <p className="error" role="alert">{err}</p> : null}
         {notice ? <p className="muted" role="status">{notice}</p> : null}
         <OAuthButtons />

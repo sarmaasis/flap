@@ -9,6 +9,11 @@ export type UserRow = {
   created_at: number;
 };
 
+export type SessionUser = UserRow & {
+  /** Better Auth `user.emailVerified` — source of truth for /app access. */
+  emailVerified: boolean;
+};
+
 type AppEnv = { Bindings: Env };
 
 export async function userCount(db: D1Database): Promise<number> {
@@ -19,17 +24,20 @@ export async function userCount(db: D1Database): Promise<number> {
 /**
  * Resolve the Flap product user from the Better Auth session cookie.
  * Lazily provisions `users` (workspace id === auth user id) when missing.
+ * Does not enforce email verification (use `requireUser` for product APIs).
  */
-export async function getSessionUser(c: Context<AppEnv>): Promise<UserRow | null> {
+export async function getSessionUser(c: Context<AppEnv>): Promise<SessionUser | null> {
   const auth = createAuth(c.env, c.executionCtx);
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user) return null;
+
+  const emailVerified = Boolean(session.user.emailVerified);
 
   await ensureFlapUser(c.env, {
     id: session.user.id,
     email: session.user.email,
     name: session.user.name,
-    emailVerified: Boolean(session.user.emailVerified),
+    emailVerified,
   });
 
   const row = await c.env.DB.prepare(
@@ -38,7 +46,7 @@ export async function getSessionUser(c: Context<AppEnv>): Promise<UserRow | null
     .bind(session.user.id)
     .first<UserRow>();
 
-  if (row) return row;
+  if (row) return { ...row, emailVerified };
 
   // Rare: email matched an older Flap row with a different id during migration edge cases.
   const byEmail = await c.env.DB.prepare(
@@ -46,12 +54,19 @@ export async function getSessionUser(c: Context<AppEnv>): Promise<UserRow | null
   )
     .bind(session.user.email.trim().toLowerCase())
     .first<UserRow>();
-  return byEmail ?? null;
+  return byEmail ? { ...byEmail, emailVerified } : null;
 }
 
+/** Session required and email verified (blocks password signup before verify). */
 export async function requireUser(c: Context<AppEnv>): Promise<UserRow | Response> {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "Sign in required." }, 401);
+  if (!user.emailVerified) {
+    return c.json(
+      { error: "Email not verified.", code: "EMAIL_NOT_VERIFIED" },
+      403,
+    );
+  }
   return user;
 }
 

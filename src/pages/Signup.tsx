@@ -8,6 +8,7 @@ import { authClient, authErrorMessage } from "../lib/auth-client";
 import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
+import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
 function OAuthButtons() {
   const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
@@ -70,7 +71,7 @@ export default function Signup() {
       if (error) throw error;
       track("signup_completed", { method: "magic_link", referred: Boolean(refCode) });
       if (refCode) track("referral_signup");
-      setNotice("Check your email for a sign-in link to finish creating your workspace.");
+      setNotice("Check your email for a sign-in link. One click creates your workspace and verifies your email.");
     } catch (error) {
       setErr(authErrorMessage(error, "Could not send magic link."));
     } finally {
@@ -93,7 +94,8 @@ export default function Signup() {
       if (error) throw error;
       track("signup_completed", { method: "password", referred: Boolean(refCode) });
       if (refCode) track("referral_signup");
-      go("/app/settings?tab=setup&onboarding=1&verify=sent");
+      storePendingVerifyEmail(email);
+      go(verifyEmailPath(email, "signup"));
     } catch (error) {
       setErr(authErrorMessage(error, "Could not create account."));
     } finally {
@@ -115,7 +117,11 @@ export default function Signup() {
           <BrandMark /> Flap
         </a>
         <h1>Create your workspace</h1>
-        <p className="muted">One inbox for every startup you build. Start free — add domains when you launch.</p>
+        <p className="muted">
+          {mode === "magic"
+            ? "Magic link signs you in and verifies your email in one step. Or use email & password — we’ll ask you to verify before opening the app."
+            : "Sign up with email & password, verify your email, then use Flap. Or switch to a magic link for one-click sign-in."}
+        </p>
         {refCode ? (
           <p className="muted text-xs">
             Referral applied ({refCode}). Both of you earn +1 domain after you connect a domain.
@@ -150,7 +156,7 @@ export default function Signup() {
                 : "Creating…"
               : mode === "magic"
                 ? "Continue with magic link"
-                : "Start free with email"}
+                : "Create account & verify email"}
           </Button>
         </div>
         <button

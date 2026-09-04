@@ -131,16 +131,27 @@ export function registerGrowthRoutes(app: Hono<App>) {
     return c.json({ ok: true, accepted });
   });
 
-  /** Outside `/api/auth/*` so Better Auth catch-all does not swallow it. */
+  /** Outside `/api/auth/*` so Better Auth catch-all does not swallow it.
+   * Allows unverified sessions (and email-only body) so Settings / verify wall can resend. */
   app.post("/api/account/resend-verification", async (c) => {
-    const user = await requireUser(c);
-    if (user instanceof Response) return user;
+    const sessionUser = await getSessionUser(c);
+    const body = (await c.req.json().catch(() => ({}))) as { email?: string };
+    const email = (body.email || sessionUser?.email || "").trim().toLowerCase();
+    if (!email) {
+      return c.json({ error: "Sign in required, or provide an email to resend." }, 401);
+    }
+    if (sessionUser && sessionUser.email.trim().toLowerCase() !== email) {
+      return c.json({ error: "Email does not match the signed-in account." }, 400);
+    }
+    if (sessionUser?.emailVerified) {
+      return c.json({ ok: true, sent: false, reason: "already_verified", message: "Email is already verified." });
+    }
     const auth = createAuth(c.env, c.executionCtx);
     const origin = (c.env.APP_URL || "https://useflap.online").replace(/\/$/, "");
     try {
       await auth.api.sendVerificationEmail({
         body: {
-          email: user.email,
+          email,
           callbackURL: `${origin}/app/settings?tab=setup&verify=ok&onboarding=1`,
         },
         headers: c.req.raw.headers,
