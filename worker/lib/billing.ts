@@ -2,13 +2,40 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { requireUser } from "./auth";
 import { randomId, nowMs } from "./ids";
-import { createCheckoutSession, createCustomerPortalSession, verifyDodoWebhook } from "./dodo";
+import { createCheckoutSession, createCustomerPortalSession, resolveDodoMode, verifyDodoWebhook } from "./dodo";
 import { PLANS, PLAN_ORDER, normalizePlanId, planFromProductId, productIdForPlan, type PlanId, type PlanLimits } from "./plans";
 
+function envStr(v: string | undefined): string {
+  return (v || "").trim();
+}
+
+/** Checkout is enabled when an API key and at least one paid product ID are set (test or live). */
 function billingConfigured(env: Env): boolean {
-  return Boolean(env.DODO_PAYMENTS_API_KEY) && Boolean(
-    env.DODO_PRODUCT_PRO || env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_STARTER || env.DODO_PRODUCT_BUSINESS,
+  return Boolean(envStr(env.DODO_PAYMENTS_API_KEY)) && Boolean(
+    envStr(env.DODO_PRODUCT_PRO) ||
+      envStr(env.DODO_PRODUCT_TEAM) ||
+      envStr(env.DODO_PRODUCT_STARTER) ||
+      envStr(env.DODO_PRODUCT_BUSINESS),
   );
+}
+
+/** Human-readable gaps so Settings can explain “Contact to upgrade” instead of implying test mode is blocked. */
+function checkoutMissing(env: Env): string[] {
+  const missing: string[] = [];
+  if (!envStr(env.DODO_PAYMENTS_API_KEY)) missing.push("DODO_PAYMENTS_API_KEY");
+  if (!envStr(env.DODO_PRODUCT_PRO) && !envStr(env.DODO_PRODUCT_STARTER)) missing.push("DODO_PRODUCT_PRO");
+  if (!envStr(env.DODO_PRODUCT_TEAM) && !envStr(env.DODO_PRODUCT_BUSINESS)) missing.push("DODO_PRODUCT_TEAM");
+  return missing;
+}
+
+function checkoutDiagnostics(env: Env) {
+  const mode = resolveDodoMode(env);
+  const missing = checkoutMissing(env);
+  return {
+    checkout_configured: billingConfigured(env),
+    dodo_environment: mode,
+    checkout_missing: missing,
+  };
 }
 
 type App = { Bindings: Env };
@@ -226,9 +253,9 @@ function formatLimitValue(resource: keyof PlanLimits, max: number): string {
 
 export function registerBillingRoutes(app: Hono<App>) {
   app.get("/api/billing/plans", (c) => {
-    const configured = billingConfigured(c.env);
+    const diag = checkoutDiagnostics(c.env);
     return c.json({
-      checkout_configured: configured,
+      ...diag,
       support_email: "support@useflap.online",
       plans: PLAN_ORDER.map((id) => {
         const p = PLANS[id];
@@ -240,7 +267,7 @@ export function registerBillingRoutes(app: Hono<App>) {
           features: p.features,
           limits: p.limits,
           highlighted: !!p.highlighted,
-          checkout_available: id === "free" ? false : configured && !!productIdForPlan(id, c.env),
+          checkout_available: id === "free" ? false : diag.checkout_configured && !!productIdForPlan(id, c.env),
         };
       }),
     });
@@ -251,7 +278,7 @@ export function registerBillingRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const { plan_id, status, limits, subscription } = await getEffectivePlan(c.env.DB, user.id);
     const usage = await collectUsage(c.env.DB, user.id);
-    const configured = billingConfigured(c.env);
+    const diag = checkoutDiagnostics(c.env);
     return c.json({
       plan_id,
       status,
@@ -259,8 +286,8 @@ export function registerBillingRoutes(app: Hono<App>) {
       usage,
       /** Send counters reset on UTC calendar month (`YYYY-MM`). Storage = message bodies + attachments. */
       quota_reset: "utc_calendar_month" as const,
-      checkout_configured: configured,
-      portal_available: configured && Boolean(subscription.dodo_customer_id),
+      ...diag,
+      portal_available: diag.checkout_configured && Boolean(subscription.dodo_customer_id),
       support_email: "support@useflap.online",
       subscription: {
         id: subscription.id,
@@ -282,14 +309,15 @@ export function registerBillingRoutes(app: Hono<App>) {
       return c.json({ error: "Choose pro or team." }, 400);
     }
     const productId = productIdForPlan(plan, c.env);
-    if (!c.env.DODO_PAYMENTS_API_KEY) {
+    if (!envStr(c.env.DODO_PAYMENTS_API_KEY)) {
       return c.json({
-        error: "Self-serve checkout is not configured yet. Email support@useflap.online to upgrade, or set DODO_PAYMENTS_API_KEY.",
+        error:
+          "Self-serve checkout is not configured yet. Set DODO_PAYMENTS_API_KEY (and product IDs) in .dev.vars for local test_mode, or Worker secrets in production.",
       }, 503);
     }
     if (!productId) {
       return c.json({
-        error: `Checkout for ${plan} is not configured yet (missing DODO_PRODUCT_${plan.toUpperCase()}). Contact support@useflap.online.`,
+        error: `Checkout for ${plan} is not configured yet (missing DODO_PRODUCT_${plan.toUpperCase()}). Create the product in the Dodo ${resolveDodoMode(c.env)} dashboard and set the pdt_… id in env.`,
       }, 503);
     }
     const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
@@ -311,7 +339,7 @@ export function registerBillingRoutes(app: Hono<App>) {
   app.post("/api/billing/portal", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    if (!c.env.DODO_PAYMENTS_API_KEY) {
+    if (!envStr(c.env.DODO_PAYMENTS_API_KEY)) {
       return c.json({
         error: "Billing portal is not configured. Email support@useflap.online to manage your subscription.",
       }, 503);
@@ -346,11 +374,9 @@ export function registerBillingRoutes(app: Hono<App>) {
       signature: c.req.header("webhook-signature") || "",
     };
 
-    const live =
-      (c.env.DODO_PAYMENTS_ENVIRONMENT || "").toLowerCase() === "live_mode" ||
-      (c.env.DODO_PAYMENTS_ENVIRONMENT || "").toLowerCase() === "live";
+    const live = resolveDodoMode(c.env) === "live_mode";
 
-    if (c.env.DODO_PAYMENTS_WEBHOOK_KEY) {
+    if (envStr(c.env.DODO_PAYMENTS_WEBHOOK_KEY)) {
       const ok = await verifyDodoWebhook(c.env, rawBody, headers);
       if (!ok) return c.json({ error: "Invalid webhook signature." }, 401);
     } else if (live) {

@@ -7,9 +7,63 @@ export type DodoEnv = {
   APP_URL?: string;
 };
 
-function baseUrl(env: DodoEnv): string {
-  const mode = (env.DODO_PAYMENTS_ENVIRONMENT || "test_mode").toLowerCase();
-  return mode === "live_mode" || mode === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
+export type DodoMode = "test_mode" | "live_mode";
+
+function trim(v: string | undefined): string {
+  return (v || "").trim();
+}
+
+/**
+ * Resolve Dodo API mode.
+ * Docs: environment is `test_mode` | `live_mode` (SDK defaults to live_mode — we prefer
+ * inferring from key prefix, then falling back to test_mode for local safety).
+ * @see https://docs.dodopayments.com/miscellaneous/test-mode-vs-live-mode
+ */
+export function resolveDodoMode(env: DodoEnv): DodoMode {
+  const raw = trim(env.DODO_PAYMENTS_ENVIRONMENT).toLowerCase();
+  if (raw === "live_mode" || raw === "live") return "live_mode";
+  if (raw === "test_mode" || raw === "test") return "test_mode";
+
+  const key = trim(env.DODO_PAYMENTS_API_KEY);
+  if (key.startsWith("dodo_live_")) return "live_mode";
+  if (key.startsWith("dodo_test_")) return "test_mode";
+
+  // Unset / unknown → test host so local .dev.vars never silently hit live.
+  return "test_mode";
+}
+
+export function dodoBaseUrl(env: DodoEnv): string {
+  return resolveDodoMode(env) === "live_mode"
+    ? "https://live.dodopayments.com"
+    : "https://test.dodopayments.com";
+}
+
+/** When key has a known prefix, refuse obvious test/live mismatches before calling Dodo. */
+export function assertDodoKeyMatchesMode(env: DodoEnv): void {
+  const key = trim(env.DODO_PAYMENTS_API_KEY);
+  if (!key) throw new Error("DODO_PAYMENTS_API_KEY is not configured.");
+  const mode = resolveDodoMode(env);
+  if (key.startsWith("dodo_test_") && mode === "live_mode") {
+    throw new Error(
+      "DODO_PAYMENTS_API_KEY is a test key (dodo_test_…) but DODO_PAYMENTS_ENVIRONMENT=live_mode. Set DODO_PAYMENTS_ENVIRONMENT=test_mode, or use a live key (dodo_live_…).",
+    );
+  }
+  if (key.startsWith("dodo_live_") && mode === "test_mode") {
+    throw new Error(
+      "DODO_PAYMENTS_API_KEY is a live key (dodo_live_…) but DODO_PAYMENTS_ENVIRONMENT=test_mode. Set DODO_PAYMENTS_ENVIRONMENT=live_mode, or use a test key (dodo_test_…).",
+    );
+  }
+}
+
+function unauthorizedHint(env: DodoEnv, status: number): string | null {
+  if (status !== 401 && status !== 403) return null;
+  const mode = resolveDodoMode(env);
+  const host = dodoBaseUrl(env);
+  return (
+    `Dodo returned unauthorized (${status}) for ${mode} (${host}). ` +
+    `API keys are environment-specific: use a test key with DODO_PAYMENTS_ENVIRONMENT=test_mode ` +
+    `(https://test.dodopayments.com), or a live key with live_mode. Mixing them yields unauthorized.`
+  );
 }
 
 export async function createCheckoutSession(
@@ -22,10 +76,10 @@ export async function createCheckoutSession(
     metadata?: Record<string, string>;
   },
 ): Promise<{ session_id: string; checkout_url: string }> {
-  const key = env.DODO_PAYMENTS_API_KEY;
-  if (!key) throw new Error("DODO_PAYMENTS_API_KEY is not configured.");
+  assertDodoKeyMatchesMode(env);
+  const key = trim(env.DODO_PAYMENTS_API_KEY);
 
-  const res = await fetch(`${baseUrl(env)}/checkouts`, {
+  const res = await fetch(`${dodoBaseUrl(env)}/checkouts`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -44,7 +98,8 @@ export async function createCheckoutSession(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Dodo checkout failed (${res.status}): ${text.slice(0, 240)}`);
+    const hint = unauthorizedHint(env, res.status);
+    throw new Error(hint || `Dodo checkout failed (${res.status}): ${text.slice(0, 240)}`);
   }
   return (await res.json()) as { session_id: string; checkout_url: string };
 }
@@ -54,11 +109,11 @@ export async function createCustomerPortalSession(
   customerId: string,
   returnUrl: string,
 ): Promise<{ link: string }> {
-  const key = env.DODO_PAYMENTS_API_KEY;
-  if (!key) throw new Error("DODO_PAYMENTS_API_KEY is not configured.");
+  assertDodoKeyMatchesMode(env);
+  const key = trim(env.DODO_PAYMENTS_API_KEY);
   if (!customerId) throw new Error("No Dodo customer on this subscription yet.");
 
-  const url = new URL(`${baseUrl(env)}/customers/${encodeURIComponent(customerId)}/customer-portal/session`);
+  const url = new URL(`${dodoBaseUrl(env)}/customers/${encodeURIComponent(customerId)}/customer-portal/session`);
   url.searchParams.set("return_url", returnUrl);
 
   const res = await fetch(url.toString(), {
@@ -67,7 +122,8 @@ export async function createCustomerPortalSession(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Dodo portal failed (${res.status}): ${text.slice(0, 240)}`);
+    const hint = unauthorizedHint(env, res.status);
+    throw new Error(hint || `Dodo portal failed (${res.status}): ${text.slice(0, 240)}`);
   }
   return (await res.json()) as { link: string };
 }
@@ -78,7 +134,7 @@ export async function verifyDodoWebhook(
   rawBody: string,
   headers: { id: string; timestamp: string; signature: string },
 ): Promise<boolean> {
-  const secret = env.DODO_PAYMENTS_WEBHOOK_KEY;
+  const secret = trim(env.DODO_PAYMENTS_WEBHOOK_KEY);
   if (!secret) return false;
   if (!headers.id || !headers.timestamp || !headers.signature) return false;
 

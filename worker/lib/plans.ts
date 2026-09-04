@@ -137,10 +137,14 @@ export function planFromProductId(
   },
 ): PlanId {
   if (!productId) return "free";
-  if (env.DODO_PRODUCT_PRO && productId === env.DODO_PRODUCT_PRO) return "pro";
-  if (env.DODO_PRODUCT_TEAM && productId === env.DODO_PRODUCT_TEAM) return "team";
-  if (env.DODO_PRODUCT_STARTER && productId === env.DODO_PRODUCT_STARTER) return "pro";
-  if (env.DODO_PRODUCT_BUSINESS && productId === env.DODO_PRODUCT_BUSINESS) return "team";
+  const pro = (env.DODO_PRODUCT_PRO || "").trim();
+  const team = (env.DODO_PRODUCT_TEAM || "").trim();
+  const starter = (env.DODO_PRODUCT_STARTER || "").trim();
+  const business = (env.DODO_PRODUCT_BUSINESS || "").trim();
+  if (pro && productId === pro) return "pro";
+  if (team && productId === team) return "team";
+  if (starter && productId === starter) return "pro";
+  if (business && productId === business) return "team";
   return "free";
 }
 
@@ -153,7 +157,7 @@ export function productIdForPlan(
     DODO_PRODUCT_BUSINESS?: string;
   },
 ): string | null {
-  if (plan === "pro") return env.DODO_PRODUCT_PRO || env.DODO_PRODUCT_STARTER || null;
-  if (plan === "team") return env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_BUSINESS || null;
+  if (plan === "pro") return (env.DODO_PRODUCT_PRO || env.DODO_PRODUCT_STARTER || "").trim() || null;
+  if (plan === "team") return (env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_BUSINESS || "").trim() || null;
   return null;
 }

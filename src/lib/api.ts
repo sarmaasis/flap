@@ -151,6 +151,14 @@ export type PlanSummary = {
   checkout_available?: boolean;
 };
 
+export type BillingPlansResponse = {
+  plans: PlanSummary[];
+  checkout_configured?: boolean;
+  dodo_environment?: "test_mode" | "live_mode";
+  checkout_missing?: string[];
+  support_email?: string;
+};
+
 export type BillingSubscription = {
   plan_id: string;
   status: string;
@@ -158,6 +166,8 @@ export type BillingSubscription = {
   usage: Record<string, number>;
   quota_reset?: "utc_calendar_month";
   checkout_configured?: boolean;
+  dodo_environment?: "test_mode" | "live_mode";
+  checkout_missing?: string[];
   portal_available?: boolean;
   support_email?: string;
   subscription: {
@@ -180,7 +190,7 @@ export const api = {
     req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => req<{ ok: boolean }>("/api/logout", { method: "POST" }),
   me: () => req<{ user: User; mailboxes: Mailbox[] }>("/api/me"),
-  billingPlans: () => req<{ plans: PlanSummary[]; checkout_configured?: boolean; support_email?: string }>("/api/billing/plans"),
+  billingPlans: () => req<BillingPlansResponse>("/api/billing/plans"),
   billingSubscription: () => req<BillingSubscription>("/api/billing/subscription"),
   billingCheckout: (plan: string) =>
     req<{ checkout_url: string; session_id: string }>("/api/billing/checkout", {

@@ -17,14 +17,27 @@ GOOGLE_CLIENT_SECRET=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
-# Dodo Payments (https://docs.dodopayments.com)
-# Dashboard → Developer → API keys / Webhooks
-# Leave blank for demos: checkout buttons show “contact support” instead of failing silently.
+# ─── Dodo Payments (https://docs.dodopayments.com) ───────────────────────────
+# Test and live are SEPARATE: keys, webhooks, and products do not cross over.
+# Dashboard → toggle Test/Live → Developer → API keys / Webhooks / Products
+#
+# LOCAL TEST CHECKOUT (required for Upgrade buttons to work):
+#   1. Dashboard in Test Mode
+#   2. Create subscription products → copy pdt_… ids below
+#   3. Create a test API key (often prefixed dodo_test_…)
+#   4. Keep ENVIRONMENT=test_mode  (hits https://test.dodopayments.com)
+#   5. Restart `npm run dev` after editing this file
+#
+# Leave API key / product IDs blank for demos: Billing shows “not configured”
+# instead of broken checkout. test_mode alone does NOT disable checkout.
 DODO_PAYMENTS_API_KEY=
 DODO_PAYMENTS_WEBHOOK_KEY=
-# test_mode | live_mode  (live_mode requires DODO_PAYMENTS_WEBHOOK_KEY)
+# test_mode | live_mode
+# - test_mode → https://test.dodopayments.com  (use test keys + test product ids)
+# - live_mode → https://live.dodopayments.com  (use live keys + live product ids)
+# Mixing a test key with live_mode (or vice versa) returns Unauthorized.
 DODO_PAYMENTS_ENVIRONMENT=test_mode
-# Product IDs from Dodo dashboard (subscription products)
+# Product IDs from the SAME mode as the API key (subscription products)
 DODO_PRODUCT_PRO=
 DODO_PRODUCT_TEAM=
 # Legacy aliases (still accepted): DODO_PRODUCT_STARTER → Pro, DODO_PRODUCT_BUSINESS → Team
@@ -35,7 +48,7 @@ DODO_PRODUCT_BUSINESS=
 # SESSION_SECRET, APP_URL=https://useflap.online
 # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (optional)
-# DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT
+# DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
 # DODO_PRODUCT_PRO, DODO_PRODUCT_TEAM
 # Webhook URL: https://useflap.online/api/billing/webhook
 # OAuth callbacks: https://useflap.online/api/auth/google/callback

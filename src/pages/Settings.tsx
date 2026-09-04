@@ -72,6 +72,8 @@ export default function Settings() {
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
   const [checkoutConfigured, setCheckoutConfigured] = useState(true);
+  const [checkoutMissing, setCheckoutMissing] = useState<string[]>([]);
+  const [dodoEnvironment, setDodoEnvironment] = useState<"test_mode" | "live_mode" | null>(null);
   const [supportEmail, setSupportEmail] = useState("support@useflap.online");
   const [onboardingBanner, setOnboardingBanner] = useState(
     () => new URLSearchParams(window.location.search).get("onboarding") === "1",
@@ -94,7 +96,13 @@ export default function Settings() {
       api.prefs(),
       api.team(),
       api.billingSubscription().catch(() => null),
-      api.billingPlans().catch(() => ({ plans: [] as PlanSummary[], checkout_configured: false, support_email: "support@useflap.online" })),
+      api.billingPlans().catch(() => ({
+        plans: [] as PlanSummary[],
+        checkout_configured: false as boolean,
+        checkout_missing: ["DODO_PAYMENTS_API_KEY", "DODO_PRODUCT_PRO", "DODO_PRODUCT_TEAM"] as string[],
+        dodo_environment: undefined as "test_mode" | "live_mode" | undefined,
+        support_email: "support@useflap.online",
+      })),
     ]);
     setDomains(d.domains);
     if (!domainId && d.domains[0]) setDomainId(d.domains[0].id);
@@ -120,6 +128,8 @@ export default function Settings() {
     setBilling(bill);
     setPlans(planList.plans);
     setCheckoutConfigured(bill?.checkout_configured ?? planList.checkout_configured ?? false);
+    setCheckoutMissing(bill?.checkout_missing ?? planList.checkout_missing ?? []);
+    setDodoEnvironment(bill?.dodo_environment ?? planList.dodo_environment ?? null);
     setSupportEmail(bill?.support_email || planList.support_email || "support@useflap.online");
     const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
     if (focus) setDns((await api.dns(focus.name)).records);
@@ -579,8 +589,21 @@ export default function Settings() {
             </div>
             {!checkoutConfigured ? (
               <div className="deferred-banner" style={{ marginBottom: 16 }}>
-                Self-serve checkout is not configured on this deployment yet. Email{" "}
-                <a href={`mailto:${supportEmail}`}>{supportEmail}</a> to upgrade, or set Dodo product IDs and API keys in Worker secrets.
+                Self-serve checkout is not configured
+                {dodoEnvironment ? ` (${dodoEnvironment})` : ""}.
+                {checkoutMissing.length > 0 ? (
+                  <>
+                    {" "}Missing env: <code>{checkoutMissing.join(", ")}</code>.
+                  </>
+                ) : null}{" "}
+                For local testing set test API key + product IDs in <code>.dev.vars</code> with{" "}
+                <code>DODO_PAYMENTS_ENVIRONMENT=test_mode</code>. Or email{" "}
+                <a href={`mailto:${supportEmail}`}>{supportEmail}</a> to upgrade.
+              </div>
+            ) : dodoEnvironment === "test_mode" ? (
+              <div className="deferred-banner" style={{ marginBottom: 16 }}>
+                Dodo is in <code>test_mode</code> — checkouts use test keys and{" "}
+                <code>test.dodopayments.com</code> (no real charges).
               </div>
             ) : null}
             {billing ? (
