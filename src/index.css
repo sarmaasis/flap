@@ -651,6 +651,22 @@ textarea { min-height: 160px; resize: vertical; }
     linear-gradient(145deg, rgba(23, 27, 36, 0.75), rgba(11, 13, 18, 0.96));
 }
 
+.read-pane.has-compose {
+  padding: 22px clamp(18px, 3.5vw, 40px) 36px;
+  background: var(--bg-elevated);
+}
+
+.compose-pane {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  min-height: min(100%, 520px);
+}
+
+.compose-pane .compose-editor .rich-editor-content,
+.compose-pane .compose-editor .tiptap {
+  min-height: 280px;
+}
+
 .mobile-back { display: none; }
 
 .read-empty {

@@ -21,8 +21,8 @@ const EMPTY: Record<string, string> = {
   inbox: "You're all caught up. New mail for your domain will land here.",
   starred: "Star messages you want to find again.",
   snoozed: "Nothing is waiting to come back. Snooze a message from the reader.",
-  drafts: "No drafts yet. Flap saves them as you write.",
-  scheduled: "No messages waiting to send.",
+  drafts: "No drafts yet. Flap saves them as you write — click a draft to open it in the composer.",
+  scheduled: "No messages waiting to send. Click one to edit it in the composer.",
   sent: "Nothing sent yet. Compose a message to get started.",
   archive: "Archived mail lives here, out of the way.",
   spam: "Blocked and junk mail will appear here.",
@@ -54,6 +54,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [thread, setThread] = useState<MailSummary[]>([]);
   const [notifyBrowser, setNotifyBrowser] = useState(false);
   const lastUnreadRef = useRef<number | null>(null);
+  /** When true, selected id is for draft/scheduled compose — do not load the reader. */
+  const openInComposeRef = useRef(false);
+  const [openingDraft, setOpeningDraft] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
@@ -110,6 +113,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       setThread([]);
       return;
     }
+    // Drafts/scheduled open in the composer pane by design — skip the message reader.
+    if (openInComposeRef.current) {
+      setMessage(null);
+      setAtts([]);
+      setThread([]);
+      setLoadingMessage(false);
+      return;
+    }
     const ac = new AbortController();
     setLoadingMessage(true);
     api.message(selected, ac.signal)
@@ -161,16 +172,30 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const title = useMemo(() => FOLDERS.find((f) => f.id === folder)?.label ?? "Inbox", [folder]);
 
   const openCompose = useCallback((draft?: ComposeDraft) => {
+    // New / reply / forward use the modal — clear any drafts-folder reader selection.
+    if (!draft || draft.mode !== "draft") {
+      if (openInComposeRef.current) {
+        openInComposeRef.current = false;
+        setSelected(null);
+      }
+      setOpeningDraft(false);
+    }
     setComposeDraft(draft ?? null);
     setShowCompose(true);
     if (window.location.pathname !== "/app/compose") window.history.replaceState({}, "", "/app/compose");
   }, []);
 
   const closeCompose = useCallback(() => {
+    const wasDraftCompose = composeDraft?.mode === "draft";
     setShowCompose(false);
     setComposeDraft(null);
+    setOpeningDraft(false);
+    if (wasDraftCompose) {
+      openInComposeRef.current = false;
+      setSelected(null);
+    }
     go("/app");
-  }, []);
+  }, [composeDraft?.mode]);
 
   async function move(id: string, dest: string) {
     await api.move(id, dest);
@@ -199,21 +224,37 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }
 
   function onRowClick(row: MailSummary) {
-    if (row.folder === "drafts" || folder === "drafts" || folder === "scheduled") {
-      void api.message(row.id).then((d) => {
-        openCompose({
-          id: d.message.id,
-          to: d.message.to_addr,
-          cc: d.message.cc_addr,
-          bcc: d.message.bcc_addr,
-          subject: d.message.subject,
-          html: d.message.html_body || `<p>${d.message.text_body}</p>`,
-          from: extractEmail(d.message.from_addr),
-          mode: "draft",
-        });
-      });
+    // Drafts & scheduled: open in the reader-pane composer (not the message reader).
+    if (row.folder === "drafts" || row.folder === "scheduled" || folder === "drafts" || folder === "scheduled") {
+      openInComposeRef.current = true;
+      setSelected(row.id);
+      setMessage(null);
+      setAtts([]);
+      setThread([]);
+      setOpeningDraft(true);
+      setErr("");
+      void api.message(row.id)
+        .then((d) => {
+          openCompose({
+            id: d.message.id,
+            to: d.message.to_addr,
+            cc: d.message.cc_addr,
+            bcc: d.message.bcc_addr,
+            subject: d.message.subject,
+            html: d.message.html_body || (d.message.text_body ? `<p>${d.message.text_body}</p>` : ""),
+            from: extractEmail(d.message.from_addr),
+            mode: "draft",
+          });
+        })
+        .catch((ex: unknown) => {
+          setErr(ex instanceof Error ? ex.message : "Could not open draft.");
+          openInComposeRef.current = false;
+          setSelected(null);
+        })
+        .finally(() => setOpeningDraft(false));
       return;
     }
+    openInComposeRef.current = false;
     setSelected(row.id);
   }
 
@@ -277,6 +318,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const editingDraft = showCompose && composeDraft?.mode === "draft";
+  const composeInPane = editingDraft || openingDraft;
+
   return (
     <AppShell
       email={email}
@@ -290,6 +334,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       onFolder={(id) => {
         setFolder(id);
         setSelected(null);
+        openInComposeRef.current = false;
+        setOpeningDraft(false);
+        if (showCompose && composeDraft?.mode === "draft") {
+          setShowCompose(false);
+          setComposeDraft(null);
+        }
         setQ("");
         setQDebounced("");
         go("/app");
@@ -309,7 +359,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         ) : null}
       <div className="workspace">
-        <section className={`list-pane${message ? " has-selection" : ""}`}>
+        <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
           <div className="list-head">
             <div className="list-title-row">
               <div>
@@ -359,7 +409,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                   key={m.id}
                   row={m}
                   folder={folder}
-                  active={selected === m.id}
+                  active={selected === m.id || composeDraft?.id === m.id}
                   onOpen={() => onRowClick(m)}
                   onStar={() => void toggleStar(m)}
                 />
@@ -368,14 +418,65 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </section>
 
-        <section className={`read-pane${message ? " has-message" : ""}`}>
-          {loadingMessage && selected ? (
+        <section className={`read-pane${message || composeInPane ? " has-message" : ""}${composeInPane ? " has-compose" : ""}`}>
+          {composeInPane ? (
+            <>
+              <button
+                type="button"
+                className="mobile-back"
+                onClick={() => {
+                  if (showCompose) closeCompose();
+                  else {
+                    setOpeningDraft(false);
+                    openInComposeRef.current = false;
+                    setSelected(null);
+                  }
+                }}
+              >
+                Back to {title}
+              </button>
+              {openingDraft && !editingDraft ? (
+                <div className="empty-panel"><p className="muted">Opening draft…</p></div>
+              ) : (
+                <Suspense fallback={<div className="empty-panel"><p className="muted">Opening composer…</p></div>}>
+                  <Compose
+                    key={composeDraft?.id ?? "draft"}
+                    mailboxes={mailboxes}
+                    contacts={contacts}
+                    templates={templates}
+                    signatures={signatures}
+                    draft={composeDraft}
+                    variant="pane"
+                    onClose={closeCompose}
+                    onSent={async (kind) => {
+                      closeCompose();
+                      setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
+                      await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
+                    }}
+                  />
+                </Suspense>
+              )}
+            </>
+          ) : loadingMessage && selected ? (
             <div className="empty-panel"><p className="muted">Opening message…</p></div>
           ) : !message ? (
             <div className="read-empty">
               <div className="empty-panel">
-                <strong>Select a message</strong>
-                <p>Or press C to compose. Press ? for keyboard shortcuts.</p>
+                {folder === "drafts" || folder === "scheduled" ? (
+                  <>
+                    <strong>{folder === "drafts" ? "Drafts open in compose" : "Scheduled messages open in compose"}</strong>
+                    <p>
+                      {folder === "drafts"
+                        ? "Click a draft in the list to continue writing. Press C for a new message."
+                        : "Click a scheduled message to edit it. Press C for a new message."}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <strong>Select a message</strong>
+                    <p>Or press C to compose. Press ? for keyboard shortcuts.</p>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -469,14 +570,16 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       </div>
       </div>
 
-      {showCompose ? (
+      {showCompose && !editingDraft ? (
         <Suspense fallback={<div className="modal-back"><div className="modal"><p className="muted">Opening composer…</p></div></div>}>
           <Compose
+            key={composeDraft?.id ?? composeDraft?.mode ?? "new"}
             mailboxes={mailboxes}
             contacts={contacts}
             templates={templates}
             signatures={signatures}
             draft={composeDraft}
+            variant="modal"
             onClose={closeCompose}
             onSent={async (kind) => {
               closeCompose();

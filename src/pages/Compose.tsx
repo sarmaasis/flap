@@ -23,6 +23,7 @@ export default function Compose({
   templates = [],
   signatures = [],
   draft,
+  variant = "modal",
   onClose,
   onSent,
 }: {
@@ -31,6 +32,8 @@ export default function Compose({
   templates?: Template[];
   signatures?: Signature[];
   draft?: ComposeDraft | null;
+  /** modal = floating overlay; pane = fills the mail reader (drafts/scheduled). */
+  variant?: "modal" | "pane";
   onClose?: () => void;
   onSent?: (kind: "sent" | "draft" | "scheduled") => void | Promise<void>;
 }) {
@@ -296,6 +299,14 @@ export default function Compose({
       </div>
     </form>
   );
+
+  if (variant === "pane") {
+    return (
+      <div className="compose-pane" role="region" aria-label={title}>
+        {form}
+      </div>
+    );
+  }
 
   return (
     <div className="modal-back" role="dialog" aria-modal="true">
