@@ -147,7 +147,14 @@ export function registerGrowthRoutes(app: Hono<App>) {
       });
       return c.json({ ok: true, sent: true, message: "Verification email sent." });
     } catch (err) {
+      const statusCode =
+        err && typeof err === "object" && "statusCode" in err && typeof (err as { statusCode: unknown }).statusCode === "number"
+          ? (err as { statusCode: number }).statusCode
+          : undefined;
       const message = err instanceof Error ? err.message : "Could not send verification email.";
+      if (statusCode === 429) {
+        return c.json({ error: message || "Too many email requests. Please wait a bit and try again." }, 429);
+      }
       return c.json({ error: message }, 400);
     }
   });

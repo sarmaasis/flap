@@ -50,16 +50,17 @@ DODO_PRODUCT_STUDIO=pdt_…
 
 ## Production deploy checklist
 
-1. Apply D1 migrations through **0009_analytics_verify_abuse**: `npm run db:migrate:remote`
-2. Set Worker secrets (see `.dev.vars.example`):
+1. Set Worker secrets (see `.dev.vars.example`):
    - `BETTER_AUTH_SECRET` (or `SESSION_SECRET`), `APP_URL=https://useflap.online`, `SAAS_MODE=true`
    - `SYSTEM_FROM_EMAIL=noreply@useflap.online` (magic-link + verification via SEB)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
    - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
    - OAuth optional: Google / GitHub client IDs + secrets
-3. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
-4. `npm run deploy`
-5. Complete **Outbound auth mail (SEB)** below so magic-link / verify emails deliver
+2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
+3. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0011_auth_email_rate_limit**), then deploys the Worker/assets
+4. Complete **Outbound auth mail (SEB)** below so magic-link / verify emails deliver
+
+To apply remote migrations without deploying: `npm run db:migrate:remote`. Local Miniflare D1 stays separate: `npm run db:migrate:local`.
 
 ### Outbound auth mail (SEB) — useflap.online
 
@@ -73,6 +74,17 @@ Magic-link and verification mail use the Worker `send_email` binding (`SEB`) and
 6. **Optional mailbox** — create `noreply@useflap.online` (or catch-all) and a routing rule → Send to Worker if you want replies/bounces visible in Flap; sending still needs the domain onboarded as above.
 7. **Verify** — request a magic link to an address that is *not* a verified destination; Workers logs should no longer show `system email send failed`. On failure, logs now include `code=` / SEB detail (e.g. `E_SENDER_NOT_VERIFIED`, `E_RECIPIENT_NOT_ALLOWED`).
 
+### Auth email rate limits
+
+Magic-link and verification sends are throttled in D1 (`auth_email_rate_log`, migration **0011**) to protect Cloudflare Email Sending quotas (~1000/day free). Fail closed with HTTP **429**.
+
+| Scope | Limit |
+|-------|--------|
+| Per email + kind (`magic_link` / `verify_email`) | **3 / 15 min**, **10 / rolling 24h** |
+| Per IP + kind | **10 / hour** |
+
+Enforced on `/sign-in/magic-link` (before hook) and inside `sendVerificationEmail` (covers `/send-verification-email`, Settings resend, and `sendOnSignUp`). See `worker/lib/auth-email-rate-limit.ts`.
+
 ## Scripts
 
 | Script | Purpose |
@@ -80,8 +92,8 @@ Magic-link and verification mail use the Worker `send_email` binding (`SEB`) and
 | `npm run check` | Typecheck app + worker |
 | `npm run build` | Production frontend build + marketing HTML prerender |
 | `npm run prerender` | Write SEO HTML shells into `dist/client` (after vite build) |
-| `npm run deploy` | Build + Wrangler deploy |
-| `npm run db:migrate:local` / `remote` | Apply D1 migrations |
+| `npm run deploy` | Build → remote D1 migrations → Wrangler deploy |
+| `npm run db:migrate:local` / `remote` | Apply D1 migrations (local Miniflare / production) |
 
 ## SEO / prerender
 

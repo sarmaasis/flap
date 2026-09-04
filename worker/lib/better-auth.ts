@@ -3,8 +3,17 @@ import { createAuthMiddleware } from "better-auth/api";
 import { magicLink } from "better-auth/plugins";
 import { randomId } from "./ids";
 import { ensureFlapUser, referralFromCookieHeader } from "./flap-user";
-import { appOrigin, escapeHtml, sendSystemEmail } from "./system-email";
+import { appOrigin, sendSystemEmail } from "./system-email";
 import { markEmailVerified } from "./referrals";
+import {
+  assertAuthEmailRateLimit,
+  clientIpFromHeaders,
+} from "./auth-email-rate-limit";
+import {
+  magicLinkEmail,
+  resetPasswordEmail,
+  verifyEmailContent,
+} from "./auth-email-templates";
 
 export type FlapAuth = ReturnType<typeof createAuth>;
 
@@ -18,6 +27,10 @@ function authSecret(env: Env): string {
 
 function signupOpen(env: Env): boolean {
   return (env.SAAS_MODE || "true").toLowerCase() !== "false";
+}
+
+function requestHeaders(ctx: { request?: Request; headers?: Headers }): Headers | undefined {
+  return ctx.headers ?? ctx.request?.headers;
 }
 
 /**
@@ -63,22 +76,14 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
       minPasswordLength: 8,
       maxPasswordLength: 128,
       sendResetPassword: async ({ user, url }) => {
+        const mail = resetPasswordEmail(url);
         await sendSystemEmail(
           env,
           {
             to: user.email,
-            subject: "Reset your Flap password",
-            text: [
-              "Reset your Flap password",
-              "",
-              "Open this link to choose a new password (expires soon):",
-              url,
-              "",
-              "If you did not request this, you can ignore this email.",
-            ].join("\n"),
-            html: `<p>Reset your Flap password</p>
-<p><a href="${url}">Choose a new password</a></p>
-<p style="color:#666;font-size:13px;">If you did not request this, ignore this email.</p>`,
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
           },
           execCtx,
         );
@@ -87,24 +92,22 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url }) => {
+      // Match Settings copy + verify-email template.
+      expiresIn: 48 * 60 * 60,
+      sendVerificationEmail: async ({ user, url }, request) => {
+        await assertAuthEmailRateLimit(env.DB, {
+          kind: "verify_email",
+          email: user.email,
+          ip: clientIpFromHeaders(request?.headers ?? null),
+        });
+        const mail = verifyEmailContent(user.email, url);
         await sendSystemEmail(
           env,
           {
             to: user.email,
-            subject: "Verify your Flap email",
-            text: [
-              "Verify your Flap account",
-              "",
-              `Confirm ${user.email} by opening this link:`,
-              url,
-              "",
-              "If you did not create a Flap account, you can ignore this email.",
-            ].join("\n"),
-            html: `<p>Verify your Flap account</p>
-<p>Confirm <strong>${escapeHtml(user.email)}</strong> by clicking the link below:</p>
-<p><a href="${url}">Verify email</a></p>
-<p style="color:#666;font-size:13px;">If you did not create a Flap account, ignore this email.</p>`,
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
           },
           execCtx,
         );
@@ -122,29 +125,35 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
             });
           }
         }
+
+        // Magic-link: gate before verification token is written (fail closed → 429).
+        // Verify-email: gated inside sendVerificationEmail (covers resend + sendOnSignUp).
+        // Limits: see AUTH_EMAIL_RATE_LIMITS in auth-email-rate-limit.ts
+        if (path === "/sign-in/magic-link") {
+          const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+          await assertAuthEmailRateLimit(env.DB, {
+            kind: "magic_link",
+            email,
+            ip: clientIpFromHeaders(requestHeaders(ctx)),
+          });
+        }
       }),
     },
     plugins: [
       magicLink({
         expiresIn: 60 * 15,
         disableSignUp: !signupOpen(env),
+        // Secondary IP-ish window (Better Auth memory/DB); D1 limits above are authoritative.
+        rateLimit: { window: 60 * 60, max: 10 },
         sendMagicLink: async ({ email, url }) => {
+          const mail = magicLinkEmail(url);
           await sendSystemEmail(
             env,
             {
               to: email,
-              subject: "Your Flap sign-in link",
-              text: [
-                "Sign in to Flap",
-                "",
-                "Open this one-time link to continue (expires in 15 minutes):",
-                url,
-                "",
-                "If you did not request this, you can ignore this email.",
-              ].join("\n"),
-              html: `<p>Sign in to Flap</p>
-<p><a href="${url}">Continue to Flap</a></p>
-<p style="color:#666;font-size:13px;">This link expires in 15 minutes. If you did not request it, ignore this email.</p>`,
+              subject: mail.subject,
+              text: mail.text,
+              html: mail.html,
             },
             execCtx,
           );
@@ -177,6 +186,9 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
     advanced: {
       database: {
         generateId: () => randomId("usr"),
+      },
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
       },
     },
   });

@@ -14,6 +14,8 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
+`npm run deploy` runs `db:migrate:remote` automatically before `wrangler deploy`, so pending files in `migrations/` (configured as `migrations_dir` on the `inlet` D1 binding) are applied to production as part of deploy. Use `db:migrate:remote` alone when you need schema without a Worker publish.
+
 ## Files
 
 | Migration | Purpose |
@@ -28,8 +30,9 @@ npm run db:migrate:remote
 | `0008_growth_referrals.sql` | Referral codes/rewards, activation timestamps, DNS check rate-limit log |
 | `0009_analytics_verify_abuse.sql` | First-party `analytics_events`, email verify tokens, payment identity columns for referral abuse |
 | `0010_better_auth.sql` | Better Auth `user`/`session`/`account`/`verification` tables + id-preserving backfill from Flap `users` |
+| `0011_auth_email_rate_limit.sql` | D1 counters for magic-link / verification email rate limits |
 
-**Launch note:** Apply through `0010_better_auth` on remote D1 before relying on Better Auth sessions. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
+**Launch note:** Apply through `0011_auth_email_rate_limit` on remote D1 before relying on Better Auth sessions + auth mail throttling. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
 
 ### Better Auth coexistence
 
