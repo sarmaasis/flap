@@ -17,4 +17,4 @@ Please allow a reasonable amount of time for acknowledgement and remediation bef
 
 ## Deployment responsibility
 
-Inlet is operated in your own Cloudflare account. Keep your Cloudflare account, Worker URL, domain DNS, and administrator credentials secure; review Cloudflare access controls and regularly back up D1 and R2 data.
+Flap is operated in your own Cloudflare account. Keep your Cloudflare account, Worker URL, domain DNS, and administrator credentials secure; review Cloudflare access controls and regularly back up D1 and R2 data.

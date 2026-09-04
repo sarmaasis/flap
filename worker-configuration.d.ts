@@ -1,7 +1,7 @@
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
-  INLET_ATTACHMENTS?: R2Bucket;
+  ATTACHMENTS?: R2Bucket;
   SEB?: SendEmail;
   /** @deprecated Prefer BETTER_AUTH_SECRET — kept as fallback for local/dev. */
   SESSION_SECRET: string;

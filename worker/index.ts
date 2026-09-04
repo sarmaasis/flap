@@ -488,8 +488,8 @@ app.get("/api/mail/:id/attachments/:attId", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-  if (!c.env.INLET_ATTACHMENTS) {
-    return c.json({ error: "R2 bucket INLET_ATTACHMENTS is not bound. Attachments are unavailable." }, 501);
+  if (!c.env.ATTACHMENTS) {
+    return c.json({ error: "R2 bucket ATTACHMENTS is not bound. Attachments are unavailable." }, 501);
   }
   const access = mailboxAccessClause(ctx);
   const att = await c.env.DB.prepare(
@@ -501,7 +501,7 @@ app.get("/api/mail/:id/attachments/:attId", async (c) => {
     .bind(c.req.param("attId"), c.req.param("id"), ctx.workspaceId, ...access.binds)
     .first<{ id: string; r2_key: string; filename: string; content_type: string }>();
   if (!att) return c.json({ error: "Attachment not found." }, 404);
-  const obj = await c.env.INLET_ATTACHMENTS.get(att.r2_key);
+  const obj = await c.env.ATTACHMENTS.get(att.r2_key);
   if (!obj) return c.json({ error: "Attachment object is missing from R2." }, 404);
   return new Response(obj.body, {
     headers: {
@@ -578,8 +578,8 @@ app.delete("/api/mail/:id", async (c) => {
   const atts = await c.env.DB.prepare("SELECT r2_key FROM attachments WHERE message_id = ?")
     .bind(row.id)
     .all<{ r2_key: string }>();
-  if (c.env.INLET_ATTACHMENTS) {
-    await Promise.all((atts.results ?? []).map((att) => c.env.INLET_ATTACHMENTS!.delete(att.r2_key).catch(() => undefined)));
+  if (c.env.ATTACHMENTS) {
+    await Promise.all((atts.results ?? []).map((att) => c.env.ATTACHMENTS!.delete(att.r2_key).catch(() => undefined)));
   }
   await c.env.DB.prepare("DELETE FROM attachments WHERE message_id = ?").bind(row.id).run();
   await c.env.DB.prepare("DELETE FROM messages WHERE id = ? AND user_id = ?").bind(row.id, ctx.workspaceId).run();
@@ -643,8 +643,8 @@ app.post("/api/mail/send", async (c) => {
   const now = nowMs();
   const attachments = decodeOutboundAttachments(incomingAttachments);
   if (attachments instanceof Response) return attachments;
-  if (attachments.length && !c.env.INLET_ATTACHMENTS) {
-    return c.json({ error: "Attachments require the INLET_ATTACHMENTS R2 binding." }, 501);
+  if (attachments.length && !c.env.ATTACHMENTS) {
+    return c.json({ error: "Attachments require the ATTACHMENTS R2 binding." }, 501);
   }
 
   const snippet = makeSnippet(text, html);
@@ -775,11 +775,11 @@ function decodeOutboundAttachments(input: OutboundAttachment[]): Array<{ filenam
 }
 
 async function saveOutboundAttachments(env: Env, messageId: string, attachments: Array<{ filename: string; contentType: string; content: Uint8Array }>, now: number) {
-  if (!attachments.length || !env.INLET_ATTACHMENTS) return;
+  if (!attachments.length || !env.ATTACHMENTS) return;
   for (const attachment of attachments) {
     const id = randomId("att");
     const key = `attachments/${messageId}/${id}/${safeFilename(attachment.filename)}`;
-    await env.INLET_ATTACHMENTS.put(key, attachment.content, { httpMetadata: { contentType: attachment.contentType } });
+    await env.ATTACHMENTS.put(key, attachment.content, { httpMetadata: { contentType: attachment.contentType } });
     await env.DB.prepare("INSERT INTO attachments (id, message_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .bind(id, messageId, key, attachment.filename, attachment.contentType, attachment.content.byteLength, now)
       .run();

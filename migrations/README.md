@@ -14,7 +14,7 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
-`npm run deploy` runs `db:migrate:remote` automatically before `wrangler deploy`, so pending files in `migrations/` (configured as `migrations_dir` on the `inlet` D1 binding) are applied to production as part of deploy. Use `db:migrate:remote` alone when you need schema without a Worker publish.
+`npm run deploy` runs `db:migrate:remote` automatically before `wrangler deploy`, so pending files in `migrations/` (configured as `migrations_dir` on the `flap` D1 binding) are applied to production as part of deploy. Use `db:migrate:remote` alone when you need schema without a Worker publish.
 
 ## Files
 

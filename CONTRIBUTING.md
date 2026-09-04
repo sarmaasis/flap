@@ -1,6 +1,6 @@
-# Contributing to Inlet
+# Contributing to Flap
 
-Thanks for helping make Inlet more dependable.
+Thanks for helping make Flap more dependable.
 
 ## Before you start
 

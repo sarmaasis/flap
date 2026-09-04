@@ -55,10 +55,10 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   const inReplyTo = normalizeMessageId(parsed.inReplyTo);
   const referencesHeader = (parsed.references || "").slice(0, 4000);
   const threadId = await resolveThreadId(env.DB, userId, rfcMessageId, inReplyTo, referencesHeader);
-  const storeAtt = Boolean(parsed.attachments.length && env.INLET_ATTACHMENTS);
+  const storeAtt = Boolean(parsed.attachments.length && env.ATTACHMENTS);
   const hasAttachments = storeAtt ? 1 : 0;
-  if (parsed.attachments.length && !env.INLET_ATTACHMENTS) {
-    console.warn("INLET_ATTACHMENTS binding missing; skipping inbound attachments");
+  if (parsed.attachments.length && !env.ATTACHMENTS) {
+    console.warn("ATTACHMENTS binding missing; skipping inbound attachments");
   }
 
   const bodyBytes = messageStorageBytes({
@@ -72,7 +72,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   });
   let attachmentBytes = 0;
   const preparedAtts: Array<{ filename: string; mimeType: string; bytes: Uint8Array }> = [];
-  if (storeAtt && env.INLET_ATTACHMENTS) {
+  if (storeAtt && env.ATTACHMENTS) {
     for (const att of parsed.attachments) {
       const bytes = toBytes(att.content);
       attachmentBytes += bytes.byteLength;
@@ -136,11 +136,11 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
 
   await markFirstEmailReceived(env.DB, userId).catch(() => undefined);
 
-  if (preparedAtts.length && env.INLET_ATTACHMENTS) {
+  if (preparedAtts.length && env.ATTACHMENTS) {
     for (const att of preparedAtts) {
       const attId = randomId("att");
       const key = "attachments/" + id + "/" + attId + "/" + safeName(att.filename);
-      await env.INLET_ATTACHMENTS.put(key, att.bytes, {
+      await env.ATTACHMENTS.put(key, att.bytes, {
         httpMetadata: { contentType: att.mimeType },
       });
       await env.DB.prepare(

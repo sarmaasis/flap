@@ -283,9 +283,9 @@ async function loadAttachmentContents(env: Env, messageId: string) {
     .bind(messageId)
     .all<{ r2_key: string; filename: string; content_type: string }>();
   const files: Array<{ filename: string; contentType: string; content: Uint8Array }> = [];
-  if (!env.INLET_ATTACHMENTS) return files;
+  if (!env.ATTACHMENTS) return files;
   for (const row of rows.results ?? []) {
-    const obj = await env.INLET_ATTACHMENTS.get(row.r2_key);
+    const obj = await env.ATTACHMENTS.get(row.r2_key);
     if (!obj) continue;
     files.push({
       filename: row.filename,

@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "inlet",
+	"name": "flap",
 	"main": "./worker/index.ts",
 	"compatibility_date": "2026-09-02",
 	"compatibility_flags": [
@@ -16,21 +16,22 @@
 	"d1_databases": [
 		// {
 		// 	"binding": "DB",
-		// 	"database_name": "inlet",
+		// 	"database_name": "flap",
 		// 	"database_id": "REPLACE_WITH_D1_DATABASE_ID",
 		// 	"migrations_dir": "migrations"
 		// },
 		{
 			"binding": "DB",
-			"database_name": "inlet",
-			"database_id": "4e9d434d-1893-4510-8d4b-b898939aaf48",
+			"database_name": "flap",
+			// Keep this ID until you rename/create a D1 named `flap` (see README Cloudflare rename notes).
+			"database_id": "845444de-8a4f-46d2-968e-b841b481f46f",
 			"migrations_dir": "migrations"
 		}
 	],
 	"r2_buckets": [
 		{
-			"binding": "INLET_ATTACHMENTS",
-			"bucket_name": "inlet-attachments"
+			"binding": "ATTACHMENTS",
+			"bucket_name": "flap-attachments"
 		}
 	],
 	"send_email": [

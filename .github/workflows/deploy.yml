@@ -1,4 +1,4 @@
-name: Deploy Inlet
+name: Deploy Flap
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: inlet-production
+  group: flap-production
   cancel-in-progress: false
 
 jobs:

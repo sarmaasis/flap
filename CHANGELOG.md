@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Inlet are documented here.
+All notable changes to Flap are documented here.
 
 ## 1.0.0 — 2026-09-03
 

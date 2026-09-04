@@ -101,7 +101,50 @@ This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prere
 
 ## Notes
 
-- Internal Cloudflare resource names may still say `inlet` (Worker/D1/R2 bindings).
 - Password reset is not shipped yet; support resets are manual.
 - Password signups / magic links need `SYSTEM_FROM_EMAIL` + SEB with Email Sending onboarded for `useflap.online` (see checklist above). OAuth accounts are verified on first login.
 - Referral rewards require verified email + a connected domain; self/disposable emails and shared Dodo customer / payment fingerprints are blocked.
+
+## Cloudflare rename: `inlet` → `flap`
+
+Repo folder on disk may stay `inlet`; product / Wrangler names are **flap**. Bindings stay stable: `DB`, `ATTACHMENTS`, `SEB`, `ASSETS`.
+
+| Resource | Old | New |
+|----------|-----|-----|
+| Worker `name` | `inlet` | `flap` |
+| D1 `database_name` | `inlet` | `flap` |
+| D1 binding | `DB` | `DB` (unchanged) |
+| R2 `bucket_name` | `inlet-attachments` | `flap-attachments` |
+| R2 binding | `INLET_ATTACHMENTS` | `ATTACHMENTS` |
+| Migrate CLI | `wrangler d1 migrations apply inlet` | `… apply flap` |
+| CI concurrency | `inlet-production` | `flap-production` |
+
+### Manual steps (required before first successful deploy)
+
+Changing `wrangler.jsonc` `name` deploys a **new** Worker script named `flap`. Secrets and custom domains do **not** move automatically. SEB stays configured as `send_email` name `SEB` — do not rename that binding.
+
+**1. Worker**
+
+1. Deploy once after this rename (`npm run deploy`) so Worker `flap` exists.
+2. Re-put every secret on the new Worker (`wrangler secret put …`), matching `.dev.vars.example` / production checklist above.
+3. In Dashboard → Workers → `flap`: attach custom domains / routes previously on `inlet` (e.g. `useflap.online`).
+4. Move Email Routing “Send to Worker” rules from Worker `inlet` to `flap`.
+5. When traffic is confirmed on `flap`, delete or disable the old `inlet` Worker.
+
+**2. D1 (pick one — data loss risk if you recreate empty)**
+
+- **Prefer rename / keep ID:** In Dashboard, rename database `inlet` → `flap` if available, **or** leave the existing UUID in `wrangler.jsonc` `database_id` and only ensure CLI lookup by name works (`wrangler d1 list`). `npm run db:migrate:remote` uses the name `flap`.
+- **Or create new:** `wrangler d1 create flap`, export/import data from the old DB, then set `database_id` in `wrangler.jsonc` to the new UUID. Recreating without a dump **wipes users, mail, billing state**.
+
+**3. R2**
+
+- Create bucket `flap-attachments` (`wrangler r2 bucket create flap-attachments`).
+- Copy objects from `inlet-attachments` → `flap-attachments` (Dashboard / rclone / script). Binding is now `ATTACHMENTS`.
+- After verification, retire `inlet-attachments`. Skipping the copy **loses attachment blobs** (DB rows will 404).
+
+**4. Verify**
+
+- `GET /api/health` → `name: "Flap"`
+- Magic-link / verify mail (SEB) still sends
+- Open an existing message with attachments
+- `npm run db:migrate:remote` succeeds against D1 named `flap`
