@@ -3,6 +3,7 @@ import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
 import { markEmailVerified } from "./referrals";
 import { trackServerEvent } from "./analytics";
+import { formatSebError } from "./system-email";
 
 const TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60_000;
@@ -84,7 +85,11 @@ export async function issueEmailVerification(
     await env.SEB.send(new EmailMessage(from, email, raw));
     return { ok: true, sent: true };
   } catch (err) {
-    console.error("verification email send failed", err);
+    const formatted = formatSebError(err);
+    console.error(
+      "verification email send failed",
+      JSON.stringify({ from, toDomain: email.includes("@") ? email.split("@")[1] : "?", seb: formatted.detail }),
+    );
     return { ok: true, sent: false, reason: "send_failed" };
   }
 }

@@ -11,7 +11,8 @@ APP_URL=http://127.0.0.1:5173
 SAAS_MODE=true
 
 # From address for verification + magic-link emails (SEB send_email binding).
-# Must be a domain Cloudflare Email Routing can send from (typically your Flap product domain).
+# Must be on a domain onboarded for Cloudflare Email Sending / Email Routing send.
+# Until the domain is onboarded for sending, SEB only delivers to verified destination addresses.
 SYSTEM_FROM_EMAIL=noreply@useflap.online
 
 # Google OAuth via Better Auth social provider

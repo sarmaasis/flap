@@ -824,7 +824,7 @@ function dnsRecords(domain: string) {
     worker_rule:
       "Email Routing > Routing rules: match the mailbox address (or a catch-all) and set the action to Send to a Worker, selecting this Flap Worker.",
     send_note:
-      "Outbound mail uses the SEB send_email binding. Sending requires a paid Workers plan. Destination addresses must be allowed in Email Routing.",
+      "Outbound mail uses the SEB send_email binding. Workers Paid + Email Sending domain onboarding are required to reach arbitrary recipients; otherwise only verified Email Routing destinations work.",
   };
 }
 
