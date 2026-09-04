@@ -1,6 +1,6 @@
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Context } from "hono";
-import { randomId, nowMs } from "./ids";
+import { createAuth } from "./better-auth";
+import { ensureFlapUser } from "./flap-user";
 
 export type UserRow = {
   id: string;
@@ -11,52 +11,42 @@ export type UserRow = {
 
 type AppEnv = { Bindings: Env };
 
-const COOKIE = "flap_session";
-const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
-
 export async function userCount(db: D1Database): Promise<number> {
   const row = await db.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>();
   return Number(row?.n ?? 0);
 }
 
-export async function createSession(c: Context<AppEnv>, userId: string): Promise<void> {
-  const id = randomId("ses");
-  const now = nowMs();
-  await c.env.DB.prepare(
-    "INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
-  )
-    .bind(id, userId, now + SESSION_MS, now)
-    .run();
-  setCookie(c, COOKIE, id, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "Lax",
-    secure: isSecure(c),
-    maxAge: Math.floor(SESSION_MS / 1000),
-  });
-}
-
-export async function destroySession(c: Context<AppEnv>): Promise<void> {
-  const id = getCookie(c, COOKIE);
-  if (id) {
-    await c.env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(id).run();
-  }
-  deleteCookie(c, COOKIE, { path: "/" });
-}
-
+/**
+ * Resolve the Flap product user from the Better Auth session cookie.
+ * Lazily provisions `users` (workspace id === auth user id) when missing.
+ */
 export async function getSessionUser(c: Context<AppEnv>): Promise<UserRow | null> {
-  const id = getCookie(c, COOKIE);
-  if (!id) return null;
-  const now = nowMs();
+  const auth = createAuth(c.env, c.executionCtx);
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) return null;
+
+  await ensureFlapUser(c.env, {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    emailVerified: Boolean(session.user.emailVerified),
+  });
+
   const row = await c.env.DB.prepare(
-    `SELECT u.id, u.email, u.password_hash, u.created_at
-     FROM sessions s
-     JOIN users u ON u.id = s.user_id
-     WHERE s.id = ? AND s.expires_at > ?`,
+    `SELECT id, email, password_hash, created_at FROM users WHERE id = ?`,
   )
-    .bind(id, now)
+    .bind(session.user.id)
     .first<UserRow>();
-  return row ?? null;
+
+  if (row) return row;
+
+  // Rare: email matched an older Flap row with a different id during migration edge cases.
+  const byEmail = await c.env.DB.prepare(
+    `SELECT id, email, password_hash, created_at FROM users WHERE email = ?`,
+  )
+    .bind(session.user.email.trim().toLowerCase())
+    .first<UserRow>();
+  return byEmail ?? null;
 }
 
 export async function requireUser(c: Context<AppEnv>): Promise<UserRow | Response> {
@@ -65,7 +55,8 @@ export async function requireUser(c: Context<AppEnv>): Promise<UserRow | Respons
   return user;
 }
 
-function isSecure(c: Context<AppEnv>): boolean {
-  const url = new URL(c.req.url);
-  return url.protocol === "https:";
+/** @deprecated Prefer Better Auth signOut — kept for thin /api/logout wrapper. */
+export async function destroySession(c: Context<AppEnv>): Promise<void> {
+  const auth = createAuth(c.env, c.executionCtx);
+  await auth.api.signOut({ headers: c.req.raw.headers });
 }

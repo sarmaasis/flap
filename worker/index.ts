@@ -1,25 +1,17 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { createSession, destroySession, getSessionUser, requireUser, userCount, type UserRow } from "./lib/auth";
+import { destroySession, getSessionUser, requireUser, userCount } from "./lib/auth";
+import { createAuth, githubConfigured, googleConfigured } from "./lib/better-auth";
 import { randomId, nowMs } from "./lib/ids";
-import { hashPassword, verifyPassword } from "./lib/password";
 import { handleEmail } from "./email";
 import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
-import { attributeReferral, ensureReferralCode, markEmailVerified } from "./lib/referrals";
+import { ensureReferralCode, markEmailVerified } from "./lib/referrals";
 import { afterDomainAdded, markFirstEmailSent } from "./lib/activation";
-import { consumeEmailVerificationToken, issueEmailVerification } from "./lib/verify-email";
-import {
-  githubConfigured,
-  googleConfigured,
-  handleGitHubCallback,
-  handleGoogleCallback,
-  startGitHubOAuth,
-  startGoogleOAuth,
-} from "./lib/oauth";
+import { ensureFlapUser } from "./lib/flap-user";
 import {
   assertMailboxAccess,
   ensureOwnerMembership,
@@ -29,6 +21,17 @@ import {
   setMailboxShared,
   type WorkspaceCtx,
 } from "./lib/team";
+
+function applySetCookies(c: { header: (name: string, value: string, opts?: { append?: boolean }) => void }, headers: Headers) {
+  const cookies =
+    typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
+  if (cookies.length) {
+    for (const cookie of cookies) c.header("Set-Cookie", cookie, { append: true });
+    return;
+  }
+  const single = headers.get("set-cookie");
+  if (single) c.header("Set-Cookie", single, { append: true });
+}
 
 type App = { Bindings: Env };
 const app = new Hono<App>();
@@ -79,21 +82,36 @@ app.post("/api/setup", async (c) => {
   if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
     return c.json({ error: "Password must be between 8 and 1,024 characters." }, 400);
   }
-  const id = randomId("usr");
-  const now = nowMs();
+
+  const auth = createAuth(c.env, c.executionCtx);
   try {
-    const passwordHash = await hashPassword(password);
-    await c.env.DB.batch([
-      c.env.DB.prepare("INSERT INTO users (id, email, password_hash, created_at, plan_id) VALUES (?, ?, ?, ?, 'free')")
-        .bind(id, email, passwordHash, now),
-      c.env.DB.prepare("INSERT INTO setup_state (id, user_id, created_at) VALUES (1, ?, ?)")
-        .bind(id, now),
-    ]);
-    await ensureSubscription(c.env.DB, id);
-    await ensureOwnerMembership(c.env.DB, id);
-    await markEmailVerified(c.env.DB, id);
-    await ensureReferralCode(c.env.DB, id);
-    await createSession(c, id);
+    await auth.api.signUpEmail({
+      body: { email, password, name: "Admin" },
+      headers: c.req.raw.headers,
+    });
+
+    const baUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    if (!baUser) {
+      return c.json({ error: "Could not create the administrator account." }, 500);
+    }
+
+    await c.env.DB.prepare(`UPDATE "user" SET emailVerified = 1 WHERE id = ?`).bind(baUser.id).run();
+    await ensureFlapUser(c.env, { id: baUser.id, email, name: "Admin", emailVerified: true });
+    await ensureSubscription(c.env.DB, baUser.id);
+    await ensureOwnerMembership(c.env.DB, baUser.id);
+    await markEmailVerified(c.env.DB, baUser.id);
+    await ensureReferralCode(c.env.DB, baUser.id);
+    await c.env.DB.prepare("INSERT OR IGNORE INTO setup_state (id, user_id, created_at) VALUES (1, ?, ?)")
+      .bind(baUser.id, nowMs())
+      .run();
+
+    const signedIn = await auth.api.signInEmail({
+      body: { email, password },
+      headers: c.req.raw.headers,
+      returnHeaders: true,
+    });
+    applySetCookies(c, signedIn.headers);
+    return c.json({ ok: true, user: { id: baUser.id, email } });
   } catch (error) {
     console.error("Failed to create the initial Flap administrator", error);
     if ((await userCount(c.env.DB)) > 0) {
@@ -101,94 +119,29 @@ app.post("/api/setup", async (c) => {
     }
     return c.json({ error: "Could not create the administrator account. Check the Worker logs for details." }, 500);
   }
-  return c.json({ ok: true, user: { id, email } });
 });
 
-app.post("/api/signup", async (c) => {
-  const saas = (c.env.SAAS_MODE || "true").toLowerCase() !== "false";
-  if (!saas && (await userCount(c.env.DB)) > 0) {
-    return c.json({ error: "Open signup is disabled. Ask an operator to enable SAAS_MODE." }, 403);
-  }
-  const body = await c.req.json().catch(() => ({})) as {
-    email?: string;
-    password?: string;
-    name?: string;
-    referral_code?: string;
-    ref?: string;
-  };
-  const email = (body.email ?? "").trim().toLowerCase();
-  const password = body.password ?? "";
-  const name = (body.name ?? "").trim().slice(0, 120);
-  const referralCode = body.referral_code || body.ref || c.req.query("ref") || "";
-  if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
-  if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
-    return c.json({ error: "Password must be between 8 and 1,024 characters." }, 400);
-  }
-  const id = randomId("usr");
-  const now = nowMs();
-  try {
-    const passwordHash = await hashPassword(password);
-    const statements = [
-      c.env.DB.prepare(
-        "INSERT INTO users (id, email, password_hash, created_at, name, plan_id) VALUES (?, ?, ?, ?, ?, 'free')",
-      ).bind(id, email, passwordHash, now, name),
-    ];
-    if ((await userCount(c.env.DB)) === 0) {
-      statements.push(
-        c.env.DB.prepare("INSERT INTO setup_state (id, user_id, created_at) VALUES (1, ?, ?)").bind(id, now),
-      );
-    }
-    await c.env.DB.batch(statements);
-    await ensureSubscription(c.env.DB, id);
-    await ensureOwnerMembership(c.env.DB, id);
-    // Password signup: email stays unverified until the user clicks the verify link.
-    await ensureReferralCode(c.env.DB, id);
-    if (referralCode) {
-      await attributeReferral(c.env.DB, id, email, referralCode);
-    }
-    await createSession(c, id);
-    const verify = await issueEmailVerification(c.env, id, email, { force: true });
-    return c.json(
-      {
-        ok: true,
-        user: { id, email },
-        email_verification: {
-          required: true,
-          sent: verify.ok ? verify.sent : false,
-          reason: verify.ok ? verify.reason : "error",
-        },
-      },
-      201,
-    );
-  } catch {
-    return c.json({ error: "An account with that email already exists. Sign in instead." }, 409);
-  }
-});
+/** @deprecated Use Better Auth client (`/api/auth/sign-up/email`). */
+app.post("/api/signup", (c) =>
+  c.json(
+    {
+      error: "Signup moved to Better Auth. Use the signup form (email/password or magic link).",
+      path: "/api/auth/sign-up/email",
+    },
+    410,
+  ),
+);
 
-app.get("/api/auth/verify-email", async (c) => {
-  const token = c.req.query("token") || "";
-  const result = await consumeEmailVerificationToken(c.env, token);
-  const origin = (c.env.APP_URL || "https://useflap.online").replace(/\/$/, "");
-  if (!result.ok) {
-    return c.redirect(`${origin}/app/settings?tab=setup&verify=failed&reason=${encodeURIComponent(result.error)}`);
-  }
-  await createSession(c, result.userId);
-  return c.redirect(`${origin}/app/settings?tab=setup&verify=ok&onboarding=1`);
-});
-
-app.post("/api/login", async (c) => {
-  const body = await c.req.json().catch(() => ({})) as { email?: string; password?: string };
-  const email = (body.email ?? "").trim().toLowerCase();
-  const password = body.password ?? "";
-  const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
-    .bind(email)
-    .first<UserRow>();
-  if (!user || !user.password_hash || !(await verifyPassword(password, user.password_hash))) {
-    return c.json({ error: "Email or password is incorrect. If you signed up with Google, use Continue with Google." }, 401);
-  }
-  await createSession(c, user.id);
-  return c.json({ ok: true, user: { id: user.id, email: user.email } });
-});
+/** @deprecated Use Better Auth client (`/api/auth/sign-in/email` or magic link). */
+app.post("/api/login", (c) =>
+  c.json(
+    {
+      error: "Login moved to Better Auth. Use the sign-in form (email/password or magic link).",
+      path: "/api/auth/sign-in/email",
+    },
+    410,
+  ),
+);
 
 app.get("/api/auth/providers", (c) =>
   c.json({
@@ -197,26 +150,22 @@ app.get("/api/auth/providers", (c) =>
   }),
 );
 
-app.get("/api/auth/google", async (c) => {
-  return startGoogleOAuth(c, {
-    redirectTo: c.req.query("redirect") || "/app",
-    inviteToken: c.req.query("invite") || undefined,
-  });
+app.on(["POST", "GET"], "/api/auth/*", (c) => {
+  const auth = createAuth(c.env, c.executionCtx);
+  return auth.handler(c.req.raw);
 });
-
-app.get("/api/auth/google/callback", (c) => handleGoogleCallback(c));
-
-app.get("/api/auth/github", async (c) => {
-  return startGitHubOAuth(c, {
-    redirectTo: c.req.query("redirect") || "/app",
-    inviteToken: c.req.query("invite") || undefined,
-  });
-});
-
-app.get("/api/auth/github/callback", (c) => handleGitHubCallback(c));
 
 app.post("/api/logout", async (c) => {
-  await destroySession(c);
+  try {
+    const auth = createAuth(c.env, c.executionCtx);
+    const result = await auth.api.signOut({
+      headers: c.req.raw.headers,
+      returnHeaders: true,
+    });
+    applySetCookies(c, result.headers);
+  } catch {
+    await destroySession(c).catch(() => undefined);
+  }
   return c.json({ ok: true });
 });
 
@@ -231,6 +180,11 @@ app.get("/api/me", async (c) => {
   )
     .bind(user.id)
     .first<{ email_verified_at: number | null }>();
+  const credential = await c.env.DB.prepare(
+    `SELECT id FROM account WHERE userId = ? AND providerId = 'credential' AND password IS NOT NULL AND password != ''`,
+  )
+    .bind(user.id)
+    .first<{ id: string }>();
   return c.json({
     user: {
       id: user.id,
@@ -247,7 +201,7 @@ app.get("/api/me", async (c) => {
     },
     mailboxes: mailboxes.results ?? [],
     auth: {
-      has_password: Boolean(user.password_hash),
+      has_password: Boolean(credential),
       providers: {
         google: googleConfigured(c.env),
         github: githubConfigured(c.env),

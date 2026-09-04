@@ -4,7 +4,7 @@ import { ensureReferralCode } from "./referrals";
 import { getActivationState } from "./activation";
 import { nowMs } from "./ids";
 import { ANALYTICS_EVENTS, trackServerEvent } from "./analytics";
-import { issueEmailVerification } from "./verify-email";
+import { createAuth } from "./better-auth";
 
 type App = { Bindings: Env };
 
@@ -131,23 +131,25 @@ export function registerGrowthRoutes(app: Hono<App>) {
     return c.json({ ok: true, accepted });
   });
 
-  app.post("/api/auth/resend-verification", async (c) => {
+  /** Outside `/api/auth/*` so Better Auth catch-all does not swallow it. */
+  app.post("/api/account/resend-verification", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const result = await issueEmailVerification(c.env, user.id, user.email);
-    if (!result.ok) return c.json({ error: result.error }, result.status as 400 | 404 | 429);
-    return c.json({
-      ok: true,
-      sent: result.sent,
-      reason: result.reason,
-      message: result.sent
-        ? "Verification email sent."
-        : result.reason === "already_verified"
-          ? "Email already verified."
-          : result.reason === "seb_unavailable"
-            ? "Verification token created, but outbound mail is not configured on this Worker yet."
-            : "Could not send email right now. Try again shortly.",
-    });
+    const auth = createAuth(c.env, c.executionCtx);
+    const origin = (c.env.APP_URL || "https://useflap.online").replace(/\/$/, "");
+    try {
+      await auth.api.sendVerificationEmail({
+        body: {
+          email: user.email,
+          callbackURL: `${origin}/app/settings?tab=setup&verify=ok&onboarding=1`,
+        },
+        headers: c.req.raw.headers,
+      });
+      return c.json({ ok: true, sent: true, message: "Verification email sent." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send verification email.";
+      return c.json({ error: message }, 400);
+    }
   });
 }
 

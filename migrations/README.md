@@ -27,8 +27,19 @@ npm run db:migrate:remote
 | `0007_quota_enforcement.sql` | `messages.storage_bytes`, monthly send counters on users |
 | `0008_growth_referrals.sql` | Referral codes/rewards, activation timestamps, DNS check rate-limit log |
 | `0009_analytics_verify_abuse.sql` | First-party `analytics_events`, email verify tokens, payment identity columns for referral abuse |
+| `0010_better_auth.sql` | Better Auth `user`/`session`/`account`/`verification` tables + id-preserving backfill from Flap `users` |
 
-**Launch note:** Apply through `0009_analytics_verify_abuse` on remote D1 before relying on analytics ingest, password email verification, or payment-identity referral blocks.
+**Launch note:** Apply through `0010_better_auth` on remote D1 before relying on Better Auth sessions. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
+
+### Better Auth coexistence
+
+| Table | Owner | Notes |
+|-------|--------|-------|
+| `user`, `session`, `account`, `verification` | Better Auth | Singular names; no clash with Flap `users` / `sessions` |
+| `users` | Flap product | Workspace id = `users.id` = Better Auth `user.id` |
+| Legacy `sessions` / `oauth_accounts` | Deprecated | No longer written by app code |
+
+**Launch note (pre-auth):** Apply through `0009_analytics_verify_abuse` on remote D1 before relying on analytics ingest, legacy password email verification, or payment-identity referral blocks.
 
 ### analytics_events schema (privacy-light)
 

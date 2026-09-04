@@ -1,25 +1,30 @@
-SESSION_SECRET=change-me-to-a-long-random-string
-# Absolute public origin (scheme + host + port). Required for Dodo return_url + OAuth callbacks + email verify links.
+# Better Auth secret (min 32 chars). openssl rand -base64 32
+BETTER_AUTH_SECRET=change-me-to-a-long-random-string-at-least-32-chars
+# Optional legacy fallback if BETTER_AUTH_SECRET is unset
+SESSION_SECRET=change-me-to-a-long-random-string-at-least-32-chars
+# Absolute public origin (scheme + host + port). Required for Better Auth, Dodo, OAuth, email links.
 # Local test: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
 APP_URL=http://127.0.0.1:5173
+# Optional override for Better Auth baseURL (defaults to APP_URL)
+# BETTER_AUTH_URL=http://127.0.0.1:5173
 # true = open signup; false = first-boot setup only after users exist
 SAAS_MODE=true
 
-# From address for password-signup verification emails (SEB send_email binding).
+# From address for verification + magic-link emails (SEB send_email binding).
 # Must be a domain Cloudflare Email Routing can send from (typically your Flap product domain).
 SYSTEM_FROM_EMAIL=noreply@useflap.online
 
-# Google OAuth (Cloudflare Workers — authorized redirect URI must match APP_URL)
+# Google OAuth via Better Auth social provider
 # Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web)
-# Authorized redirect URI: http://127.0.0.1:5173/api/auth/google/callback
-# Production: https://useflap.online/api/auth/google/callback
+# Authorized redirect URI: http://127.0.0.1:5173/api/auth/callback/google
+# Production: https://useflap.online/api/auth/callback/google
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# Optional GitHub OAuth
+# Optional GitHub OAuth via Better Auth
 # GitHub → Settings → Developer settings → OAuth Apps
-# Authorization callback URL: http://127.0.0.1:5173/api/auth/github/callback
-# Production: https://useflap.online/api/auth/github/callback
+# Authorization callback URL: http://127.0.0.1:5173/api/auth/callback/github
+# Production: https://useflap.online/api/auth/callback/github
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
@@ -53,12 +58,12 @@ DODO_PRODUCT_TEAM=
 DODO_PRODUCT_BUSINESS=
 
 # Production secrets (wrangler secret put …):
-# SESSION_SECRET, APP_URL=https://useflap.online
+# BETTER_AUTH_SECRET, APP_URL=https://useflap.online
 # SYSTEM_FROM_EMAIL=noreply@useflap.online
 # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (optional)
 # DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
 # DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
 # Webhook URL: https://useflap.online/api/billing/webhook
-# OAuth callbacks: https://useflap.online/api/auth/google/callback
-#                  https://useflap.online/api/auth/github/callback
+# OAuth callbacks: https://useflap.online/api/auth/callback/google
+#                  https://useflap.online/api/auth/callback/github

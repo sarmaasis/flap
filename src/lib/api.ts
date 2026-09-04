@@ -357,7 +357,7 @@ export const api = {
     }>("/api/activation"),
   dismissOnboarding: () => req<{ ok: boolean }>("/api/activation/dismiss-onboarding", { method: "POST" }),
   resendVerification: () =>
-    req<{ ok: boolean; sent: boolean; message?: string; reason?: string }>("/api/auth/resend-verification", {
+    req<{ ok: boolean; sent: boolean; message?: string; reason?: string }>("/api/account/resend-verification", {
       method: "POST",
       body: "{}",
     }),

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { api } from "../lib/api";
+import { authClient } from "../lib/auth-client";
 import { go } from "../lib/nav";
 
 export default function InviteAccept() {
@@ -63,9 +64,18 @@ export default function InviteAccept() {
             </Button>
           ) : (
             <div className="stack gap-2 mt-4">
-              <a className="btn oauth-btn" href={`/api/auth/google?invite=${encodeURIComponent(token)}`}>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => {
+                  void authClient.signIn.social({
+                    provider: "google",
+                    callbackURL: `/invite/${token}`,
+                  });
+                }}
+              >
                 Continue with Google
-              </a>
+              </Button>
               <a className="btn oauth-btn oauth-btn-secondary" href={`/login`}>
                 Sign in first
               </a>
