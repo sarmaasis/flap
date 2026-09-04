@@ -17,7 +17,7 @@ import { CREDIBILITY, ICP_LINES, MARKETING, TESTIMONIALS, planCards, SITE_URL } 
 import { api } from "../lib/api";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
-import { captureReferralFromUrl, setJsonLd, setPageMeta } from "../lib/seo";
+import { captureReferralFromUrl, faqPageLd, setJsonLd, setPageMeta } from "../lib/seo";
 import { PLANS } from "../../shared/plans";
 import { cn } from "../lib/utils";
 
@@ -117,7 +117,9 @@ export default function Landing() {
       url: SITE_URL,
       description: MARKETING.short_description,
       offers: PLAN_ORDER_OFFERS(),
+      publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
     });
+    setJsonLd("flap-faq", faqPageLd(FAQS));
     trackOnce("landing", "landing_view");
     Promise.all([api.setupStatus().catch(() => ({ needs_setup: false })), api.me().then(() => true).catch(() => false)])
       .then(([setup, signedIn]) => {

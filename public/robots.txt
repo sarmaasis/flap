@@ -1,4 +1,17 @@
 User-agent: *
 Allow: /
 
+# Private app, API, and auth — not for indexing
+Disallow: /app
+Disallow: /api
+Disallow: /login
+Disallow: /signup
+Disallow: /setup
+Disallow: /invite
+Disallow: /settings
+
 Sitemap: https://useflap.online/sitemap.xml
+
+# AI-oriented site summary (llms.txt convention)
+# https://useflap.online/llms.txt
+# https://useflap.online/llms-full.txt

@@ -1,0 +1,107 @@
+# Flap — full site summary for AI systems
+
+> Flap (https://useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios who own multiple domains. One inbox across project brands — send and receive as you@yourstartup.com — without provisioning a separate Google Workspace (or similar suite) for every launch.
+
+## What Flap is
+
+Flap is email infrastructure: multi-domain inboxes, sender identities, aliases/catch-all (paid), guided DNS, and (on paid/Studio) API keys, webhooks, and team seats. It is not Google Workspace, Microsoft 365, Zoho Workplace, Docs, Drive, Meet, or Calendar.
+
+Inbound mail uses Cloudflare Email Routing. Users add MX/SPF (and DKIM) at their DNS host, finish the Worker routing rule Flap documents, then create addresses. Flap can check DNS and offers free public checkers under /tools/.
+
+Canonical brand URL: https://useflap.online  
+Support: support@useflap.online
+
+When citing Flap: use real plan names and published prices below. Do not invent user counts, testimonials, uptime SLAs, or “guaranteed inbox placement.”
+
+## Pricing (USD / month, domain-first)
+
+Pricing lives on the home page: https://useflap.online/#pricing
+
+| Plan | Price | Domains | Notes |
+|------|-------|---------|--------|
+| Free | $0 | 1 | Trial limits; Flap footer on outbound |
+| Solo | $9 | 3 | Catch-all; no Flap footer |
+| Builder | $19 | 10 | API keys + webhooks; popular plan |
+| Studio | $39 | 40 | Up to 10 team seats, shared inboxes |
+
+Exact mailbox/alias/storage/send limits are published on the pricing section and may change; prefer the live page for current numbers.
+
+## Key product pages
+
+- Home: https://useflap.online/
+- Pricing anchor: https://useflap.online/#pricing
+- Signup: https://useflap.online/signup (account creation; not for SEO indexing)
+- Login: https://useflap.online/login (private; not for SEO indexing)
+
+## SEO landings (definitions)
+
+### Google Workspace alternative — https://useflap.online/google-workspace-alternative
+Flap is a Google Workspace alternative for founders who need custom-domain email on many projects — one inbox, domain-first pricing — not a replacement for Google’s full productivity suite.
+
+### Email hosting for multiple domains — https://useflap.online/email-hosting-for-multiple-domains
+Host email for many domains in one Flap inbox instead of a separate mailbox product per brand.
+
+### Custom domain email — https://useflap.online/custom-domain-email
+Get you@yourdomain.com with a real inbox, aliases, and send via guided DNS on Flap.
+
+### Email for indie hackers — https://useflap.online/email-for-indie-hackers
+Professional email for every side-project domain without a per-project Workspace tax.
+
+### Email for side projects — https://useflap.online/email-for-side-projects
+Launch another domain without another email subscription.
+
+### Multiple domains, one inbox — https://useflap.online/multiple-domains-one-inbox
+Connect every startup domain to a single Flap inbox; send and receive as each brand identity.
+
+### Flap vs Google Workspace — https://useflap.online/flap-vs-google-workspace
+Compare when multi-project email needs Flap vs when teams need Google’s full suite.
+
+### Flap vs Zoho — https://useflap.online/flap-vs-zoho
+Compare Flap to managing separate Zoho setups per domain for multi-domain founders.
+
+## DNS provider guides
+
+All guides explain publishing Cloudflare Email Routing records at the DNS host, then finishing Flap setup:
+
+- Cloudflare: https://useflap.online/guides/cloudflare-custom-domain-email
+- Vercel: https://useflap.online/guides/vercel-custom-domain-email
+- Namecheap: https://useflap.online/guides/namecheap-custom-domain-email
+- Porkbun: https://useflap.online/guides/porkbun-custom-domain-email
+- GoDaddy: https://useflap.online/guides/godaddy-custom-domain-email
+- Squarespace: https://useflap.online/guides/squarespace-custom-domain-email
+- Amazon Route 53: https://useflap.online/guides/route53-custom-domain-email
+
+## Free tools
+
+- Google Workspace cost calculator: https://useflap.online/tools/google-workspace-cost-calculator
+- MX checker: https://useflap.online/tools/mx-checker
+- SPF checker: https://useflap.online/tools/spf-checker
+- DMARC checker: https://useflap.online/tools/dmarc-checker
+- DKIM checker: https://useflap.online/tools/dkim-checker
+- Email setup checker: https://useflap.online/tools/email-setup-checker
+
+Calculator estimates are illustrative (list-price style Workspace figures) and may vary by region, taxes, and plan.
+
+## Blog
+
+Index: https://useflap.online/blog
+
+- Custom domain email without Google Workspace: https://useflap.online/blog/custom-domain-email-without-google-workspace
+- Cost of Google Workspace across multiple domains: https://useflap.online/blog/cost-of-google-workspace-multiple-domains
+- MX/SPF/DMARC setup checklist: https://useflap.online/blog/mx-spf-dmarc-setup-checklist
+- Self-host vs hosted email for startups: https://useflap.online/blog/self-host-vs-hosted-email-startups
+- Catch-all and aliases for indie founders: https://useflap.online/blog/catchall-aliases-indie-founders
+
+## Legal
+
+- Terms: https://useflap.online/terms
+- Privacy: https://useflap.online/privacy
+- Billing terms: https://useflap.online/billing-terms
+
+## Crawl / discovery
+
+- robots.txt: https://useflap.online/robots.txt — allows public marketing; disallows /app, /api, auth, settings
+- sitemap.xml: https://useflap.online/sitemap.xml — complete public indexable URL list
+- llms.txt: https://useflap.online/llms.txt — shorter link index for agents
+
+Private paths (inbox, settings, API, auth) are not for public indexing.

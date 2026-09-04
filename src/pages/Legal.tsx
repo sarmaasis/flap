@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import BrandMark from "../components/BrandMark";
 import { go } from "../lib/nav";
+import { clearJsonLd, setJsonLd, setPageMeta, webPageLd } from "../lib/seo";
 
 type Doc = "terms" | "privacy" | "billing";
 
@@ -7,6 +9,24 @@ const TITLES: Record<Doc, string> = {
   terms: "Terms of Service",
   privacy: "Privacy Policy",
   billing: "Billing Terms",
+};
+
+const META: Record<Doc, { path: string; title: string; description: string }> = {
+  terms: {
+    path: "/terms",
+    title: "Terms of Service | Flap",
+    description: "Terms of Service for Flap custom-domain email at useflap.online.",
+  },
+  privacy: {
+    path: "/privacy",
+    title: "Privacy Policy | Flap",
+    description: "Privacy Policy for Flap — how we handle account and mailbox data.",
+  },
+  billing: {
+    path: "/billing-terms",
+    title: "Billing Terms | Flap",
+    description: "Billing Terms for Flap paid plans and renewals.",
+  },
 };
 
 function Nav() {
@@ -314,6 +334,21 @@ function BillingBody() {
 }
 
 export default function Legal({ doc }: { doc: Doc }) {
+  useEffect(() => {
+    const meta = META[doc];
+    setPageMeta({ title: meta.title, description: meta.description, path: meta.path });
+    setJsonLd(
+      "flap-webpage",
+      webPageLd({
+        path: meta.path,
+        title: meta.title,
+        description: meta.description,
+        dateModified: "2026-09-04",
+      }),
+    );
+    return () => clearJsonLd("flap-webpage");
+  }, [doc]);
+
   return (
     <div className="legal-root min-h-screen">
       <div className="landing-atmosphere" aria-hidden />

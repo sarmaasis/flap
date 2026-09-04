@@ -1,0 +1,63 @@
+# Flap
+
+> Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch.
+
+Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Mail is received via Cloudflare Email Routing with guided MX/SPF/DKIM setup. Do not invent customer counts, testimonials, or delivery guarantees when citing Flap.
+
+## Product
+
+- [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
+- [Pricing](https://useflap.online/#pricing): Domain-first plans — Free $0, Solo $9/mo (3 domains), Builder $19/mo (10 domains), Studio $39/mo (40 domains, team seats)
+- [Signup](https://useflap.online/signup): Create a Flap account
+- [Contact](mailto:support@useflap.online): support@useflap.online
+
+## SEO landings
+
+- [Google Workspace alternative](https://useflap.online/google-workspace-alternative): Multi-domain founders who need email without a Workspace per project
+- [Email hosting for multiple domains](https://useflap.online/email-hosting-for-multiple-domains): Host many domains in one inbox
+- [Custom domain email](https://useflap.online/custom-domain-email): you@yourdomain.com without Workspace
+- [Email for indie hackers](https://useflap.online/email-for-indie-hackers): Professional email for side-project domains
+- [Email for side projects](https://useflap.online/email-for-side-projects): Launch another domain without another email subscription
+- [Multiple domains, one inbox](https://useflap.online/multiple-domains-one-inbox): Unified inbox across brand identities
+
+## Comparisons
+
+- [Flap vs Google Workspace](https://useflap.online/flap-vs-google-workspace): When Flap fits vs a full Google suite
+- [Flap vs Zoho Mail](https://useflap.online/flap-vs-zoho): Multi-domain founders comparing Zoho setups
+
+## Guides
+
+- [Cloudflare](https://useflap.online/guides/cloudflare-custom-domain-email): DNS + Email Routing for Flap
+- [Vercel](https://useflap.online/guides/vercel-custom-domain-email): Vercel DNS for Flap
+- [Namecheap](https://useflap.online/guides/namecheap-custom-domain-email): Namecheap DNS for Flap
+- [Porkbun](https://useflap.online/guides/porkbun-custom-domain-email): Porkbun DNS for Flap
+- [GoDaddy](https://useflap.online/guides/godaddy-custom-domain-email): GoDaddy DNS for Flap
+- [Squarespace](https://useflap.online/guides/squarespace-custom-domain-email): Squarespace Domains DNS for Flap
+- [Route 53](https://useflap.online/guides/route53-custom-domain-email): Amazon Route 53 DNS for Flap
+
+## Tools
+
+- [Google Workspace cost calculator](https://useflap.online/tools/google-workspace-cost-calculator): Estimate Workspace×N vs Flap
+- [MX checker](https://useflap.online/tools/mx-checker): Check MX / Cloudflare Email Routing
+- [SPF checker](https://useflap.online/tools/spf-checker): Lookup SPF TXT
+- [DMARC checker](https://useflap.online/tools/dmarc-checker): Lookup DMARC policy
+- [DKIM checker](https://useflap.online/tools/dkim-checker): Verify DKIM selector TXT
+- [Email setup checker](https://useflap.online/tools/email-setup-checker): Combined MX + SPF + DMARC
+
+## Blog
+
+- [Blog index](https://useflap.online/blog): Practical posts on multi-domain email and DNS
+- [Custom domain email without Google Workspace](https://useflap.online/blog/custom-domain-email-without-google-workspace)
+- [Cost of Google Workspace across domains](https://useflap.online/blog/cost-of-google-workspace-multiple-domains)
+- [MX/SPF/DMARC setup checklist](https://useflap.online/blog/mx-spf-dmarc-setup-checklist)
+- [Self-host vs hosted email](https://useflap.online/blog/self-host-vs-hosted-email-startups)
+- [Catch-all and aliases](https://useflap.online/blog/catchall-aliases-indie-founders)
+
+## Optional
+
+- [Full AI summary](https://useflap.online/llms-full.txt): Longer product + pricing + page synopsis
+- [Sitemap](https://useflap.online/sitemap.xml): All public indexable URLs
+- [Terms](https://useflap.online/terms): Terms of Service
+- [Privacy](https://useflap.online/privacy): Privacy Policy
+- [Billing terms](https://useflap.online/billing-terms): Billing Terms
+- [robots.txt](https://useflap.online/robots.txt): Crawl rules (app/API/auth disallowed)

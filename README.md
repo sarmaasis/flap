@@ -97,7 +97,7 @@ Enforced on `/sign-in/magic-link` (before hook) and inside `sendVerificationEmai
 
 ## SEO / prerender
 
-This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prerender injects meta + crawlable HTML for landing, SEO pages, guides, tools, and blog. See [docs/ssr-prerender.md](docs/ssr-prerender.md).
+This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prerender injects meta + crawlable HTML for landing, SEO pages, guides, tools, blog, and legal; regenerates `sitemap.xml`. Static `robots.txt`, `llms.txt`, and `llms-full.txt` ship from `public/`. See [docs/ssr-prerender.md](docs/ssr-prerender.md).
 
 ## Notes
 

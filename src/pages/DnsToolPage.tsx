@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
-import { setPageMeta } from "../lib/seo";
+import { clearJsonLd, setJsonLd, setPageMeta, softwareApplicationLd, webPageLd } from "../lib/seo";
 import { TOOL_PAGES } from "../content/marketing";
 
 type Tool = "mx" | "spf" | "dmarc" | "dkim" | "setup";
@@ -70,6 +70,26 @@ export default function DnsToolPage({ path }: { path: string }) {
   useEffect(() => {
     setPageMeta({ title: meta.title, description: meta.description, path });
     trackOnce(`tool_${path}`, "seo_page_view", { path });
+    setJsonLd(
+      "flap-webpage",
+      webPageLd({ path, title: meta.title, description: meta.description, dateModified: "2026-09-04" }),
+    );
+    setJsonLd("flap-software", softwareApplicationLd());
+    setJsonLd("flap-tool", {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: meta.heading,
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Web",
+      url: `https://useflap.online${path}`,
+      description: meta.description,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    });
+    return () => {
+      clearJsonLd("flap-webpage");
+      clearJsonLd("flap-software");
+      clearJsonLd("flap-tool");
+    };
   }, [meta, path]);
 
   async function onCheck(e: React.FormEvent) {

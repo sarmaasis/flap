@@ -7,12 +7,16 @@
  * dist/client/<path>/index.html so Assets serves real HTML for those URLs
  * (before React mounts and replaces #root).
  *
+ * Also regenerates public/sitemap.xml + dist/client/sitemap.xml from
+ * src/content/sitemap.ts so the URL list stays aligned with App routes.
+ *
  * Limits vs full SSR: no per-request React render, no auth-aware HTML,
  * and bots that execute JS still see the SPA. Humans get the same JS app.
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PLANS, PLAN_ORDER } from "../shared/plans.ts";
 import { BLOG_POSTS } from "../src/content/blog.ts";
 import { GUIDE_CONTENT } from "../src/content/guides.ts";
 import {
@@ -20,13 +24,20 @@ import {
   GUIDE_PAGES,
   MARKETING,
   SITE_URL,
+  SUPPORT_EMAIL,
   TOOL_PAGES,
 } from "../src/content/marketing.ts";
 import { SEO_PAGE_DEFS } from "../src/content/seo-pages.ts";
+import {
+  LEGAL_PAGES,
+  buildSitemapEntries,
+  renderSitemapXml,
+} from "../src/content/sitemap.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const clientDir = join(root, "dist", "client");
+const publicDir = join(root, "public");
 const templatePath = join(clientDir, "index.html");
 
 type Page = {
@@ -43,6 +54,56 @@ function esc(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function faqLd(faqs: Array<{ q: string; a: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
+function softwareLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: MARKETING.product_name,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    url: SITE_URL,
+    description: MARKETING.short_description,
+    offers: PLAN_ORDER.filter((id) => id !== "free").map((id) => ({
+      "@type": "Offer",
+      name: PLANS[id].name,
+      price: String(PLANS[id].price_monthly),
+      priceCurrency: "USD",
+    })),
+    publisher: {
+      "@type": "Organization",
+      name: "Flap",
+      url: SITE_URL,
+      email: SUPPORT_EMAIL,
+    },
+  };
+}
+
+function howToLd(name: string, description: string, steps: string[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name,
+    description,
+    step: steps.map((text, i) => ({
+      "@type": "HowToStep",
+      position: i + 1,
+      text,
+    })),
+  };
 }
 
 function articleShell(opts: {
@@ -78,10 +139,25 @@ function articleShell(opts: {
       parts.push(`<p>${esc(f.a)}</p>`);
     }
   }
-  parts.push(`<p style="margin-top:2rem"><a href="${esc(opts.ctaHref || "/signup")}">Start free with Flap</a> · <a href="/">Home</a></p>`);
+  parts.push(`<p style="margin-top:2rem"><a href="${esc(opts.ctaHref || "/signup")}">Start free with Flap</a> · <a href="/">Home</a> · <a href="/#pricing">Pricing</a></p>`);
   parts.push("</article>");
   return parts.join("\n");
 }
+
+const HOME_FAQS = [
+  {
+    q: "Who is Flap for?",
+    a: "Indie hackers, serial founders, and small studios who own multiple domains and do not want a separate Workspace for every project.",
+  },
+  {
+    q: "How many domains can I connect?",
+    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}.`,
+  },
+  {
+    q: "How does DNS / delivery work?",
+    a: "Flap uses Cloudflare Email Routing. You add MX/SPF at your DNS host, then a Worker routing rule for each mailbox.",
+  },
+];
 
 function buildPages(): Page[] {
   const pages: Page[] = [];
@@ -100,26 +176,31 @@ function buildPages(): Page[] {
           body: MARKETING.long_description,
           bullets: [...MARKETING.key_features],
         },
-      ],
-      faqs: [
         {
-          q: "Who is Flap for?",
-          a: "Indie hackers, serial founders, and small studios who own multiple domains and do not want a separate Workspace for every project.",
+          heading: "Pricing",
+          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo (${PLANS.studio.limits.domains} domains, team seats).`,
         },
       ],
+      faqs: HOME_FAQS,
     }),
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "Flap",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
-      url: SITE_URL,
-      description: MARKETING.short_description,
-    },
+    jsonLd: [softwareLd(), faqLd(HOME_FAQS)],
   });
 
   for (const page of Object.values(SEO_PAGE_DEFS)) {
+    const schemas: Record<string, unknown>[] = [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: page.title,
+        description: page.description,
+        url: `${SITE_URL}${page.path}`,
+        dateModified: page.updated,
+        isPartOf: { "@type": "WebSite", name: "Flap", url: SITE_URL },
+        about: { "@type": "SoftwareApplication", name: "Flap", url: SITE_URL },
+      },
+      softwareLd(),
+    ];
+    if (page.faqs.length) schemas.push(faqLd(page.faqs));
     pages.push({
       path: page.path,
       title: page.title,
@@ -131,19 +212,26 @@ function buildPages(): Page[] {
         sections: page.sections,
         faqs: page.faqs,
       }),
-      jsonLd: {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        name: page.title,
-        description: page.description,
-        url: `${SITE_URL}${page.path}`,
-      },
+      jsonLd: schemas,
     });
   }
 
   for (const guide of GUIDE_PAGES) {
     const body = GUIDE_CONTENT[guide.provider];
     if (!body) continue;
+    const schemas: Record<string, unknown>[] = [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: guide.title,
+        description: guide.description,
+        url: `${SITE_URL}${guide.path}`,
+        dateModified: body.updated,
+      },
+      howToLd(body.heading, body.definition, body.steps),
+      softwareLd(),
+    ];
+    if (body.faqs.length) schemas.push(faqLd(body.faqs));
     pages.push({
       path: guide.path,
       title: guide.title,
@@ -158,6 +246,7 @@ function buildPages(): Page[] {
         ],
         faqs: body.faqs,
       }),
+      jsonLd: schemas,
     });
   }
 
@@ -171,6 +260,20 @@ function buildPages(): Page[] {
         lede: tool.description,
         definition: `${tool.description} Free DNS / cost tools from Flap (useflap.online).`,
       }),
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          name: tool.title.replace(" | Flap", ""),
+          applicationCategory: "UtilitiesApplication",
+          operatingSystem: "Web",
+          url: `${SITE_URL}${tool.path}`,
+          description: tool.description,
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          provider: { "@type": "Organization", name: "Flap", url: SITE_URL },
+        },
+        softwareLd(),
+      ],
     });
   }
 
@@ -189,9 +292,35 @@ function buildPages(): Page[] {
         },
       ],
     }),
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        name: BLOG_INDEX.title,
+        description: BLOG_INDEX.description,
+        url: `${SITE_URL}${BLOG_INDEX.path}`,
+        publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
+      },
+      softwareLd(),
+    ],
   });
 
   for (const post of BLOG_POSTS) {
+    const schemas: Record<string, unknown>[] = [
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: post.h1,
+        description: post.description,
+        url: `${SITE_URL}${post.path}`,
+        datePublished: post.published,
+        dateModified: post.updated,
+        author: { "@type": "Organization", name: "Flap", url: SITE_URL },
+        publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
+      },
+      softwareLd(),
+    ];
+    if (post.faqs.length) schemas.push(faqLd(post.faqs));
     pages.push({
       path: post.path,
       title: post.title,
@@ -203,14 +332,30 @@ function buildPages(): Page[] {
         sections: post.sections,
         faqs: post.faqs,
       }),
+      jsonLd: schemas,
+    });
+  }
+
+  for (const legal of LEGAL_PAGES) {
+    pages.push({
+      path: legal.path,
+      title: legal.title,
+      description: legal.description,
+      bodyHtml: articleShell({
+        eyebrow: "Legal · Flap",
+        h1: legal.title.replace(" | Flap", ""),
+        lede: legal.description,
+        definition: `Official ${legal.title.replace(" | Flap", "")} for Flap at useflap.online. Last updated ${legal.lastmod}. Contact ${SUPPORT_EMAIL}.`,
+        ctaHref: "/",
+      }),
       jsonLd: {
         "@context": "https://schema.org",
-        "@type": "Article",
-        headline: post.h1,
-        description: post.description,
-        url: `${SITE_URL}${post.path}`,
-        datePublished: post.published,
-        dateModified: post.updated,
+        "@type": "WebPage",
+        name: legal.title,
+        description: legal.description,
+        url: `${SITE_URL}${legal.path}`,
+        dateModified: legal.lastmod,
+        isPartOf: { "@type": "WebSite", name: "Flap", url: SITE_URL },
       },
     });
   }
@@ -279,6 +424,14 @@ function writePage(page: Page, html: string) {
   return outPath;
 }
 
+function writeSitemap() {
+  const entries = buildSitemapEntries();
+  const xml = renderSitemapXml(entries);
+  writeFileSync(join(publicDir, "sitemap.xml"), xml);
+  writeFileSync(join(clientDir, "sitemap.xml"), xml);
+  return entries.length;
+}
+
 function main() {
   if (!existsSync(templatePath)) {
     console.error(`Missing ${templatePath}. Run vite build first.`);
@@ -291,7 +444,9 @@ function main() {
     const out = writePage(page, html);
     console.log(`prerender ${page.path} → ${out.replace(root + "/", "")}`);
   }
+  const sitemapCount = writeSitemap();
   console.log(`Prerendered ${pages.length} marketing/SEO HTML shells.`);
+  console.log(`Wrote sitemap.xml with ${sitemapCount} URLs (public/ + dist/client/).`);
 }
 
 main();
