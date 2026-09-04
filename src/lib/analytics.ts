@@ -1,0 +1,131 @@
+/** Lightweight first-party analytics — persists via POST /api/analytics. No third-party SDK. */
+
+export type AnalyticsEvent =
+  | "landing_view"
+  | "pricing_view"
+  | "signup_clicked"
+  | "comparison_page_view"
+  | "calculator_started"
+  | "calculator_completed"
+  | "seo_tool_used"
+  | "signup_started"
+  | "signup_completed"
+  | "email_verified"
+  | "domain_add_started"
+  | "domain_added"
+  | "dns_verification_started"
+  | "dns_verified"
+  | "address_created"
+  | "first_email_received"
+  | "first_email_sent"
+  | "user_activated"
+  | "checkout_started"
+  | "subscription_started"
+  | "subscription_upgraded"
+  | "subscription_cancelled"
+  | "referral_link_copied"
+  | "referral_signup"
+  | "referral_qualified"
+  | "referral_reward_granted"
+  | "guide_view"
+  | "seo_page_view";
+
+type Props = Record<string, string | number | boolean | null | undefined>;
+
+const QUEUE_KEY = "flap_analytics_q";
+const SESSION_KEY = "flap_analytics_sid";
+
+function sessionId(): string {
+  try {
+    let sid = sessionStorage.getItem(SESSION_KEY);
+    if (!sid) {
+      sid = `s_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+      sessionStorage.setItem(SESSION_KEY, sid);
+    }
+    return sid;
+  } catch {
+    return "anon";
+  }
+}
+
+function queue(): Array<{ e: string; p?: Props; t: number; s?: string; path?: string }> {
+  try {
+    return JSON.parse(sessionStorage.getItem(QUEUE_KEY) || "[]") as Array<{
+      e: string;
+      p?: Props;
+      t: number;
+      s?: string;
+      path?: string;
+    }>;
+  } catch {
+    return [];
+  }
+}
+
+function persist(items: Array<{ e: string; p?: Props; t: number; s?: string; path?: string }>) {
+  try {
+    sessionStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(-80)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function postPayload(payload: { e: string; p?: Props; t: number; s: string; path?: string }) {
+  const body = JSON.stringify(payload);
+  try {
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      const ok = navigator.sendBeacon("/api/analytics", new Blob([body], { type: "application/json" }));
+      if (ok) return;
+    }
+  } catch {
+    /* fall through to fetch */
+  }
+  try {
+    void fetch("/api/analytics", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      credentials: "same-origin",
+      keepalive: true,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+export function track(event: AnalyticsEvent, props?: Props) {
+  const payload = {
+    e: event,
+    p: props,
+    t: Date.now(),
+    s: sessionId(),
+    path: typeof window !== "undefined" ? window.location.pathname : undefined,
+  };
+  const items = queue();
+  items.push(payload);
+  persist(items);
+
+  if (typeof window !== "undefined") {
+    (window as unknown as { __flapEvents?: unknown[] }).__flapEvents = [
+      ...(((window as unknown as { __flapEvents?: unknown[] }).__flapEvents) || []),
+      payload,
+    ].slice(-100);
+  }
+
+  postPayload(payload);
+
+  if (import.meta.env.DEV) {
+    console.debug("[flap:analytics]", event, props || {});
+  }
+}
+
+export function trackOnce(key: string, event: AnalyticsEvent, props?: Props) {
+  const flag = `flap_once_${key}`;
+  try {
+    if (sessionStorage.getItem(flag)) return;
+    sessionStorage.setItem(flag, "1");
+  } catch {
+    /* ignore */
+  }
+  track(event, props);
+}

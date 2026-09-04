@@ -9,14 +9,21 @@ interface Env {
   DODO_PAYMENTS_API_KEY?: string;
   DODO_PAYMENTS_WEBHOOK_KEY?: string;
   DODO_PAYMENTS_ENVIRONMENT?: string;
-  /** @deprecated use DODO_PRODUCT_PRO */
-  DODO_PRODUCT_STARTER?: string;
+  DODO_PRODUCT_SOLO?: string;
+  DODO_PRODUCT_BUILDER?: string;
+  DODO_PRODUCT_STUDIO?: string;
+  /** @deprecated → DODO_PRODUCT_BUILDER */
   DODO_PRODUCT_PRO?: string;
-  /** @deprecated use DODO_PRODUCT_TEAM */
-  DODO_PRODUCT_BUSINESS?: string;
+  /** @deprecated → DODO_PRODUCT_STUDIO */
   DODO_PRODUCT_TEAM?: string;
+  /** @deprecated → DODO_PRODUCT_SOLO */
+  DODO_PRODUCT_STARTER?: string;
+  /** @deprecated → DODO_PRODUCT_STUDIO */
+  DODO_PRODUCT_BUSINESS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
+  /** From address for account verification mail (must be allowed by Cloudflare Email Routing / SEB). */
+  SYSTEM_FROM_EMAIL?: string;
 }

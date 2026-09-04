@@ -3,6 +3,7 @@ import { getCookie } from "hono/cookie";
 import { EmailMessage } from "cloudflare:email";
 import { requireUser } from "./auth";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend } from "./billing";
+import { markFirstEmailSent } from "./activation";
 import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
 import {
@@ -263,6 +264,7 @@ export async function maybeVacationReply(
 
 type StoredMessage = {
   id: string;
+  user_id?: string;
   mailbox_id: string | null;
   from_addr: string;
   to_addr: string;
@@ -304,13 +306,28 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
   const attachments = await loadAttachmentContents(env, message.id);
   const envelopeFrom = extractEmail(message.from_addr) || message.from_addr;
   const domain = envelopeFrom.split("@")[1] || "flap.local";
+
+  let text = message.text_body;
+  let html = message.html_body || undefined;
+  if (message.user_id) {
+    const plan = await getEffectivePlan(env.DB, message.user_id);
+    if (plan.branding_footer) {
+      const brandText = "\n\n--\nSent with Flap · https://useflap.online";
+      const brandHtml =
+        '<p style="margin-top:1.5em;font-size:11px;line-height:1.4;color:#888;">Sent with <a href="https://useflap.online" style="color:#888;text-decoration:underline;">Flap</a></p>';
+      if (!/sent with flap/i.test(text)) text = `${text}${brandText}`;
+      if (html && !/sent with flap/i.test(html)) html = `${html}${brandHtml}`;
+      else if (!html) html = `<pre style="font-family:inherit;white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+    }
+  }
+
   const raw = buildRawMime({
     from: message.from_addr,
     to: message.to_addr,
     cc: message.cc_addr || undefined,
     subject: message.subject,
-    text: message.text_body,
-    html: message.html_body || undefined,
+    text,
+    html,
     attachments,
     messageId: `<${message.id}@${domain}>`,
     inReplyTo: message.in_reply_to || undefined,
@@ -321,6 +338,14 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
     return err instanceof Error ? err.message : "send failed";
   }
   return null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export async function flushScheduled(env: Env): Promise<void> {
@@ -349,6 +374,7 @@ export async function flushScheduled(env: Env): Promise<void> {
       .bind(now, message.id)
       .run();
     await recordOutboundSend(env.DB, message.user_id);
+    await markFirstEmailSent(env.DB, message.user_id).catch(() => undefined);
   }
 }
 
@@ -1258,6 +1284,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     const error = await dispatchStoredMessage(c.env, {
       id,
+      user_id: key.user_id,
       mailbox_id: fromMailbox.id,
       from_addr: fromMailbox.address,
       to_addr: toAddr,
@@ -1277,6 +1304,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       .bind(id, key.user_id, fromMailbox.id, fromMailbox.address, toAddr, ccAddr, bccAddr, subject, now, text, html, snippet, bodyBytes, now)
       .run();
     await recordOutboundSend(c.env.DB, key.user_id);
+    await markFirstEmailSent(c.env.DB, key.user_id).catch(() => undefined);
     return c.json({ ok: true, id });
   });
 }

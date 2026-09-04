@@ -3,7 +3,18 @@ import { Hono } from "hono";
 import { requireUser } from "./auth";
 import { randomId, nowMs } from "./ids";
 import { createCheckoutSession, createCustomerPortalSession, resolveDodoMode, verifyDodoWebhook } from "./dodo";
-import { PLANS, PLAN_ORDER, normalizePlanId, planFromProductId, productIdForPlan, type PlanId, type PlanLimits } from "./plans";
+import {
+  PLANS,
+  PLAN_ORDER,
+  PAID_PLAN_IDS,
+  normalizePlanId,
+  planFromProductId,
+  productIdForPlan,
+  type PlanId,
+  type PlanLimits,
+} from "./plans";
+import { trackOncePerUser, trackServerEvent } from "./analytics";
+import { storePaymentIdentity } from "./referrals";
 
 function envStr(v: string | undefined): string {
   return (v || "").trim();
@@ -88,7 +99,10 @@ function billingReturnUrl(c: Context<{ Bindings: Env }>, pathAndQuery: string): 
 /** Checkout is enabled when an API key and at least one paid product ID are set (test or live). */
 function billingConfigured(env: Env): boolean {
   return Boolean(envStr(env.DODO_PAYMENTS_API_KEY)) && Boolean(
-    envStr(env.DODO_PRODUCT_PRO) ||
+    envStr(env.DODO_PRODUCT_SOLO) ||
+      envStr(env.DODO_PRODUCT_BUILDER) ||
+      envStr(env.DODO_PRODUCT_STUDIO) ||
+      envStr(env.DODO_PRODUCT_PRO) ||
       envStr(env.DODO_PRODUCT_TEAM) ||
       envStr(env.DODO_PRODUCT_STARTER) ||
       envStr(env.DODO_PRODUCT_BUSINESS),
@@ -99,8 +113,21 @@ function billingConfigured(env: Env): boolean {
 function checkoutMissing(env: Env): string[] {
   const missing: string[] = [];
   if (!envStr(env.DODO_PAYMENTS_API_KEY)) missing.push("DODO_PAYMENTS_API_KEY");
-  if (!envStr(env.DODO_PRODUCT_PRO) && !envStr(env.DODO_PRODUCT_STARTER)) missing.push("DODO_PRODUCT_PRO");
-  if (!envStr(env.DODO_PRODUCT_TEAM) && !envStr(env.DODO_PRODUCT_BUSINESS)) missing.push("DODO_PRODUCT_TEAM");
+  if (
+    !envStr(env.DODO_PRODUCT_SOLO) &&
+    !envStr(env.DODO_PRODUCT_STARTER) &&
+    !envStr(env.DODO_PRODUCT_BUILDER) &&
+    !envStr(env.DODO_PRODUCT_PRO)
+  ) {
+    missing.push("DODO_PRODUCT_SOLO or DODO_PRODUCT_BUILDER");
+  }
+  if (
+    !envStr(env.DODO_PRODUCT_STUDIO) &&
+    !envStr(env.DODO_PRODUCT_TEAM) &&
+    !envStr(env.DODO_PRODUCT_BUSINESS)
+  ) {
+    missing.push("DODO_PRODUCT_STUDIO");
+  }
   return missing;
 }
 
@@ -165,7 +192,23 @@ export async function getEffectivePlan(db: D1Database, userId: string) {
   const active = sub.status === "active" || sub.status === "trialing";
   const plan_id = normalizePlanId(active ? sub.plan_id : "free");
   const def = PLANS[plan_id] ?? PLANS.free;
-  return { plan_id: def.id, status: sub.status, limits: def.limits, subscription: sub };
+  const bonusRow = await db
+    .prepare("SELECT referral_bonus_domains FROM users WHERE id = ?")
+    .bind(userId)
+    .first<{ referral_bonus_domains: number | null }>();
+  const bonus = Math.max(0, Number(bonusRow?.referral_bonus_domains ?? 0));
+  const limits: PlanLimits = {
+    ...def.limits,
+    domains: def.limits.domains + bonus,
+  };
+  return {
+    plan_id: def.id,
+    status: sub.status,
+    limits,
+    referral_bonus_domains: bonus,
+    branding_footer: Boolean(def.branding_footer),
+    subscription: sub,
+  };
 }
 
 export async function assertWithinLimit(
@@ -352,7 +395,8 @@ export function registerBillingRoutes(app: Hono<App>) {
   app.get("/api/billing/subscription", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const { plan_id, status, limits, subscription } = await getEffectivePlan(c.env.DB, user.id);
+    const { plan_id, status, limits, subscription, referral_bonus_domains, branding_footer } =
+      await getEffectivePlan(c.env.DB, user.id);
     const usage = await collectUsage(c.env.DB, user.id);
     const diag = checkoutDiagnostics(c.env);
     return c.json({
@@ -360,6 +404,8 @@ export function registerBillingRoutes(app: Hono<App>) {
       status,
       limits,
       usage,
+      referral_bonus_domains,
+      branding_footer,
       /** Send counters reset on UTC calendar month (`YYYY-MM`). Storage = message bodies + attachments. */
       quota_reset: "utc_calendar_month" as const,
       ...diag,
@@ -381,8 +427,8 @@ export function registerBillingRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const body = (await c.req.json().catch(() => ({}))) as { plan?: string };
     const plan = normalizePlanId((body.plan || "").toLowerCase());
-    if (plan === "free" || !["pro", "team"].includes(plan)) {
-      return c.json({ error: "Choose pro or team." }, 400);
+    if (plan === "free" || !PAID_PLAN_IDS.includes(plan)) {
+      return c.json({ error: "Choose solo, builder, or studio." }, 400);
     }
     const productId = productIdForPlan(plan, c.env);
     if (!envStr(c.env.DODO_PAYMENTS_API_KEY)) {
@@ -611,10 +657,19 @@ async function applyBillingEvent(c: Context<App>, type: string, data: Record<str
   const hold = type === "subscription.on_hold" || type === "subscription.paused";
   const cancel = type === "subscription.cancelled" || type === "subscription.expired" || type === "subscription.failed";
 
+  const paymentFp = extractPaymentFingerprint(data);
+  await storePaymentIdentity(c.env.DB, userId, {
+    customerId,
+    paymentFingerprint: paymentFp,
+  });
+
   if (grantAccess) {
+    const prev = await c.env.DB.prepare("SELECT plan_id, status FROM subscriptions WHERE user_id = ?")
+      .bind(userId)
+      .first<{ plan_id: string; status: string }>();
     const payloadStatus = typeof data.status === "string" ? data.status : "active";
     const status = payloadStatus === "on_hold" ? "on_hold" : "active";
-    const effectivePlan = planId === "free" ? "pro" : planId;
+    const effectivePlan = planId === "free" ? "builder" : planId;
     await c.env.DB.prepare(
       `UPDATE subscriptions SET plan_id = ?, status = ?, dodo_subscription_id = COALESCE(?, dodo_subscription_id),
        dodo_customer_id = COALESCE(?, dodo_customer_id), dodo_product_id = COALESCE(?, dodo_product_id),
@@ -623,6 +678,21 @@ async function applyBillingEvent(c: Context<App>, type: string, data: Record<str
       .bind(effectivePlan, status, subId, customerId, productId, periodEnd, now, userId)
       .run();
     await c.env.DB.prepare("UPDATE users SET plan_id = ? WHERE id = ?").bind(effectivePlan, userId).run();
+
+    const wasPaid = prev && prev.plan_id !== "free" && prev.status === "active";
+    if (!wasPaid && type === "subscription.active") {
+      await trackOncePerUser(c.env.DB, userId, "subscription_started", { plan: effectivePlan });
+    } else if (wasPaid && prev && prev.plan_id !== effectivePlan) {
+      await trackServerEvent(c.env.DB, "subscription_upgraded", {
+        userId,
+        props: { from: prev.plan_id, to: effectivePlan },
+      });
+    } else if (type === "subscription.plan_changed") {
+      await trackServerEvent(c.env.DB, "subscription_upgraded", {
+        userId,
+        props: { to: effectivePlan },
+      });
+    }
   } else if (hold) {
     await c.env.DB.prepare(`UPDATE subscriptions SET status = 'on_hold', updated_at = ? WHERE user_id = ?`)
       .bind(now, userId)
@@ -634,5 +704,38 @@ async function applyBillingEvent(c: Context<App>, type: string, data: Record<str
       ).bind(type.includes("failed") ? "failed" : "cancelled", now, userId),
       c.env.DB.prepare("UPDATE users SET plan_id = 'free' WHERE id = ?").bind(userId),
     ]);
+    await trackServerEvent(c.env.DB, "subscription_cancelled", {
+      userId,
+      props: { reason: type },
+    });
   }
+}
+
+/** Best-effort extraction — Dodo subscription webhooks usually lack card fingerprints. */
+function extractPaymentFingerprint(data: Record<string, unknown>): string | null {
+  const candidates = [
+    data.payment_method_id,
+    data.payment_method_fingerprint,
+    data.card_fingerprint,
+    data.fingerprint,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim().slice(0, 120);
+  }
+  const pm = data.payment_method;
+  if (typeof pm === "string" && pm.trim()) return pm.trim().slice(0, 120);
+  if (pm && typeof pm === "object") {
+    const obj = pm as Record<string, unknown>;
+    for (const key of ["id", "payment_method_id", "fingerprint", "card_fingerprint"]) {
+      if (typeof obj[key] === "string" && (obj[key] as string).trim()) {
+        return (obj[key] as string).trim().slice(0, 120);
+      }
+    }
+  }
+  const card = data.card;
+  if (card && typeof card === "object") {
+    const fp = (card as { fingerprint?: string }).fingerprint;
+    if (typeof fp === "string" && fp.trim()) return fp.trim().slice(0, 120);
+  }
+  return null;
 }

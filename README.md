@@ -1,15 +1,25 @@
 # Flap
 
-**Hosted custom-domain email at [useflap.online](https://useflap.online).**
+**One inbox for every startup you build** — hosted custom-domain email at [useflap.online](https://useflap.online).
 
-Flap is a mailbox product: inbox, send, aliases, rules, drafts/scheduled mail, API keys, and webhooks — with Free / Starter / Pro / Business plans billed through Dodo Payments.
+Flap targets indie hackers and serial founders who own multiple domains and do not want a separate Google Workspace (or similar) for every project.
+
+## Plans (domain-first)
+
+| Plan | Price | Domains | Seats | Notes |
+|------|-------|---------|-------|-------|
+| Free | $0 | 1 | 1 | Trial + “Sent with Flap” footer |
+| Solo | $9 | 3 | 1 | Entry paid |
+| Builder | $19 | 10 | 1 | Highlighted |
+| Studio | $39 | 40 | up to 10 | Shared inboxes |
+
+Referrals: invite a founder → both get **+1 domain permanently** after the invitee connects a domain.
 
 ## Product surface
 
-- Marketing site: `/` (features, pricing, FAQ)
+- Marketing: `/` plus SEO pages, guides, DNS tools, Workspace cost calculator
 - Auth: `/signup`, `/login`, first-boot `/setup`
-- Legal: `/terms`, `/privacy`, `/billing-terms`
-- App: `/app` (inbox), `/app/settings` (domain setup, billing, developers)
+- App: `/app` (inbox), `/app/settings` (setup, billing, referrals, team)
 - Health: `GET /api/health`
 
 Support: [support@useflap.online](mailto:support@useflap.online)
@@ -20,47 +30,36 @@ Support: [support@useflap.online](mailto:support@useflap.online)
 npm install
 cp .dev.vars.example .dev.vars   # fill SESSION_SECRET at minimum
 npm run db:migrate:local
+npm run check                    # optional: pricing math self-test
+npx tsx shared/calculator.test.ts
 npm run dev
 ```
 
-Open the Vite URL, create an account, then Settings → Setup to add a domain and mailbox.
-
 ### Local Dodo test checkout
 
-Checkout is **not** disabled by `test_mode`. Billing buttons stay disabled only when `checkout_configured` is false — i.e. missing `DODO_PAYMENTS_API_KEY` and/or product IDs (`DODO_PRODUCT_PRO` / `DODO_PRODUCT_TEAM`).
-
-1. In the [Dodo dashboard](https://app.dodopayments.com), switch to **Test Mode**.
-2. Create Pro/Team subscription products; copy the `pdt_…` ids.
-3. Create a **test** API key (Developer → API keys). Optional webhook signing secret for local webhook tests.
-4. Put this in `.dev.vars` (then restart `npm run dev`):
+Checkout is enabled when `DODO_PAYMENTS_API_KEY` and at least one paid product ID are set.
 
 ```bash
 DODO_PAYMENTS_API_KEY=your_test_api_key
-DODO_PAYMENTS_WEBHOOK_KEY=whsec_…          # optional locally
-DODO_PAYMENTS_ENVIRONMENT=test_mode        # → https://test.dodopayments.com
-DODO_PRODUCT_PRO=pdt_…
-DODO_PRODUCT_TEAM=pdt_…
+DODO_PAYMENTS_ENVIRONMENT=test_mode
+DODO_PRODUCT_SOLO=pdt_…
+DODO_PRODUCT_BUILDER=pdt_…
+DODO_PRODUCT_STUDIO=pdt_…
+# Legacy aliases still work: DODO_PRODUCT_PRO→Builder, DODO_PRODUCT_TEAM→Studio, DODO_PRODUCT_STARTER→Solo
 ```
-
-5. Verify: `GET /api/billing/plans` should show `"checkout_configured": true` and `"dodo_environment": "test_mode"`.
-6. Settings → Billing → Upgrade; complete checkout with [Dodo test cards](https://docs.dodopayments.com/miscellaneous/test-mode-vs-live-mode).
-
-Do **not** set `DODO_PAYMENTS_ENVIRONMENT=live_mode` with test keys — Dodo returns `Unauthorized`. Live keys only with `live_mode` and live `pdt_…` ids.
 
 ## Production deploy checklist
 
-1. Apply D1 migrations: `npm run db:migrate:remote` (see `migrations/README.md` — **0005_billing** + **0007_quota_enforcement** for plans/quotas).
+1. Apply D1 migrations through **0009_analytics_verify_abuse**: `npm run db:migrate:remote`
 2. Set Worker secrets (see `.dev.vars.example`):
    - `SESSION_SECRET`, `APP_URL=https://useflap.online`, `SAAS_MODE=true`
-   - Dodo **live**: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
-   - Product IDs from **Live** mode: `DODO_PRODUCT_PRO`, `DODO_PRODUCT_TEAM` (legacy aliases: `DODO_PRODUCT_STARTER`→Pro, `DODO_PRODUCT_BUSINESS`→Team)
-   - OAuth (optional): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`; GitHub: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-   - Callbacks: `/api/auth/google/callback`, `/api/auth/github/callback`
+   - `SYSTEM_FROM_EMAIL=noreply@useflap.online` (verification mail via SEB)
+   - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
+   - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
+   - OAuth optional: Google / GitHub client IDs + secrets
 3. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 4. `npm run deploy`
-5. Configure Cloudflare Email Routing → Send to Worker for each mailbox address
-
-If Dodo keys or product IDs are missing, the app stays usable on Free and shows clear “contact support / configure” messaging instead of broken checkout.
+5. Cloudflare Email Routing → Send to Worker for each mailbox; ensure `SYSTEM_FROM_EMAIL` can send via the SEB binding
 
 ## Scripts
 
@@ -73,6 +72,7 @@ If Dodo keys or product IDs are missing, the app stays usable on Free and shows 
 
 ## Notes
 
-- Internal Cloudflare resource names may still say `inlet` (Worker/D1/R2 bindings). That is infrastructure naming, not the product brand.
-- Shared team inboxes are roadmap (Business) — Settings → Team records interest only.
+- Internal Cloudflare resource names may still say `inlet` (Worker/D1/R2 bindings).
 - Password reset is not shipped yet; support resets are manual.
+- Password signups must click the verification email link (`SYSTEM_FROM_EMAIL` + SEB). OAuth accounts are verified on first login.
+- Referral rewards require verified email + a connected domain; self/disposable emails and shared Dodo customer / payment fingerprints are blocked.

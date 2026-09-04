@@ -7,6 +7,11 @@ import { handleEmail } from "./email";
 import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
+import { registerDnsToolRoutes } from "./lib/dns-tools";
+import { registerGrowthRoutes } from "./lib/growth";
+import { attributeReferral, ensureReferralCode, markEmailVerified } from "./lib/referrals";
+import { afterDomainAdded, markFirstEmailSent } from "./lib/activation";
+import { consumeEmailVerificationToken, issueEmailVerification } from "./lib/verify-email";
 import {
   githubConfigured,
   googleConfigured,
@@ -86,6 +91,8 @@ app.post("/api/setup", async (c) => {
     ]);
     await ensureSubscription(c.env.DB, id);
     await ensureOwnerMembership(c.env.DB, id);
+    await markEmailVerified(c.env.DB, id);
+    await ensureReferralCode(c.env.DB, id);
     await createSession(c, id);
   } catch (error) {
     console.error("Failed to create the initial Flap administrator", error);
@@ -102,10 +109,17 @@ app.post("/api/signup", async (c) => {
   if (!saas && (await userCount(c.env.DB)) > 0) {
     return c.json({ error: "Open signup is disabled. Ask an operator to enable SAAS_MODE." }, 403);
   }
-  const body = await c.req.json().catch(() => ({})) as { email?: string; password?: string; name?: string };
+  const body = await c.req.json().catch(() => ({})) as {
+    email?: string;
+    password?: string;
+    name?: string;
+    referral_code?: string;
+    ref?: string;
+  };
   const email = (body.email ?? "").trim().toLowerCase();
   const password = body.password ?? "";
   const name = (body.name ?? "").trim().slice(0, 120);
+  const referralCode = body.referral_code || body.ref || c.req.query("ref") || "";
   if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
   if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
     return c.json({ error: "Password must be between 8 and 1,024 characters." }, 400);
@@ -127,11 +141,39 @@ app.post("/api/signup", async (c) => {
     await c.env.DB.batch(statements);
     await ensureSubscription(c.env.DB, id);
     await ensureOwnerMembership(c.env.DB, id);
+    // Password signup: email stays unverified until the user clicks the verify link.
+    await ensureReferralCode(c.env.DB, id);
+    if (referralCode) {
+      await attributeReferral(c.env.DB, id, email, referralCode);
+    }
     await createSession(c, id);
+    const verify = await issueEmailVerification(c.env, id, email, { force: true });
+    return c.json(
+      {
+        ok: true,
+        user: { id, email },
+        email_verification: {
+          required: true,
+          sent: verify.ok ? verify.sent : false,
+          reason: verify.ok ? verify.reason : "error",
+        },
+      },
+      201,
+    );
   } catch {
     return c.json({ error: "An account with that email already exists. Sign in instead." }, 409);
   }
-  return c.json({ ok: true, user: { id, email } }, 201);
+});
+
+app.get("/api/auth/verify-email", async (c) => {
+  const token = c.req.query("token") || "";
+  const result = await consumeEmailVerificationToken(c.env, token);
+  const origin = (c.env.APP_URL || "https://useflap.online").replace(/\/$/, "");
+  if (!result.ok) {
+    return c.redirect(`${origin}/app/settings?tab=setup&verify=failed&reason=${encodeURIComponent(result.error)}`);
+  }
+  await createSession(c, result.userId);
+  return c.redirect(`${origin}/app/settings?tab=setup&verify=ok&onboarding=1`);
 });
 
 app.post("/api/login", async (c) => {
@@ -184,8 +226,18 @@ app.get("/api/me", async (c) => {
   const preferred = getCookie(c, "flap_ws") || undefined;
   const ctx = await resolveWorkspace(c.env.DB, user.id, preferred);
   const mailboxes = await listAccessibleMailboxes(c.env.DB, ctx);
+  const flags = await c.env.DB.prepare(
+    "SELECT email_verified_at FROM users WHERE id = ?",
+  )
+    .bind(user.id)
+    .first<{ email_verified_at: number | null }>();
   return c.json({
-    user: { id: user.id, email: user.email, created_at: user.created_at },
+    user: {
+      id: user.id,
+      email: user.email,
+      created_at: user.created_at,
+      email_verified: Boolean(flags?.email_verified_at),
+    },
     workspace: {
       id: ctx.workspaceId,
       role: ctx.role,
@@ -240,6 +292,7 @@ app.post("/api/domains", async (c) => {
   } catch {
     return c.json({ error: "That domain is already on this account." }, 409);
   }
+  await afterDomainAdded(c.env.DB, ctx.workspaceId);
   return c.json({ domain: { id, name } }, 201);
 });
 
@@ -720,6 +773,7 @@ app.post("/api/mail/send", async (c) => {
 
   const error = await dispatchStoredMessage(c.env, {
     id,
+    user_id: ctx.workspaceId,
     mailbox_id: fromMailbox.id,
     from_addr: fromMailbox.fromHeader,
     to_addr: to,
@@ -745,6 +799,7 @@ app.post("/api/mail/send", async (c) => {
     .bind(now, id, ctx.workspaceId)
     .run();
   await recordOutboundSend(c.env.DB, ctx.workspaceId);
+  await markFirstEmailSent(c.env.DB, ctx.workspaceId);
   return c.json({ ok: true, id });
 });
 
@@ -846,6 +901,8 @@ async function pickFromMailbox(db: D1Database, ctx: WorkspaceCtx, from?: string)
 
 registerWorkspaceRoutes(app);
 registerBillingRoutes(app);
+registerDnsToolRoutes(app);
+registerGrowthRoutes(app);
 
 export default {
   fetch: app.fetch,

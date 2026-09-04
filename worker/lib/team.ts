@@ -169,7 +169,7 @@ export async function createInvite(
     return {
       ok: false,
       status: 402,
-      error: `Team invites require a Team plan. Your ${plan_id} plan is solo-only — upgrade to invite members.`,
+      error: `Team invites require the Studio plan. Your ${plan_id} plan is solo-only — upgrade to invite members.`,
     };
   }
 

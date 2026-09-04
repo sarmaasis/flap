@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import Landing from "./pages/Landing";
+import { GUIDE_PAGES, TOOL_PAGES } from "./content/marketing";
+import { SEO_PATHS } from "./content/seo-pages";
+import { BLOG_POSTS } from "./content/blog";
 
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
@@ -8,10 +11,25 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Legal = lazy(() => import("./pages/Legal"));
 const InviteAccept = lazy(() => import("./pages/InviteAccept"));
+const SeoLanding = lazy(() => import("./pages/SeoLanding"));
+const DnsToolPage = lazy(() => import("./pages/DnsToolPage"));
+const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
+const GuidePage = lazy(() => import("./pages/GuidePage"));
+const BlogIndex = lazy(() => import("./pages/BlogIndex"));
+const BlogPost = lazy(() => import("./pages/BlogPost"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
 }
+
+const SEO_PATH_SET = new Set<string>(SEO_PATHS);
+
+const DNS_TOOL_PATHS = new Set<string>(
+  TOOL_PAGES.filter((t) => t.path !== "/tools/google-workspace-cost-calculator").map((t) => t.path),
+);
+
+const GUIDE_PATHS = new Set<string>(GUIDE_PAGES.map((g) => g.path));
+const BLOG_PATHS = new Set<string>(BLOG_POSTS.map((p) => p.path));
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname);
@@ -20,6 +38,7 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
   if (path === "/setup") return <Screen><Setup /></Screen>;
   if (path === "/signup") return <Screen><Signup /></Screen>;
   if (path === "/login") return <Screen><Login /></Screen>;
@@ -27,8 +46,30 @@ export default function App() {
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;
-  if (path === "/app/settings") return <Screen><Settings /></Screen>;
+  if (path === "/app/settings" || path === "/settings/referrals") {
+    return <Screen><Settings /></Screen>;
+  }
   if (path === "/app/compose") return <Screen><Inbox composeOpen /></Screen>;
   if (path === "/app" || path.startsWith("/app/")) return <Screen><Inbox /></Screen>;
+
+  if (path === "/tools/google-workspace-cost-calculator") {
+    return <Screen><CalculatorPage /></Screen>;
+  }
+  if (DNS_TOOL_PATHS.has(path)) {
+    return <Screen><DnsToolPage path={path} /></Screen>;
+  }
+  if (GUIDE_PATHS.has(path)) {
+    return <Screen><GuidePage path={path} /></Screen>;
+  }
+  if (path === "/blog") {
+    return <Screen><BlogIndex /></Screen>;
+  }
+  if (BLOG_PATHS.has(path)) {
+    return <Screen><BlogPost path={path} /></Screen>;
+  }
+  if (SEO_PATH_SET.has(path)) {
+    return <Screen><SeoLanding path={path} /></Screen>;
+  }
+
   return <Landing />;
 }

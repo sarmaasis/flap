@@ -1,4 +1,4 @@
-export type User = { id: string; email: string; created_at?: number };
+export type User = { id: string; email: string; created_at?: number; email_verified?: boolean };
 export type Mailbox = {
   id: string;
   domain_id?: string;
@@ -184,8 +184,11 @@ export const api = {
   setupStatus: () => req<{ needs_setup: boolean; signup_open?: boolean }>("/api/setup/status"),
   setup: (email: string, password: string) =>
     req<{ ok: boolean; user: User }>("/api/setup", { method: "POST", body: JSON.stringify({ email, password }) }),
-  signup: (email: string, password: string, name?: string) =>
-    req<{ ok: boolean; user: User }>("/api/signup", { method: "POST", body: JSON.stringify({ email, password, name }) }),
+  signup: (email: string, password: string, name?: string, referral_code?: string) =>
+    req<{ ok: boolean; user: User }>("/api/signup", {
+      method: "POST",
+      body: JSON.stringify({ email, password, name, referral_code }),
+    }),
   login: (email: string, password: string) =>
     req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => req<{ ok: boolean }>("/api/logout", { method: "POST" }),
@@ -330,6 +333,46 @@ export const api = {
   },
   restoreBackup: (payload: unknown) =>
     req<{ ok: boolean; restored: number }>("/api/restore", { method: "POST", body: JSON.stringify(payload) }),
+  referrals: () =>
+    req<{
+      code: string;
+      link: string;
+      domains_earned: number;
+      successful_referrals: number;
+      pending_referrals: number;
+      reward_rule: string;
+      history: Array<{
+        id: string;
+        status: string;
+        reward_domains: number;
+        created_at: number;
+        referred_email: string;
+      }>;
+    }>("/api/referrals"),
+  activation: () =>
+    req<{
+      steps: Record<string, boolean>;
+      activated: boolean;
+      onboarding_dismissed: boolean;
+    }>("/api/activation"),
+  dismissOnboarding: () => req<{ ok: boolean }>("/api/activation/dismiss-onboarding", { method: "POST" }),
+  resendVerification: () =>
+    req<{ ok: boolean; sent: boolean; message?: string; reason?: string }>("/api/auth/resend-verification", {
+      method: "POST",
+      body: "{}",
+    }),
+  dnsStatus: (domainId: string) =>
+    req<{
+      domain: string;
+      provider: string;
+      mx_ok: boolean;
+      spf_ok: boolean;
+      verified: boolean;
+      issues: string[];
+      guide_path: string | null;
+      records: { mx: string[]; spf: string[] };
+      error?: string;
+    }>(`/api/domains/${domainId}/dns-status`),
 };
 
 export type DnsRecords = {

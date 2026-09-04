@@ -3,6 +3,7 @@ import { randomId, nowMs } from "./lib/ids";
 import { splitHeadersBody } from "./lib/mime";
 import { isNoReply, makeSnippet } from "./lib/mailutil";
 import { assertStorageRoom, messageStorageBytes } from "./lib/billing";
+import { markFirstEmailReceived } from "./lib/activation";
 import {
   applyInboundPolicy,
   fireWebhooks,
@@ -132,6 +133,8 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     folder: policy.folder,
     label: policy.label,
   }).catch((error) => console.warn("webhook", error));
+
+  await markFirstEmailReceived(env.DB, userId).catch(() => undefined);
 
   if (preparedAtts.length && env.INLET_ATTACHMENTS) {
     for (const att of preparedAtts) {

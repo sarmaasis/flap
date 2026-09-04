@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api,
   type Alias,
@@ -24,11 +24,12 @@ import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 
-type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "developers" | "privacy" | "billing" | "team";
+type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "developers" | "privacy" | "billing" | "team" | "referrals";
 
 function initialTab(): Tab {
+  if (window.location.pathname === "/settings/referrals") return "referrals";
   const q = new URLSearchParams(window.location.search).get("tab");
-  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "developers", "privacy", "billing", "team"];
+  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "developers", "privacy", "billing", "team", "referrals"];
   return allowed.includes(q as Tab) ? (q as Tab) : "setup";
 }
 
@@ -78,10 +79,30 @@ export default function Settings() {
   const [onboardingBanner, setOnboardingBanner] = useState(
     () => new URLSearchParams(window.location.search).get("onboarding") === "1",
   );
+  const [dnsStatus, setDnsStatus] = useState<{
+    verified: boolean;
+    issues: string[];
+    provider: string;
+    guide_path: string | null;
+    mx_ok: boolean;
+    spf_ok: boolean;
+  } | null>(null);
+  const [dnsChecking, setDnsChecking] = useState(false);
+  const [dnsPolling, setDnsPolling] = useState(false);
+  const [dnsPollNote, setDnsPollNote] = useState("");
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const dnsPollRef = useRef<{ cancelled: boolean; timer: ReturnType<typeof setTimeout> | null }>({
+    cancelled: false,
+    timer: null,
+  });
+  const [referralInfo, setReferralInfo] = useState<Awaited<ReturnType<typeof api.referrals>> | null>(null);
+  const [activation, setActivation] = useState<Awaited<ReturnType<typeof api.activation>> | null>(null);
 
   async function refresh() {
     const me = await api.me();
     setEmail(me.user.email);
+    setEmailVerified(me.user.email_verified !== false);
     const [d, m, s, t, c, f, b, k, a, w, p, team, bill, planList] = await Promise.all([
       api.domains(),
       api.mailboxes(),
@@ -99,7 +120,7 @@ export default function Settings() {
       api.billingPlans().catch(() => ({
         plans: [] as PlanSummary[],
         checkout_configured: false as boolean,
-        checkout_missing: ["DODO_PAYMENTS_API_KEY", "DODO_PRODUCT_PRO", "DODO_PRODUCT_TEAM"] as string[],
+        checkout_missing: ["DODO_PAYMENTS_API_KEY", "DODO_PRODUCT_SOLO", "DODO_PRODUCT_BUILDER", "DODO_PRODUCT_STUDIO"] as string[],
         dodo_environment: undefined as "test_mode" | "live_mode" | undefined,
         support_email: "support@useflap.online",
       })),
@@ -133,6 +154,15 @@ export default function Settings() {
     setSupportEmail(bill?.support_email || planList.support_email || "support@useflap.online");
     const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
     if (focus) setDns((await api.dns(focus.name)).records);
+    const [refs, act] = await Promise.all([
+      api.referrals().catch(() => null),
+      api.activation().catch(() => null),
+    ]);
+    if (refs) setReferralInfo(refs);
+    if (act) {
+      setActivation(act);
+      if (act.steps?.email_verified != null) setEmailVerified(Boolean(act.steps.email_verified));
+    }
   }
 
   useEffect(() => {
@@ -147,10 +177,28 @@ export default function Settings() {
       setTab("setup");
       setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
     }
+    if (params.get("verify") === "ok") {
+      setEmailVerified(true);
+      setNotice("Email verified. You can finish domain setup below.");
+      setTab("setup");
+    }
+    if (params.get("verify") === "sent") {
+      setEmailVerified(false);
+      setNotice("Check your inbox for a verification link from Flap (expires in 48 hours).");
+      setTab("setup");
+    }
+    if (params.get("verify") === "failed") {
+      setErr(params.get("reason") || "Email verification failed. Request a new link below.");
+      setTab("setup");
+    }
     if (params.get("joined") === "1") {
       setTab("team");
       setNotice("You joined the workspace. Shared mailboxes you were granted appear in the inbox.");
     }
+    return () => {
+      dnsPollRef.current.cancelled = true;
+      if (dnsPollRef.current.timer) clearTimeout(dnsPollRef.current.timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -160,14 +208,93 @@ export default function Settings() {
     api.dns(focus.name).then((r) => setDns(r.records)).catch(() => undefined);
   }, [domainId, domains]);
 
+  function stopDnsPoll() {
+    dnsPollRef.current.cancelled = true;
+    if (dnsPollRef.current.timer) {
+      clearTimeout(dnsPollRef.current.timer);
+      dnsPollRef.current.timer = null;
+    }
+    setDnsPolling(false);
+  }
+
+  async function runDnsCheck(id: string, opts?: { silent?: boolean }) {
+    if (!opts?.silent) setDnsChecking(true);
+    try {
+      const { track } = await import("../lib/analytics");
+      if (!opts?.silent) track("dns_verification_started");
+      const status = await api.dnsStatus(id);
+      setDnsStatus(status);
+      if (status.verified) {
+        track("dns_verified");
+        setNotice("Looking good — MX and SPF are ready for Flap.");
+        setDnsPollNote("");
+      } else if (status.issues.length) {
+        setDnsPollNote(
+          status.issues.length === 1
+            ? `Still waiting: ${status.issues[0]}`
+            : `Still waiting on ${status.issues.length} DNS items`,
+        );
+      }
+      return status;
+    } catch (ex) {
+      if (!opts?.silent) setErr(ex instanceof Error ? ex.message : "DNS check failed.");
+      return null;
+    } finally {
+      if (!opts?.silent) setDnsChecking(false);
+    }
+  }
+
+  /** Auto-poll DNS after domain add / manual setup: fast at first, then slower; stop on success or ~3 min. */
+  function startDnsAutoPoll(id: string) {
+    stopDnsPoll();
+    dnsPollRef.current = { cancelled: false, timer: null };
+    setDnsPolling(true);
+    setDnsPollNote("Watching DNS… usually updates within a few minutes.");
+    void (async () => {
+      const { track } = await import("../lib/analytics");
+      track("dns_verification_started", { auto: true });
+      const delays = [0, 4_000, 8_000, 12_000, 20_000, 30_000, 45_000, 60_000];
+      const started = Date.now();
+      const deadline = started + 3 * 60_000;
+      for (let i = 0; i < delays.length; i++) {
+        if (dnsPollRef.current.cancelled) return;
+        const wait = delays[i]!;
+        if (wait > 0) {
+          await new Promise<void>((resolve) => {
+            dnsPollRef.current.timer = setTimeout(resolve, wait);
+          });
+        }
+        if (dnsPollRef.current.cancelled) return;
+        if (Date.now() > deadline) break;
+        const status = await runDnsCheck(id, { silent: true });
+        if (status?.verified) {
+          setDnsPolling(false);
+          setDnsPollNote("Looking good — DNS is ready.");
+          return;
+        }
+      }
+      if (!dnsPollRef.current.cancelled) {
+        setDnsPolling(false);
+        setDnsPollNote("Still propagating. Fix any issues below, then Check DNS again.");
+      }
+    })();
+  }
+
   async function addDomain(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
     try {
-      await api.createDomain(domainName);
+      const { track } = await import("../lib/analytics");
+      track("domain_add_started");
+      const created = await api.createDomain(domainName);
+      track("domain_added");
       setDomainName("");
       await refresh();
-      setNotice("Domain added. Next, create an address to receive mail.");
+      if (created.domain?.id) {
+        setDomainId(created.domain.id);
+        startDnsAutoPoll(created.domain.id);
+      }
+      setNotice("Domain added. We are watching DNS while you create an address.");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not add domain.");
     }
@@ -179,13 +306,43 @@ export default function Settings() {
     try {
       const created = await api.createMailbox(domainId, localPart);
       if (displayName.trim()) await api.updateMailbox(created.mailbox.id, displayName.trim());
+      const { track } = await import("../lib/analytics");
+      track("address_created");
       setLocalPart("");
       setDisplayName("");
       await refresh();
       setNotice("Mailbox added. Create a matching Email Routing rule in Cloudflare to begin receiving mail.");
+      if (domainId) startDnsAutoPoll(domainId);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not add mailbox.");
     }
+  }
+
+  async function checkDns() {
+    if (!domainId) return;
+    setErr("");
+    stopDnsPoll();
+    const status = await runDnsCheck(domainId);
+    if (status && !status.verified) {
+      startDnsAutoPoll(domainId);
+    }
+  }
+
+  async function resendVerify() {
+    setVerifyBusy(true);
+    setErr("");
+    try {
+      const res = await api.resendVerification();
+      setNotice(res.message || (res.sent ? "Verification email sent." : "Request recorded."));
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not resend verification.");
+    } finally {
+      setVerifyBusy(false);
+    }
+  }
+
+  function copyText(value: string) {
+    void navigator.clipboard.writeText(value).then(() => setNotice("Copied to clipboard."));
   }
 
   async function logout() {
@@ -209,12 +366,15 @@ export default function Settings() {
     ["privacy", "Privacy"],
     ["billing", "Billing"],
     ["team", "Team"],
+    ["referrals", "Referrals"],
   ];
 
   async function startCheckout(planId: string) {
     setErr("");
     setCheckoutBusy(planId);
     try {
+      const { track } = await import("../lib/analytics");
+      track("checkout_started", { plan: planId });
       const session = await api.billingCheckout(planId);
       window.location.href = session.checkout_url;
     } catch (ex) {
@@ -243,13 +403,31 @@ export default function Settings() {
           <h1>Settings</h1>
           <p className="lede">Wire your domain, route mail, automate delivery, and keep developer hooks under one roof.</p>
         </div>
-        {onboardingBanner ? (
+        {onboardingBanner || (activation && !activation.onboarding_dismissed && !activation.activated) ? (
           <div className="onboarding-banner" role="status">
             <div>
-              <strong>Get your domain live</strong>
-              <p>Add a domain → create a mailbox → point Cloudflare Email Routing → send a test. Upgrade anytime from Billing.</p>
+              <strong>Your Flap setup</strong>
+              <ul className="setup-checklist mt-2 text-sm">
+                <li className="complete">Create account</li>
+                <li className={emailVerified ? "complete" : ""}>Verify email</li>
+                <li className={hasDomain ? "complete" : ""}>Add your first domain</li>
+                <li className={dnsStatus?.verified ? "complete" : ""}>Verify DNS</li>
+                <li className={hasMailbox ? "complete" : ""}>Create an address</li>
+                <li className={activation?.steps.first_email_sent || activation?.steps.first_email_received ? "complete" : ""}>
+                  Send or receive your first email
+                </li>
+              </ul>
             </div>
-            <button type="button" className="btn" onClick={() => setOnboardingBanner(false)}>Dismiss</button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setOnboardingBanner(false);
+                void api.dismissOnboarding().catch(() => undefined);
+              }}
+            >
+              Dismiss
+            </button>
           </div>
         ) : null}
         <div className="settings-tabs" role="tablist">
@@ -262,6 +440,18 @@ export default function Settings() {
 
         {tab === "setup" ? (
           <>
+            {!emailVerified ? (
+              <div className="notice dns-issues" role="status">
+                <p>
+                  Confirm <strong>{email}</strong> via the verification link we sent. Referral rewards and some activation steps wait on this.
+                </p>
+                <p style={{ marginTop: 8 }}>
+                  <button type="button" className="btn" disabled={verifyBusy} onClick={() => void resendVerify()}>
+                    {verifyBusy ? "Sending…" : "Resend verification email"}
+                  </button>
+                </p>
+              </div>
+            ) : null}
             <ol className="setup-steps" aria-label="Setup progress">
               <li className={hasDomain ? "complete" : "current"}>
                 <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "The domain you receive mail on"}</small></div>
@@ -324,18 +514,74 @@ export default function Settings() {
               </tbody></table> : <p className="empty-state">{hasDomain ? "Create your first address above." : "Add a domain before creating an address."}</p>}
             </section>
             <section className="settings-card" aria-labelledby="routing-title">
-              <div className="section-heading"><div><h2 id="routing-title">Cloudflare routing checklist</h2><p>Finish these steps in the Cloudflare dashboard for {selectedName}.</p></div></div>
+              <div className="section-heading">
+                <div>
+                  <h2 id="routing-title">DNS & Cloudflare routing</h2>
+                  <p>Copy records to your DNS host for {selectedName}. Prefer precise fixes over guessing.</p>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {dnsPolling ? (
+                    <button type="button" className="btn" onClick={() => stopDnsPoll()}>
+                      Stop watching
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn" disabled={!domainId || dnsChecking} onClick={() => void checkDns()}>
+                    {dnsChecking ? "Checking…" : dnsPolling ? "Check now" : "Check DNS"}
+                  </button>
+                </div>
+              </div>
+              {dnsPolling || dnsPollNote ? (
+                <p className="muted" role="status" style={{ marginBottom: 8 }}>
+                  {dnsPolling ? "Auto-checking DNS with backoff…" : null}
+                  {dnsPollNote ? ` ${dnsPollNote}` : null}
+                </p>
+              ) : null}
+              {dnsStatus ? (
+                <div className={`notice ${dnsStatus.verified ? "" : "dns-issues"}`} role="status">
+                  {dnsStatus.verified ? (
+                    <p>Looking good — MX + SPF include Cloudflare Email Routing.</p>
+                  ) : (
+                    <>
+                      <p>Remaining issues:</p>
+                      <ul>
+                        {dnsStatus.issues.map((issue) => (
+                          <li key={issue}>{issue}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {dnsStatus.provider && dnsStatus.provider !== "unknown" ? (
+                    <p className="muted" style={{ marginTop: 8 }}>Detected DNS provider: {dnsStatus.provider}</p>
+                  ) : null}
+                  {dnsStatus.guide_path ? (
+                    <p style={{ marginTop: 8 }}>
+                      <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
+                        Open {dnsStatus.provider === "vercel" ? "Vercel" : dnsStatus.provider === "cloudflare" ? "Cloudflare" : "DNS"} setup guide
+                      </a>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {dns ? (
                 <div className="dns">
                   <p>{dns.note}</p>
-                  <p><strong>MX</strong></p>
+                  <p style={{ marginTop: 12 }}><strong>MX</strong> — add at your DNS host (DNS only / grey cloud, never proxied)</p>
                   {dns.mx.map((r) => (
-                    <div key={r.value}><code>{r.type} {r.name} {r.priority} {r.value}</code></div>
+                    <div key={r.value} className="dns-row">
+                      <code>{r.type} {r.name} {r.priority} {r.value}</code>
+                      <button type="button" className="text-button" onClick={() => copyText(`${r.priority} ${r.value}`)}>Copy</button>
+                    </div>
                   ))}
                   <p style={{ marginTop: 12 }}><strong>SPF</strong></p>
-                  <code>{dns.spf.type} {dns.spf.name} {dns.spf.value}</code>
+                  <div className="dns-row">
+                    <code>{dns.spf.type} {dns.spf.name} {dns.spf.value}</code>
+                    <button type="button" className="text-button" onClick={() => copyText(dns.spf.value)}>Copy</button>
+                  </div>
                   <p style={{ marginTop: 12 }}><strong>DKIM</strong></p>
-                  <div><code>{dns.dkim.type} {dns.dkim.name}</code></div>
+                  <div className="dns-row">
+                    <code>{dns.dkim.type} {dns.dkim.name}</code>
+                    <button type="button" className="text-button" onClick={() => copyText(dns.dkim.name)}>Copy name</button>
+                  </div>
                   <p>{dns.dkim.value}</p>
                   <p style={{ marginTop: 12 }}><strong>Worker rule</strong></p>
                   <p>{dns.worker_rule}</p>
@@ -716,19 +962,19 @@ export default function Settings() {
                 <p>
                   {teamInfo?.teams_unlocked
                     ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
-                    : "Upgrade to Team to invite members and share mailboxes. Pro stays solo."}
+                    : "Upgrade to Studio to invite members and share mailboxes. Free, Solo, and Builder stay solo."}
                 </p>
               </div>
               <Badge variant={teamInfo?.teams_unlocked ? "default" : "secondary"}>
-                {teamInfo?.teams_unlocked ? "Team plan" : "Solo"}
+                {teamInfo?.teams_unlocked ? "Studio plan" : "Solo"}
               </Badge>
             </div>
 
             {!teamInfo?.teams_unlocked ? (
               <div className="deferred-banner">
-                Team seats unlock on the Team plan ($39/mo). You can still manage your own mailboxes on Free or Pro.
+                Team seats unlock on the Studio plan ($39/mo). You can still manage your own mailboxes on Free, Solo, or Builder.
                 <div style={{ marginTop: 12 }}>
-                  <Button size="sm" onClick={() => setTab("billing")}>View Team plan</Button>
+                  <Button size="sm" onClick={() => setTab("billing")}>View Studio plan</Button>
                 </div>
               </div>
             ) : null}
@@ -866,7 +1112,7 @@ export default function Settings() {
 
             <h3 style={{ marginTop: 28, marginBottom: 12 }}>Shared mailboxes</h3>
             <p className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
-              Mark support@ or hello@ as shared so invitees can access them. Requires Team plan.
+              Mark support@ or hello@ as shared so invitees can access them. Requires Studio plan.
             </p>
             {mailboxes.length ? (
               <table className="table">
@@ -899,6 +1145,77 @@ export default function Settings() {
               </table>
             ) : (
               <p className="empty-state">Create a mailbox in Setup first.</p>
+            )}
+          </section>
+        ) : null}
+
+        {tab === "referrals" ? (
+          <section className="settings-card">
+            <div className="section-heading">
+              <div>
+                <h2>Referrals</h2>
+                <p>{referralInfo?.reward_rule || "Invite a founder → both accounts get +1 domain permanently after they connect a domain."}</p>
+              </div>
+            </div>
+            {referralInfo ? (
+              <>
+                <label className="stack gap-1.5">
+                  <span className="muted text-sm">Your referral link</span>
+                  <div className="row-form">
+                    <input readOnly value={referralInfo.link} aria-label="Referral link" />
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(referralInfo.link).then(() => {
+                          setNotice("Referral link copied.");
+                          void import("../lib/analytics").then(({ track }) => track("referral_link_copied"));
+                        });
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </label>
+                <div className="row-form" style={{ marginTop: 16, gap: 24 }}>
+                  <div>
+                    <strong>{referralInfo.successful_referrals}</strong>
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Successful</p>
+                  </div>
+                  <div>
+                    <strong>{referralInfo.pending_referrals}</strong>
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Pending</p>
+                  </div>
+                  <div>
+                    <strong>{referralInfo.domains_earned}</strong>
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Domains earned</p>
+                  </div>
+                </div>
+                {referralInfo.history.length ? (
+                  <table className="table" style={{ marginTop: 20 }}>
+                    <thead>
+                      <tr>
+                        <th>Invitee</th>
+                        <th>Status</th>
+                        <th>Reward</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {referralInfo.history.map((h) => (
+                        <tr key={h.id}>
+                          <td>{h.referred_email}</td>
+                          <td>{h.status}</td>
+                          <td>+{h.reward_domains} domain</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="empty-state">No referrals yet. Share your link with another founder.</p>
+                )}
+              </>
+            ) : (
+              <p className="muted">Loading referral details…</p>
             )}
           </section>
         ) : null}

@@ -4,7 +4,9 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
+import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
+import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
 
 function OAuthButtons() {
   const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
@@ -35,14 +37,23 @@ export default function Signup() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    captureReferralFromUrl();
+    setRefCode(getStoredReferral());
+    track("signup_started");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
     setBusy(true);
     try {
-      await api.signup(email, password);
-      go("/app/settings?tab=setup&onboarding=1");
+      await api.signup(email, password, undefined, refCode || undefined);
+      track("signup_completed", { method: "password", referred: Boolean(refCode) });
+      if (refCode) track("referral_signup");
+      go("/app/settings?tab=setup&onboarding=1&verify=sent");
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Could not create account.");
     } finally {
@@ -64,7 +75,12 @@ export default function Signup() {
           <BrandMark /> Flap
         </a>
         <h1>Create your workspace</h1>
-        <p className="muted">Start free. Add a domain, create hello@, invite your team when you upgrade.</p>
+        <p className="muted">One inbox for every startup you build. Start free — add domains when you launch.</p>
+        {refCode ? (
+          <p className="muted text-xs">
+            Referral applied ({refCode}). Both of you earn +1 domain after you connect a domain.
+          </p>
+        ) : null}
         {err ? <p className="error" role="alert">{err}</p> : null}
         <OAuthButtons />
         {showPassword ? (

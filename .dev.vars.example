@@ -1,9 +1,13 @@
 SESSION_SECRET=change-me-to-a-long-random-string
-# Absolute public origin (scheme + host + port). Required for Dodo return_url + OAuth callbacks.
+# Absolute public origin (scheme + host + port). Required for Dodo return_url + OAuth callbacks + email verify links.
 # Local test: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
 APP_URL=http://127.0.0.1:5173
 # true = open signup; false = first-boot setup only after users exist
 SAAS_MODE=true
+
+# From address for password-signup verification emails (SEB send_email binding).
+# Must be a domain Cloudflare Email Routing can send from (typically your Flap product domain).
+SYSTEM_FROM_EMAIL=noreply@useflap.online
 
 # Google OAuth (Cloudflare Workers — authorized redirect URI must match APP_URL)
 # Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web)
@@ -25,7 +29,7 @@ GITHUB_CLIENT_SECRET=
 #
 # LOCAL TEST CHECKOUT (required for Upgrade buttons to work):
 #   1. Dashboard in Test Mode
-#   2. Create subscription products → copy pdt_… ids below
+#   2. Create Solo / Builder / Studio subscription products → copy pdt_… ids
 #   3. Create a test API key (often prefixed dodo_test_…)
 #   4. Keep ENVIRONMENT=test_mode  (hits https://test.dodopayments.com)
 #   5. Restart `npm run dev` after editing this file
@@ -35,23 +39,26 @@ GITHUB_CLIENT_SECRET=
 DODO_PAYMENTS_API_KEY=
 DODO_PAYMENTS_WEBHOOK_KEY=
 # test_mode | live_mode
-# - test_mode → https://test.dodopayments.com  (use test keys + test product ids)
-# - live_mode → https://live.dodopayments.com  (use live keys + live product ids)
-# Mixing a test key with live_mode (or vice versa) returns Unauthorized.
 DODO_PAYMENTS_ENVIRONMENT=test_mode
 # Product IDs from the SAME mode as the API key (subscription products)
+DODO_PRODUCT_SOLO=
+DODO_PRODUCT_BUILDER=
+DODO_PRODUCT_STUDIO=
+# Legacy aliases (still accepted):
+# DODO_PRODUCT_STARTER → Solo, DODO_PRODUCT_PRO → Builder
+# DODO_PRODUCT_TEAM / DODO_PRODUCT_BUSINESS → Studio
+DODO_PRODUCT_STARTER=
 DODO_PRODUCT_PRO=
 DODO_PRODUCT_TEAM=
-# Legacy aliases (still accepted): DODO_PRODUCT_STARTER → Pro, DODO_PRODUCT_BUSINESS → Team
-DODO_PRODUCT_STARTER=
 DODO_PRODUCT_BUSINESS=
 
 # Production secrets (wrangler secret put …):
 # SESSION_SECRET, APP_URL=https://useflap.online
+# SYSTEM_FROM_EMAIL=noreply@useflap.online
 # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (optional)
 # DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
-# DODO_PRODUCT_PRO, DODO_PRODUCT_TEAM
+# DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
 # Webhook URL: https://useflap.online/api/billing/webhook
 # OAuth callbacks: https://useflap.online/api/auth/google/callback
 #                  https://useflap.online/api/auth/github/callback

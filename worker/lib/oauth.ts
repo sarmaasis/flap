@@ -1,8 +1,10 @@
 import type { Context } from "hono";
+import { getCookie } from "hono/cookie";
 import { createSession } from "./auth";
 import { ensureSubscription } from "./billing";
 import { randomId, nowMs } from "./ids";
 import { acceptInvite, ensureOwnerMembership } from "./team";
+import { attributeReferral, ensureReferralCode, markEmailVerified } from "./referrals";
 
 type AppEnv = { Bindings: Env };
 
@@ -130,6 +132,7 @@ export async function handleGoogleCallback(c: Context<AppEnv>): Promise<Response
     providerUserId: profile.id,
     email: profile.email.toLowerCase(),
     name: (profile.name || "").slice(0, 120),
+    referralCode: getCookie(c, "flap_ref") || undefined,
   });
 
   await createSession(c, userId);
@@ -230,6 +233,7 @@ export async function handleGitHubCallback(c: Context<AppEnv>): Promise<Response
     providerUserId: String(profile.id),
     email,
     name: (profile.name || profile.login || "").slice(0, 120),
+    referralCode: getCookie(c, "flap_ref") || undefined,
   });
 
   await createSession(c, userId);
@@ -246,7 +250,7 @@ export async function handleGitHubCallback(c: Context<AppEnv>): Promise<Response
 
 async function upsertOAuthUser(
   db: D1Database,
-  input: { provider: string; providerUserId: string; email: string; name: string },
+  input: { provider: string; providerUserId: string; email: string; name: string; referralCode?: string },
 ): Promise<string> {
   const linked = await db
     .prepare(
@@ -263,8 +267,10 @@ async function upsertOAuthUser(
 
   let userId = existing?.id;
   const now = nowMs();
+  let created = false;
   if (!userId) {
     userId = randomId("usr");
+    created = true;
     // OAuth-only users: empty password_hash (password login rejected)
     await db
       .prepare(
@@ -275,6 +281,13 @@ async function upsertOAuthUser(
       .run();
     await ensureSubscription(db, userId);
     await ensureOwnerMembership(db, userId);
+  }
+
+  await markEmailVerified(db, userId);
+  await ensureReferralCode(db, userId);
+
+  if (created && input.referralCode) {
+    await attributeReferral(db, userId, input.email, input.referralCode);
   }
 
   await db
