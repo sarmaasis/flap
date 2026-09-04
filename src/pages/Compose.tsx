@@ -25,6 +25,7 @@ export default function Compose({
   draft,
   variant = "modal",
   onClose,
+  onDiscard,
   onSent,
 }: {
   mailboxes: Mailbox[];
@@ -35,6 +36,7 @@ export default function Compose({
   /** modal = floating overlay; pane = fills the mail reader (drafts/scheduled). */
   variant?: "modal" | "pane";
   onClose?: () => void;
+  onDiscard?: () => void | Promise<void>;
   onSent?: (kind: "sent" | "draft" | "scheduled") => void | Promise<void>;
 }) {
   const editorRef = useRef<EditorHandle>(null);
@@ -288,6 +290,11 @@ export default function Compose({
           {attachments.length ? <div className="attachment-chips">{attachments.map((file, index) => <button type="button" className="attachment-chip" key={`${file.filename}-${index}`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{file.filename} <span aria-hidden>×</span></button>)}</div> : <span className="compose-hint">⌘/Ctrl+Enter to send · drafts save as you type</span>}
         </div>
         <div className="compose-action-buttons">
+          {onDiscard && draftId ? (
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void onDiscard()}>
+              Delete
+            </button>
+          ) : null}
           <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void submit("draft")}>Save draft</button>
           <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => showSchedule ? void submit("schedule") : setShowSchedule(true)}>
             {showSchedule ? "Schedule" : "Later"}

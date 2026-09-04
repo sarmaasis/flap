@@ -203,6 +203,34 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
   }
 
+  /** Drafts/scheduled → permanent delete; Trash → permanent delete; otherwise move to Trash. */
+  async function discardMail(id: string, rowFolder?: string) {
+    const source = rowFolder || folder;
+    const permanent = source === "drafts" || source === "scheduled" || source === "trash";
+    if (permanent) {
+      const label =
+        source === "drafts" ? "Delete this draft permanently?"
+          : source === "scheduled" ? "Delete this scheduled message permanently?"
+            : "Delete forever? This cannot be undone.";
+      if (!window.confirm(label)) return;
+      await api.remove(id);
+    } else {
+      await api.move(id, "trash");
+    }
+    if (selected === id || composeDraft?.id === id) {
+      openInComposeRef.current = false;
+      setOpeningDraft(false);
+      setSelected(null);
+      setMessage(null);
+      if (composeDraft?.id === id) {
+        setShowCompose(false);
+        setComposeDraft(null);
+      }
+    }
+    setErr("");
+    await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
+  }
+
   async function toggleStar(row: MailSummary) {
     const next = !row.starred;
     setList((prev) => prev.map((item) => (item.id === row.id ? { ...item, starred: next ? 1 : 0 } : item)));
@@ -282,13 +310,54 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     });
   }
 
-  const keyCtx = useRef({ list, selected, message, showCompose, folder, openCompose, reply, forward: () => undefined as void, move, toggleStar, onRowClick });
-  keyCtx.current = { list, selected, message, showCompose, folder, openCompose, reply, move, toggleStar, onRowClick, forward };
+  const keyCtx = useRef({
+    list,
+    selected,
+    message,
+    showCompose,
+    composeDraft,
+    folder,
+    openCompose,
+    reply,
+    forward: () => undefined as void,
+    move,
+    discardMail,
+    toggleStar,
+    onRowClick,
+  });
+  keyCtx.current = {
+    list,
+    selected,
+    message,
+    showCompose,
+    composeDraft,
+    folder,
+    openCompose,
+    reply,
+    move,
+    discardMail,
+    toggleStar,
+    onRowClick,
+    forward,
+  };
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       const ctx = keyCtx.current;
+      const editingSavedDraft = Boolean(ctx.showCompose && ctx.composeDraft?.mode === "draft" && ctx.composeDraft?.id);
+      const deleteKey = event.key === "#" || event.key === "Delete" || event.key === "Backspace";
+
+      if (deleteKey) {
+        const id = (editingSavedDraft ? ctx.composeDraft?.id : null) || ctx.selected || ctx.message?.id;
+        if (!id) return;
+        if (ctx.showCompose && !editingSavedDraft) return;
+        event.preventDefault();
+        const row = ctx.list.find((item) => item.id === id);
+        void ctx.discardMail(id, row?.folder);
+        return;
+      }
+
       if (ctx.showCompose) return;
       if (event.key === "c") { event.preventDefault(); ctx.openCompose(); }
       if (event.key === "/") { event.preventDefault(); document.getElementById("mail-search")?.focus(); }
@@ -312,7 +381,6 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           setMessage((prev) => (prev ? { ...prev, unread: 1 } : prev));
         });
       }
-      if (event.key === "#") { event.preventDefault(); void ctx.move(ctx.message.id, "trash"); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -412,6 +480,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                   active={selected === m.id || composeDraft?.id === m.id}
                   onOpen={() => onRowClick(m)}
                   onStar={() => void toggleStar(m)}
+                  onDelete={() => void discardMail(m.id, m.folder || folder)}
                 />
               ))
             )}
@@ -448,6 +517,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                     draft={composeDraft}
                     variant="pane"
                     onClose={closeCompose}
+                    onDiscard={composeDraft?.id ? () => void discardMail(composeDraft.id!, folder) : undefined}
                     onSent={async (kind) => {
                       closeCompose();
                       setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
@@ -530,8 +600,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "archive")}>Archive</button>
                 <button type="button" className="btn btn-ghost" onClick={() => setSnoozeOpen((v) => !v)}>Snooze</button>
                 {folder !== "spam" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "spam")}>Spam</button> : null}
-                {folder !== "trash" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "trash")}>Trash</button> : (
-                  <button type="button" className="btn btn-danger" onClick={() => void api.remove(message.id).then(() => { setSelected(null); return loadList(); })}>Delete forever</button>
+                {folder === "trash" ? (
+                  <button type="button" className="btn btn-danger" onClick={() => void discardMail(message.id, folder)}>Delete forever</button>
+                ) : (
+                  <button type="button" className="btn btn-ghost" onClick={() => void discardMail(message.id, folder)}>Delete</button>
                 )}
                 {folder !== "inbox" && folder !== "starred" && folder !== "snoozed" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "inbox")}>Move to Inbox</button> : null}
                 <button type="button" className="btn btn-ghost" onClick={() => { void api.block(extractEmail(message.from_addr)).then(() => move(message.id, "spam")); }}>Block sender</button>
@@ -581,6 +653,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             draft={composeDraft}
             variant="modal"
             onClose={closeCompose}
+            onDiscard={composeDraft?.id && composeDraft.mode === "draft" ? () => void discardMail(composeDraft.id!, "drafts") : undefined}
             onSent={async (kind) => {
               closeCompose();
               setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
@@ -602,7 +675,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <li><kbd>e</kbd> Archive</li>
               <li><kbd>s</kbd> Star</li>
               <li><kbd>u</kbd> Mark unread</li>
-              <li><kbd>#</kbd> Trash</li>
+              <li><kbd>#</kbd> / <kbd>Delete</kbd> Delete (Trash, or remove draft)</li>
               <li><kbd>j</kbd> / <kbd>k</kbd> Next / previous</li>
               <li><kbd>/</kbd> Search</li>
               <li><kbd>⌘</kbd>+<kbd>Enter</kbd> Send (in compose)</li>
@@ -620,14 +693,22 @@ const MessageRow = memo(function MessageRow({
   active,
   onOpen,
   onStar,
+  onDelete,
 }: {
   row: MailSummary;
   folder: string;
   active: boolean;
   onOpen: () => void;
   onStar: () => void;
+  onDelete: () => void;
 }) {
   const who = folder === "sent" || folder === "drafts" || folder === "scheduled" ? row.to_addr || "(no recipient)" : row.from_addr;
+  const source = row.folder || folder;
+  const deleteLabel = source === "drafts" || source === "scheduled"
+    ? "Delete"
+    : source === "trash"
+      ? "Delete forever"
+      : "Move to Trash";
   return (
     <div className={`msg-row${active ? " active" : ""}${row.unread ? " unread" : ""}`}>
       <button type="button" className="star-btn" aria-label={row.starred ? "Unstar" : "Star"} onClick={(e) => { e.stopPropagation(); onStar(); }}>{row.starred ? "★" : "☆"}</button>
@@ -642,6 +723,15 @@ const MessageRow = memo(function MessageRow({
           <span className="message-chip">{row.label || (row.has_attachments ? "Attachment" : row.folder === "drafts" ? "Draft" : "Message")}</span>
         </div>
         {row.snippet ? <div className="preview">{row.snippet}</div> : null}
+      </button>
+      <button
+        type="button"
+        className="row-delete-btn"
+        aria-label={deleteLabel}
+        title={deleteLabel}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+      >
+        ×
       </button>
     </div>
   );
