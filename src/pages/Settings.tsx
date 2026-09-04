@@ -98,75 +98,123 @@ export default function Settings() {
   });
   const [referralInfo, setReferralInfo] = useState<Awaited<ReturnType<typeof api.referrals>> | null>(null);
   const [activation, setActivation] = useState<Awaited<ReturnType<typeof api.activation>> | null>(null);
+  const loadedTabs = useRef(new Set<Tab>());
 
-  async function refresh() {
+  async function refreshCore() {
     const me = await api.me();
     setEmail(me.user.email);
     setEmailVerified(me.user.email_verified !== false);
-    const [d, m, s, t, c, f, b, k, a, w, p, team, bill, planList] = await Promise.all([
+    const [d, m, p, act] = await Promise.all([
       api.domains(),
       api.mailboxes(),
-      api.signatures(),
-      api.templates(),
-      api.contacts(),
-      api.filters(),
-      api.blocked(),
-      api.keys(),
-      api.aliases(),
-      api.webhooks(),
       api.prefs(),
-      api.team(),
-      api.billingSubscription().catch(() => null),
-      api.billingPlans().catch(() => ({
-        plans: [] as PlanSummary[],
-        checkout_configured: false as boolean,
-        checkout_missing: ["DODO_PAYMENTS_API_KEY", "DODO_PRODUCT_SOLO", "DODO_PRODUCT_BUILDER", "DODO_PRODUCT_STUDIO"] as string[],
-        dodo_environment: undefined as "test_mode" | "live_mode" | undefined,
-        support_email: "support@useflap.online",
-      })),
+      api.activation().catch(() => null),
     ]);
     setDomains(d.domains);
     if (!domainId && d.domains[0]) setDomainId(d.domains[0].id);
     setMailboxes(m.mailboxes);
-    setSignatures(s.signatures);
-    setTemplates(t.templates);
-    setContacts(c.contacts);
-    setFilters(f.filters);
-    setBlocked(b.blocked);
-    setKeys(k.keys);
-    setAliases(a.aliases);
-    setWebhooks(w.webhooks);
     setPrefs(p.settings);
-    setInvites(team.invites);
-    setMembers(team.members ?? []);
-    setTeamInfo({
-      teams_unlocked: team.teams_unlocked,
-      plan_id: team.plan_id,
-      limits: team.limits,
-      workspace: team.workspace,
-      shared_mailboxes: team.shared_mailboxes ?? [],
-    });
-    setBilling(bill);
-    setPlans(planList.plans);
-    setCheckoutConfigured(bill?.checkout_configured ?? planList.checkout_configured ?? false);
-    setCheckoutMissing(bill?.checkout_missing ?? planList.checkout_missing ?? []);
-    setDodoEnvironment(bill?.dodo_environment ?? planList.dodo_environment ?? null);
-    setSupportEmail(bill?.support_email || planList.support_email || "support@useflap.online");
-    const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
-    if (focus) setDns((await api.dns(focus.name)).records);
-    const [refs, act] = await Promise.all([
-      api.referrals().catch(() => null),
-      api.activation().catch(() => null),
-    ]);
-    if (refs) setReferralInfo(refs);
     if (act) {
       setActivation(act);
       if (act.steps?.email_verified != null) setEmailVerified(Boolean(act.steps.email_verified));
     }
+    const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
+    if (focus) setDns((await api.dns(focus.name)).records);
+  }
+
+  async function loadTabData(next: Tab, force = false) {
+    if (!force && loadedTabs.current.has(next)) return;
+    try {
+      switch (next) {
+        case "setup":
+          break;
+        case "compose": {
+          const [s, t] = await Promise.all([api.signatures(), api.templates()]);
+          setSignatures(s.signatures);
+          setTemplates(t.templates);
+          break;
+        }
+        case "contacts": {
+          const c = await api.contacts();
+          setContacts(c.contacts);
+          break;
+        }
+        case "filters": {
+          const f = await api.filters();
+          setFilters(f.filters);
+          break;
+        }
+        case "aliases": {
+          const a = await api.aliases();
+          setAliases(a.aliases);
+          break;
+        }
+        case "developers": {
+          const [k, w] = await Promise.all([api.keys(), api.webhooks()]);
+          setKeys(k.keys);
+          setWebhooks(w.webhooks);
+          break;
+        }
+        case "privacy": {
+          const [b, p] = await Promise.all([api.blocked(), api.prefs()]);
+          setBlocked(b.blocked);
+          setPrefs(p.settings);
+          break;
+        }
+        case "billing": {
+          const [bill, planList] = await Promise.all([
+            api.billingSubscription().catch(() => null),
+            api.billingPlans().catch(() => ({
+              plans: [] as PlanSummary[],
+              checkout_configured: false as boolean,
+              checkout_missing: ["DODO_PAYMENTS_API_KEY", "DODO_PRODUCT_SOLO", "DODO_PRODUCT_BUILDER", "DODO_PRODUCT_STUDIO"] as string[],
+              dodo_environment: undefined as "test_mode" | "live_mode" | undefined,
+              support_email: "support@useflap.online",
+            })),
+          ]);
+          setBilling(bill);
+          setPlans(planList.plans);
+          setCheckoutConfigured(bill?.checkout_configured ?? planList.checkout_configured ?? false);
+          setCheckoutMissing(bill?.checkout_missing ?? planList.checkout_missing ?? []);
+          setDodoEnvironment(bill?.dodo_environment ?? planList.dodo_environment ?? null);
+          setSupportEmail(bill?.support_email || planList.support_email || "support@useflap.online");
+          break;
+        }
+        case "team": {
+          const team = await api.team();
+          setInvites(team.invites);
+          setMembers(team.members ?? []);
+          setTeamInfo({
+            teams_unlocked: team.teams_unlocked,
+            plan_id: team.plan_id,
+            limits: team.limits,
+            workspace: team.workspace,
+            shared_mailboxes: team.shared_mailboxes ?? [],
+          });
+          break;
+        }
+        case "referrals": {
+          const refs = await api.referrals().catch(() => null);
+          if (refs) setReferralInfo(refs);
+          break;
+        }
+      }
+      loadedTabs.current.add(next);
+    } catch {
+      /* tab data optional until interaction */
+    }
+  }
+
+  async function refresh() {
+    await refreshCore();
+    loadedTabs.current.clear();
+    await loadTabData(tab, true);
   }
 
   useEffect(() => {
-    refresh().catch(() => go("/login"));
+    refreshCore()
+      .then(() => loadTabData(initialTab()))
+      .catch(() => go("/login"));
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "done") {
       setNotice("Checkout complete. Plan entitlements update when Dodo confirms the subscription webhook.");
@@ -203,11 +251,23 @@ export default function Settings() {
   }, []);
 
   useEffect(() => {
+    void loadTabData(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  useEffect(() => {
     const focus = domains.find((x) => x.id === domainId);
     if (!focus) return;
     api.dns(focus.name).then((r) => setDns(r.records)).catch(() => undefined);
   }, [domainId, domains]);
 
+  function selectTab(id: Tab) {
+    setTab(id);
+    const url = new URL(window.location.href);
+    if (id === "setup") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", id);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  }
   function stopDnsPoll() {
     dnsPollRef.current.cancelled = true;
     if (dnsPollRef.current.timer) {
@@ -432,7 +492,7 @@ export default function Settings() {
         ) : null}
         <div className="settings-tabs" role="tablist">
           {tabs.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} className={`tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{label}</button>
+            <button key={id} type="button" role="tab" aria-selected={tab === id} className={`tab${tab === id ? " active" : ""}`} onClick={() => selectTab(id)}>{label}</button>
           ))}
         </div>
         {err ? <div className="err">{err}</div> : null}

@@ -154,7 +154,7 @@ export default function Landing() {
 
   return (
     <MarketingShell primaryHref={primaryHref} primaryLabel={primaryLabel}>
-      <section className="landing-hero relative mx-auto grid max-w-6xl gap-12 px-5 pb-20 pt-10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:gap-16 md:px-8 md:pb-28 md:pt-14">
+      <section className="landing-hero relative mx-auto grid max-w-6xl gap-10 px-5 pb-14 pt-8 md:grid-cols-[1.05fr_0.95fr] md:items-center md:gap-14 md:px-8 md:pb-20 md:pt-12">
         <div className="landing-hero-copy">
           <p className="brand-hero mb-4 font-[family-name:var(--font-display)] text-5xl font-bold tracking-tight text-[var(--cta)] md:text-7xl lg:text-8xl">
             Flap
@@ -203,7 +203,7 @@ export default function Landing() {
       </section>
 
       <section id="problem" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-10 max-w-2xl md:mb-12">
+        <div className="landing-section-head mb-8 max-w-2xl md:mb-10">
           <Badge variant="secondary" className="mb-4">The problem</Badge>
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Stop managing email like this
@@ -242,7 +242,7 @@ export default function Landing() {
       </section>
 
       <section id="how" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-10 max-w-2xl">
+        <div className="landing-section-head mb-8 max-w-2xl">
           <Badge variant="secondary" className="mb-4"><Sparkles className="mr-1 h-3 w-3" /> Workflow</Badge>
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             From domain to first reply in three steps
@@ -280,12 +280,12 @@ export default function Landing() {
       </section>
 
       <section id="features" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-12 max-w-2xl">
+        <div className="landing-section-head mb-8 max-w-2xl">
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Built for multi-domain founders
           </h2>
         </div>
-        <div className="grid gap-10 md:grid-cols-2 md:gap-x-14 md:gap-y-12">
+        <div className="grid gap-8 md:grid-cols-2 md:gap-x-12 md:gap-y-10">
           {FEATURES.map((f) => (
             <div key={f.title} className="feature-row flex gap-4 border-t border-[var(--line)] pt-7">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[var(--cta-dim)] text-[var(--cta)]">
@@ -301,7 +301,7 @@ export default function Landing() {
       </section>
 
       <section id="use-cases" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-10 max-w-2xl">
+        <div className="landing-section-head mb-8 max-w-2xl">
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Who Flap is for
           </h2>
@@ -317,7 +317,7 @@ export default function Landing() {
       </section>
 
       <section id="pricing" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-12 max-w-2xl">
+        <div className="landing-section-head mb-8 max-w-2xl">
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Domain-first pricing
           </h2>
@@ -369,7 +369,7 @@ export default function Landing() {
       </section>
 
       <section id="proof" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-10 max-w-2xl">
+        <div className="landing-section-head mb-8 max-w-2xl">
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Built to be trusted
           </h2>
@@ -398,7 +398,7 @@ export default function Landing() {
       </section>
 
       <section id="faq" className="landing-section mx-auto max-w-3xl px-5 md:px-8">
-        <h2 className="mb-10 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">FAQ</h2>
+        <h2 className="mb-8 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">FAQ</h2>
         <Accordion type="single" collapsible className="w-full">
           {FAQS.map((item, i) => (
             <AccordionItem key={item.q} value={`faq-${i}`}>
@@ -409,8 +409,8 @@ export default function Landing() {
         </Accordion>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 pb-24 md:px-8 md:pb-28">
-        <div className="landing-cta relative overflow-hidden rounded-2xl border border-[var(--line-strong)] px-8 py-14 md:px-14 md:py-16">
+      <section className="mx-auto max-w-6xl px-5 pb-16 md:px-8 md:pb-20">
+        <div className="landing-cta relative overflow-hidden rounded-2xl border border-[var(--line-strong)] px-8 py-12 md:px-14 md:py-14">
           <div className="landing-cta-glow" aria-hidden />
           <p className="relative font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
             {MARKETING.primary_tagline}

@@ -78,9 +78,14 @@ Magic-link and verification mail use the Worker `send_email` binding (`SEB`) and
 | Script | Purpose |
 |--------|---------|
 | `npm run check` | Typecheck app + worker |
-| `npm run build` | Production frontend build |
+| `npm run build` | Production frontend build + marketing HTML prerender |
+| `npm run prerender` | Write SEO HTML shells into `dist/client` (after vite build) |
 | `npm run deploy` | Build + Wrangler deploy |
 | `npm run db:migrate:local` / `remote` | Apply D1 migrations |
+
+## SEO / prerender
+
+This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prerender injects meta + crawlable HTML for landing, SEO pages, guides, tools, and blog. See [docs/ssr-prerender.md](docs/ssr-prerender.md).
 
 ## Notes
 

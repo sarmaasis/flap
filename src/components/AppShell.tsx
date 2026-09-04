@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { FolderCounts } from "../lib/api";
 import { go } from "../lib/nav";
 import BrandMark from "./BrandMark";
@@ -34,6 +34,11 @@ export default function AppShell({
   onLogout: () => void;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    document.documentElement.classList.add("app-locked");
+    return () => document.documentElement.classList.remove("app-locked");
+  }, []);
+
   return (
     <div className="app-shell">
       <aside className="sidebar">

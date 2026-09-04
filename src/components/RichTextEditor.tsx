@@ -1,126 +1,129 @@
-import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
-import { LinkNode } from "@lexical/link";
-import { ListItemNode, ListNode } from "@lexical/list";
-import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
-import { ContentEditable } from "@lexical/react/LexicalContentEditable";
-import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
-import { ListPlugin } from "@lexical/react/LexicalListPlugin";
-import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
-import { TOGGLE_LINK_COMMAND } from "@lexical/link";
-import { $getRoot, $insertNodes, FORMAT_TEXT_COMMAND, type LexicalEditor } from "lexical";
-import { forwardRef, useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { forwardRef, useImperativeHandle } from "react";
 
 export type EditorHandle = { getHtml: () => string };
 
 type Props = { initialHtml?: string; onDirty?: () => void };
 
-const editorTheme = {
-  paragraph: "editor-paragraph",
-  quote: "editor-quote",
-  heading: { h2: "editor-h2" },
-  list: { ul: "editor-list-ul", ol: "editor-list-ol", listitem: "editor-listitem" },
-  link: "editor-link",
-  text: { bold: "editor-bold", italic: "editor-italic", underline: "editor-underline" },
-};
-
-const initialConfig = {
-  namespace: "flap-compose",
-  theme: editorTheme,
-  nodes: [ListNode, ListItemNode, LinkNode, HeadingNode, QuoteNode],
-  onError(error: Error) {
-    console.error(error);
-  },
-};
-
-function ToolButton({ label, onClick }: { label: string; onClick: () => void }) {
+function ToolButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" className="editor-tool" aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()} onClick={onClick}>
+    <button
+      type="button"
+      className={`editor-tool${active ? " active" : ""}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+    >
       {label}
     </button>
   );
 }
 
-function Toolbar() {
-  const [editor] = useLexicalComposerContext();
+function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  if (!editor) return null;
   function toggleLink() {
+    if (editor.isActive("link")) {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
     const url = window.prompt("Paste a link URL");
-    if (url) editor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
+    if (url) editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }
   return (
     <div className="editor-toolbar" role="toolbar" aria-label="Message formatting">
-      <ToolButton label="Bold" onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")} />
-      <ToolButton label="Italic" onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")} />
-      <ToolButton label="Underline" onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")} />
+      <ToolButton
+        label="Bold"
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      />
+      <ToolButton
+        label="Italic"
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      />
+      <ToolButton
+        label="Underline"
+        active={editor.isActive("underline")}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+      />
       <span className="editor-divider" />
-      <ToolButton label="Bullets" onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)} />
-      <ToolButton label="Numbered" onClick={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)} />
-      <ToolButton label="Link" onClick={toggleLink} />
+      <ToolButton
+        label="Bullets"
+        active={editor.isActive("bulletList")}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+      />
+      <ToolButton
+        label="Numbered"
+        active={editor.isActive("orderedList")}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+      />
+      <ToolButton label="Link" active={editor.isActive("link")} onClick={toggleLink} />
     </div>
   );
 }
 
-function InitialHtmlPlugin({ html }: { html?: string }) {
-  const [editor] = useLexicalComposerContext();
-  const applied = useRef(false);
-  useEffect(() => {
-    if (applied.current || !html) return;
-    applied.current = true;
-    editor.update(() => {
-      const parser = new DOMParser();
-      const dom = parser.parseFromString(html, "text/html");
-      const nodes = $generateNodesFromDOM(editor, dom);
-      const root = $getRoot();
-      root.clear();
-      $insertNodes(nodes);
-    });
-  }, [editor, html]);
-  return null;
-}
-
-function HandlePlugin({ innerRef, onDirty }: { innerRef: Ref<EditorHandle>; onDirty?: () => void }) {
-  const [editor] = useLexicalComposerContext();
-  const editorRef = useRef<LexicalEditor>(editor);
-  editorRef.current = editor;
-  useImperativeHandle(innerRef, () => ({
-    getHtml: () => {
-      let html = "";
-      editorRef.current.getEditorState().read(() => {
-        html = $generateHtmlFromNodes(editorRef.current, null);
-      });
-      return html;
+const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextEditor(
+  { initialHtml, onDirty },
+  ref,
+) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        codeBlock: false,
+        blockquote: false,
+        horizontalRule: false,
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: "editor-link", rel: "noopener noreferrer", target: "_blank" },
+      }),
+      Placeholder.configure({ placeholder: "Write a message…" }),
+    ],
+    content: initialHtml || "",
+    onUpdate: () => onDirty?.(),
+    editorProps: {
+      attributes: {
+        id: "body",
+        class: "rich-editor-content",
+        "aria-label": "Message body",
+      },
     },
-  }), []);
-  return (
-    <OnChangePlugin
-      ignoreSelectionChange
-      onChange={() => onDirty?.()}
-    />
-  );
-}
+  });
 
-const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextEditor({ initialHtml, onDirty }, ref) {
+  useImperativeHandle(
+    ref,
+    () => ({
+      getHtml: () => editor?.getHTML() ?? "",
+    }),
+    [editor],
+  );
+
+  if (!editor) {
+    return <div className="rich-editor-loading" aria-hidden />;
+  }
+
   return (
-    <LexicalComposer initialConfig={initialConfig}>
-      <div className="rich-editor">
-        <Toolbar />
-        <RichTextPlugin
-          contentEditable={<ContentEditable id="body" className="rich-editor-content" aria-label="Message body" />}
-          placeholder={<div className="rich-editor-placeholder">Write a message…</div>}
-          ErrorBoundary={LexicalErrorBoundary}
-        />
-        <HistoryPlugin />
-        <ListPlugin />
-        <LinkPlugin />
-        <InitialHtmlPlugin html={initialHtml} />
-        <HandlePlugin innerRef={ref} onDirty={onDirty} />
-      </div>
-    </LexicalComposer>
+    <div className="rich-editor">
+      <Toolbar editor={editor} />
+      <EditorContent editor={editor} />
+    </div>
   );
 });
 

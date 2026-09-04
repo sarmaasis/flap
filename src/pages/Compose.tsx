@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Contact, type Mailbox, type Signature, type Template } from "../lib/api";
 import { htmlToText } from "../lib/format";
-import RichTextEditor, { type EditorHandle } from "../components/RichTextEditor";
+import type { EditorHandle } from "../components/RichTextEditor";
+
+const RichTextEditor = lazy(() => import("../components/RichTextEditor"));
 
 export type ComposeDraft = {
   id?: string;
@@ -266,7 +268,9 @@ export default function Compose({
       </div>
       <div className="compose-editor field">
         <label htmlFor="body">Message</label>
-        <RichTextEditor key={`${draft?.id ?? "new"}-${editorKey}`} ref={editorRef} initialHtml={editorNonce} onDirty={markDirty} />
+        <Suspense fallback={<div className="rich-editor-loading" aria-hidden />}>
+          <RichTextEditor key={`${draft?.id ?? "new"}-${editorKey}`} ref={editorRef} initialHtml={editorNonce} onDirty={markDirty} />
+        </Suspense>
       </div>
       {showSchedule ? (
         <div className="field">
