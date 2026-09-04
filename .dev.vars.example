@@ -1,18 +1,20 @@
 SESSION_SECRET=change-me-to-a-long-random-string
-APP_URL=http://localhost:5173
+# Absolute public origin (scheme + host + port). Required for Dodo return_url + OAuth callbacks.
+# Local test: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
+APP_URL=http://127.0.0.1:5173
 # true = open signup; false = first-boot setup only after users exist
 SAAS_MODE=true
 
 # Google OAuth (Cloudflare Workers — authorized redirect URI must match APP_URL)
 # Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web)
-# Authorized redirect URI: http://localhost:5173/api/auth/google/callback
+# Authorized redirect URI: http://127.0.0.1:5173/api/auth/google/callback
 # Production: https://useflap.online/api/auth/google/callback
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
 # Optional GitHub OAuth
 # GitHub → Settings → Developer settings → OAuth Apps
-# Authorization callback URL: http://localhost:5173/api/auth/github/callback
+# Authorization callback URL: http://127.0.0.1:5173/api/auth/github/callback
 # Production: https://useflap.online/api/auth/github/callback
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=

@@ -79,6 +79,19 @@ export async function createCheckoutSession(
   assertDodoKeyMatchesMode(env);
   const key = trim(env.DODO_PAYMENTS_API_KEY);
 
+  let returnUrl: string;
+  try {
+    const u = new URL(opts.return_url);
+    if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname) {
+      throw new Error("invalid");
+    }
+    returnUrl = u.href;
+  } catch {
+    throw new Error(
+      `return_url must be an absolute http(s) URL (got ${JSON.stringify(opts.return_url)}). Set APP_URL=http://127.0.0.1:5173 for local test.`,
+    );
+  }
+
   const res = await fetch(`${dodoBaseUrl(env)}/checkouts`, {
     method: "POST",
     headers: {
@@ -91,7 +104,7 @@ export async function createCheckoutSession(
         email: opts.customer_email,
         name: opts.customer_name || opts.customer_email.split("@")[0],
       },
-      return_url: opts.return_url,
+      return_url: returnUrl,
       metadata: opts.metadata ?? {},
     }),
   });

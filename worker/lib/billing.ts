@@ -9,6 +9,82 @@ function envStr(v: string | undefined): string {
   return (v || "").trim();
 }
 
+const LOCAL_APP_ORIGIN = "http://127.0.0.1:5173";
+
+/**
+ * Absolute public origin for Dodo return_url / portal redirects.
+ * Dodo rejects empty and relative URLs with: return_url: must be a valid URL.
+ */
+function asHttpOrigin(raw: string | undefined | null): string | null {
+  const trimmed = envStr(raw ?? undefined);
+  if (!trimmed || trimmed === "/" || trimmed === "null" || trimmed === "undefined") return null;
+
+  const candidates = [trimmed];
+  // host:port without scheme (e.g. localhost:5173) — only prepend http when there is no ://
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+    candidates.unshift(`http://${trimmed}`);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const u = new URL(candidate);
+      if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+      if (!u.hostname) continue;
+      return u.origin;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+function resolvePublicAppUrl(c: Context<{ Bindings: Env }>): string {
+  const fromEnv = asHttpOrigin(c.env.APP_URL);
+  if (fromEnv) return fromEnv;
+
+  const fromOrigin = asHttpOrigin(c.req.header("Origin"));
+  if (fromOrigin) return fromOrigin;
+
+  const referer = c.req.header("Referer");
+  if (referer) {
+    try {
+      const fromReferer = asHttpOrigin(new URL(referer).origin);
+      if (fromReferer) return fromReferer;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  try {
+    const fromReq = asHttpOrigin(new URL(c.req.url).origin);
+    if (fromReq) return fromReq;
+  } catch {
+    /* ignore */
+  }
+
+  return LOCAL_APP_ORIGIN;
+}
+
+function billingReturnUrl(c: Context<{ Bindings: Env }>, pathAndQuery: string): string {
+  const origin = resolvePublicAppUrl(c);
+  const path = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  let url: URL;
+  try {
+    url = new URL(path, `${origin}/`);
+  } catch {
+    throw new Error(
+      `APP_URL is invalid (${JSON.stringify(c.env.APP_URL || "")}). Set APP_URL to an absolute URL, e.g. ${LOCAL_APP_ORIGIN} for local test.`,
+    );
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`APP_URL must be http(s). Got ${url.protocol} — set APP_URL=${LOCAL_APP_ORIGIN} for local test.`);
+  }
+  if (!url.hostname) {
+    throw new Error(`APP_URL is missing a host. Set APP_URL=${LOCAL_APP_ORIGIN} for local test.`);
+  }
+  return url.href;
+}
+
 /** Checkout is enabled when an API key and at least one paid product ID are set (test or live). */
 function billingConfigured(env: Env): boolean {
   return Boolean(envStr(env.DODO_PAYMENTS_API_KEY)) && Boolean(
@@ -320,13 +396,18 @@ export function registerBillingRoutes(app: Hono<App>) {
         error: `Checkout for ${plan} is not configured yet (missing DODO_PRODUCT_${plan.toUpperCase()}). Create the product in the Dodo ${resolveDodoMode(c.env)} dashboard and set the pdt_… id in env.`,
       }, 503);
     }
-    const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+    let returnUrl: string;
+    try {
+      returnUrl = billingReturnUrl(c, "/app/settings?tab=billing&checkout=success");
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "APP_URL is misconfigured." }, 400);
+    }
     try {
       const session = await createCheckoutSession(c.env, {
         product_id: productId,
         customer_email: user.email,
         customer_name: user.email.split("@")[0],
-        return_url: `${appUrl}/app/settings?tab=billing&checkout=done`,
+        return_url: returnUrl,
         metadata: { flap_user_id: user.id, flap_plan: plan },
       });
       return c.json({ checkout_url: session.checkout_url, session_id: session.session_id });
@@ -350,12 +431,17 @@ export function registerBillingRoutes(app: Hono<App>) {
         error: "No payment customer is linked yet. Complete a checkout first, or email support@useflap.online to cancel or change plans.",
       }, 400);
     }
-    const appUrl = (c.env.APP_URL || new URL(c.req.url).origin).replace(/\/$/, "");
+    let returnUrl: string;
+    try {
+      returnUrl = billingReturnUrl(c, "/app/settings?tab=billing");
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "APP_URL is misconfigured." }, 400);
+    }
     try {
       const session = await createCustomerPortalSession(
         c.env,
         subscription.dodo_customer_id,
-        `${appUrl}/app/settings?tab=billing`,
+        returnUrl,
       );
       return c.json({ portal_url: session.link });
     } catch (err) {
