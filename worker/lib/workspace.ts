@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { EmailMessage } from "cloudflare:email";
 import { requireUser } from "./auth";
-import { assertWithinLimit } from "./billing";
+import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend } from "./billing";
 import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
 import {
@@ -12,6 +13,15 @@ import {
   parseRecipients,
   sha256Hex,
 } from "./mailutil";
+import {
+  acceptInvite,
+  createInvite,
+  grantMailboxMember,
+  listAccessibleMailboxes,
+  resolveWorkspace,
+  revokeMailboxMember,
+  setMailboxShared,
+} from "./team";
 
 type App = { Bindings: Env };
 
@@ -179,6 +189,7 @@ export async function fireWebhooks(
 
 export async function maybeForwardInbound(
   env: Env,
+  userId: string,
   fromMailbox: string,
   forwardTo: string,
   subject: string,
@@ -186,6 +197,11 @@ export async function maybeForwardInbound(
   html: string,
 ): Promise<void> {
   if (!env.SEB || !EMAIL_RE.test(forwardTo)) return;
+  const sendLimit = await assertSendRoom(env.DB, userId);
+  if (!sendLimit.ok) {
+    console.warn("Inbound forward blocked by monthly send quota", userId);
+    return;
+  }
   const raw = buildRawMime({
     from: fromMailbox,
     to: forwardTo,
@@ -195,6 +211,7 @@ export async function maybeForwardInbound(
   });
   try {
     await env.SEB.send(new EmailMessage(fromMailbox, forwardTo, raw));
+    await recordOutboundSend(env.DB, userId);
   } catch (error) {
     console.warn("Inbound forward failed", error);
   }
@@ -218,6 +235,11 @@ export async function maybeVacationReply(
     .bind(userId, email, weekAgo)
     .first();
   if (recent) return;
+  const sendLimit = await assertSendRoom(env.DB, userId);
+  if (!sendLimit.ok) {
+    console.warn("Vacation reply blocked by monthly send quota", userId);
+    return;
+  }
   const now = nowMs();
   const raw = buildRawMime({
     from: fromMailbox,
@@ -233,6 +255,7 @@ export async function maybeVacationReply(
     )
       .bind(userId, email, now)
       .run();
+    await recordOutboundSend(env.DB, userId);
   } catch (error) {
     console.warn("Vacation reply failed", error);
   }
@@ -303,15 +326,20 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
 export async function flushScheduled(env: Env): Promise<void> {
   const now = nowMs();
   const due = await env.DB.prepare(
-    `SELECT id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
+    `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
      FROM messages
      WHERE folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
      ORDER BY scheduled_at ASC
      LIMIT 15`,
   )
     .bind(now)
-    .all<StoredMessage>();
+    .all<StoredMessage & { user_id: string }>();
   for (const message of due.results ?? []) {
+    const sendLimit = await assertSendRoom(env.DB, message.user_id);
+    if (!sendLimit.ok) {
+      console.warn("Scheduled send blocked by monthly send quota", message.id, message.user_id);
+      continue;
+    }
     const error = await dispatchStoredMessage(env, message);
     if (error) {
       console.warn("Scheduled send failed", message.id, error);
@@ -320,33 +348,49 @@ export async function flushScheduled(env: Env): Promise<void> {
     await env.DB.prepare("UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0 WHERE id = ?")
       .bind(now, message.id)
       .run();
+    await recordOutboundSend(env.DB, message.user_id);
   }
 }
 
-export async function folderCounts(db: D1Database, userId: string) {
+export async function folderCounts(
+  db: D1Database,
+  workspaceId: string,
+  mailboxIds: string[] | null = null,
+) {
   const now = nowMs();
+  const access =
+    mailboxIds === null
+      ? { sql: "", binds: [] as unknown[] }
+      : mailboxIds.length === 0
+        ? { sql: " AND 1 = 0", binds: [] as unknown[] }
+        : {
+            sql: ` AND mailbox_id IN (${mailboxIds.map(() => "?").join(", ")})`,
+            binds: [...mailboxIds] as unknown[],
+          };
   const rows = await db
     .prepare(
       `SELECT folder,
               COUNT(*) AS total,
               SUM(CASE WHEN unread = 1 THEN 1 ELSE 0 END) AS unread
        FROM messages
-       WHERE user_id = ? AND (snooze_until IS NULL OR snooze_until <= ?)
+       WHERE user_id = ?${access.sql} AND (snooze_until IS NULL OR snooze_until <= ?)
        GROUP BY folder`,
     )
-    .bind(userId, now)
+    .bind(workspaceId, ...access.binds, now)
     .all<{ folder: string; total: number; unread: number }>();
   const counts: Record<string, { total: number; unread: number }> = {};
   for (const row of rows.results ?? []) {
     counts[row.folder] = { total: Number(row.total), unread: Number(row.unread) };
   }
   const starred = await db
-    .prepare("SELECT COUNT(*) AS n FROM messages WHERE user_id = ? AND starred = 1 AND folder NOT IN ('trash', 'spam')")
-    .bind(userId)
+    .prepare(
+      `SELECT COUNT(*) AS n FROM messages WHERE user_id = ?${access.sql} AND starred = 1 AND folder NOT IN ('trash', 'spam')`,
+    )
+    .bind(workspaceId, ...access.binds)
     .first<{ n: number }>();
   const snoozed = await db
-    .prepare("SELECT COUNT(*) AS n FROM messages WHERE user_id = ? AND snooze_until > ?")
-    .bind(userId, now)
+    .prepare(`SELECT COUNT(*) AS n FROM messages WHERE user_id = ?${access.sql} AND snooze_until > ?`)
+    .bind(workspaceId, ...access.binds, now)
     .first<{ n: number }>();
   counts.starred = { total: Number(starred?.n ?? 0), unread: 0 };
   counts.snoozed = { total: Number(snoozed?.n ?? 0), unread: 0 };
@@ -357,28 +401,32 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/bootstrap", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const now = nowMs();
     await flushScheduled(c.env).catch((error) => console.warn("flushScheduled", error));
     const [mailboxes, signatures, templates, contacts, settings] = await Promise.all([
-      c.env.DB.prepare(
-        "SELECT id, domain_id, local_part, address, display_name, created_at FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC",
-      )
-        .bind(user.id)
-        .all(),
+      listAccessibleMailboxes(c.env.DB, ctx),
       c.env.DB.prepare("SELECT id, name, html_body, text_body, is_default, created_at FROM signatures WHERE user_id = ? ORDER BY is_default DESC, created_at ASC")
-        .bind(user.id)
+        .bind(ctx.workspaceId)
         .all(),
       c.env.DB.prepare("SELECT id, name, subject, html_body, text_body, created_at, updated_at FROM templates WHERE user_id = ? ORDER BY updated_at DESC")
-        .bind(user.id)
+        .bind(ctx.workspaceId)
         .all(),
       c.env.DB.prepare("SELECT id, email, name, last_used_at FROM contacts WHERE user_id = ? ORDER BY last_used_at DESC LIMIT 200")
-        .bind(user.id)
+        .bind(ctx.workspaceId)
         .all(),
-      loadSettings(c.env.DB, user.id),
+      loadSettings(c.env.DB, ctx.workspaceId),
     ]);
-    const counts = await folderCounts(c.env.DB, user.id);
+    const counts = await folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds);
     return c.json({
       user: { id: user.id, email: user.email, created_at: user.created_at },
+      workspace: {
+        id: ctx.workspaceId,
+        role: ctx.role,
+        is_owner: ctx.isOwner,
+        can_manage_team: ctx.canManageTeam,
+        can_manage_settings: ctx.canManageSettings,
+      },
       mailboxes: mailboxes.results ?? [],
       signatures: signatures.results ?? [],
       templates: templates.results ?? [],
@@ -392,8 +440,12 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/counts", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     await flushScheduled(c.env).catch(() => undefined);
-    return c.json({ counts: await folderCounts(c.env.DB, user.id), server_time: nowMs() });
+    return c.json({
+      counts: await folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+      server_time: nowMs(),
+    });
   });
 
   app.get("/api/contacts", async (c) => {
@@ -995,35 +1047,157 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/team", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const invites = await c.env.DB.prepare(
-      "SELECT id, email, role, status, created_at FROM workspace_invites WHERE invited_by = ? ORDER BY created_at DESC",
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const { plan_id, limits } = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    const members = await c.env.DB.prepare(
+      `SELECT wm.user_id, wm.role, wm.created_at, u.email, u.name
+       FROM workspace_members wm
+       JOIN users u ON u.id = wm.user_id
+       WHERE wm.workspace_id = ?
+       ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, wm.created_at ASC`,
     )
-      .bind(user.id)
+      .bind(ctx.workspaceId)
+      .all();
+    const invites = await c.env.DB.prepare(
+      `SELECT id, email, role, status, created_at, expires_at, token, mailbox_ids
+       FROM workspace_invites
+       WHERE workspace_id = ? OR (workspace_id IS NULL AND invited_by = ?)
+       ORDER BY created_at DESC`,
+    )
+      .bind(ctx.workspaceId, ctx.workspaceId)
+      .all();
+    const shared = await c.env.DB.prepare(
+      `SELECT m.id, m.address, m.display_name, m.is_shared,
+              (SELECT GROUP_CONCAT(mm.user_id) FROM mailbox_members mm WHERE mm.mailbox_id = m.id) AS member_ids
+       FROM mailboxes m
+       WHERE m.user_id = ? AND m.is_shared = 1
+       ORDER BY m.created_at ASC`,
+    )
+      .bind(ctx.workspaceId)
       .all();
     return c.json({
-      deferred: true,
-      message: "Shared inboxes are on the Business roadmap. Record interest below — Flap workspaces are single-operator today.",
-      invites: invites.results ?? [],
+      deferred: false,
+      teams_unlocked: limits.team_seats > 1,
+      plan_id,
+      limits: { team_seats: limits.team_seats },
+      workspace: {
+        id: ctx.workspaceId,
+        role: ctx.role,
+        can_manage_team: ctx.canManageTeam,
+      },
+      members: members.results ?? [],
+      invites: (invites.results ?? []).map((inv) => ({
+        ...inv,
+        accept_path: inv.token ? `/invite/${inv.token}` : null,
+      })),
+      shared_mailboxes: shared.results ?? [],
     });
   });
 
   app.post("/api/team/invites", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const body = await c.req.json().catch(() => ({})) as { email?: string; role?: string };
-    const email = extractEmail(body.email ?? "");
-    if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid invite email." }, 400);
-    const id = randomId("inv");
-    await c.env.DB.prepare(
-      "INSERT INTO workspace_invites (id, invited_by, email, role, status, created_at) VALUES (?, ?, ?, ?, 'deferred', ?)",
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = await c.req.json().catch(() => ({})) as {
+      email?: string;
+      role?: string;
+      mailbox_ids?: string[];
+    };
+    const result = await createInvite(c.env.DB, ctx, {
+      email: body.email ?? "",
+      role: body.role,
+      mailbox_ids: body.mailbox_ids,
+    });
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ invite: result.invite, deferred: false }, 201);
+  });
+
+  app.post("/api/team/invites/:token/accept", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const result = await acceptInvite(c.env.DB, c.req.param("token"), user.id);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true, workspace_id: result.workspace_id });
+  });
+
+  app.get("/api/team/invites/:token", async (c) => {
+    const invite = await c.env.DB.prepare(
+      `SELECT i.id, i.email, i.role, i.status, i.expires_at, i.workspace_id, u.email AS inviter_email
+       FROM workspace_invites i
+       LEFT JOIN users u ON u.id = i.invited_by
+       WHERE i.token = ?`,
     )
-      .bind(id, user.id, email, (body.role ?? "member").trim() || "member", nowMs())
+      .bind(c.req.param("token"))
+      .first();
+    if (!invite) return c.json({ error: "Invite not found." }, 404);
+    return c.json({ invite });
+  });
+
+  app.delete("/api/team/invites/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageTeam) return c.json({ error: "Forbidden." }, 403);
+    const res = await c.env.DB.prepare(
+      `UPDATE workspace_invites SET status = 'revoked'
+       WHERE id = ? AND workspace_id = ? AND status = 'pending'`,
+    )
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
-    return c.json({
-      invite: { id, email, status: "deferred" },
-      deferred: true,
-      message: "Invite recorded for a future shared-inbox release. No access is granted yet.",
-    }, 201);
+    if (!res.meta.changes) return c.json({ error: "Invite not found." }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/team/members/:userId", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageTeam) return c.json({ error: "Forbidden." }, 403);
+    const memberId = c.req.param("userId");
+    if (memberId === ctx.workspaceId) {
+      return c.json({ error: "Cannot remove the workspace owner." }, 400);
+    }
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?").bind(
+        ctx.workspaceId,
+        memberId,
+      ),
+      c.env.DB.prepare(
+        `DELETE FROM mailbox_members WHERE user_id = ? AND mailbox_id IN
+         (SELECT id FROM mailboxes WHERE user_id = ?)`,
+      ).bind(memberId, ctx.workspaceId),
+    ]);
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/team/mailboxes/:id/share", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = await c.req.json().catch(() => ({})) as { is_shared?: boolean };
+    const result = await setMailboxShared(c.env.DB, ctx, c.req.param("id"), body.is_shared !== false);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/team/mailboxes/:id/members", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = await c.req.json().catch(() => ({})) as { user_id?: string; role?: string };
+    if (!body.user_id) return c.json({ error: "user_id required." }, 400);
+    const result = await grantMailboxMember(c.env.DB, ctx, c.req.param("id"), body.user_id, body.role);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/team/mailboxes/:id/members/:userId", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const result = await revokeMailboxMember(c.env.DB, ctx, c.req.param("id"), c.req.param("userId"));
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true });
   });
 
   app.post("/api/v1/send", async (c) => {
@@ -1059,18 +1233,37 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
           .first<{ id: string; address: string }>();
     if (!fromMailbox) return c.json({ error: "Add a mailbox before sending." }, 400);
     if (!c.env.SEB) return c.json({ error: "The send_email binding is not configured." }, 501);
+    const sendLimit = await assertSendRoom(c.env.DB, key.user_id);
+    if (!sendLimit.ok) return c.json({ error: sendLimit.error }, sendLimit.status);
     const id = randomId("msg");
     const now = nowMs();
     const text = body.text ?? "";
     const html = body.html ?? "";
+    const subject = (body.subject ?? "").trim();
+    const toAddr = (body.to ?? "").trim();
+    const ccAddr = (body.cc ?? "").trim();
+    const bccAddr = (body.bcc ?? "").trim();
+    const snippet = makeSnippet(text, html);
+    const bodyBytes = messageStorageBytes({
+      text_body: text,
+      html_body: html,
+      subject,
+      snippet,
+      from_addr: fromMailbox.address,
+      to_addr: toAddr,
+      cc_addr: ccAddr,
+      bcc_addr: bccAddr,
+    });
+    const storageCheck = await assertStorageRoom(c.env.DB, key.user_id, bodyBytes);
+    if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     const error = await dispatchStoredMessage(c.env, {
       id,
       mailbox_id: fromMailbox.id,
       from_addr: fromMailbox.address,
-      to_addr: (body.to ?? "").trim(),
-      cc_addr: (body.cc ?? "").trim(),
-      bcc_addr: (body.bcc ?? "").trim(),
-      subject: (body.subject ?? "").trim(),
+      to_addr: toAddr,
+      cc_addr: ccAddr,
+      bcc_addr: bccAddr,
+      subject,
       text_body: text,
       html_body: html,
       in_reply_to: null,
@@ -1078,11 +1271,12 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (error) return c.json({ error: `Outbound send failed: ${error}` }, 502);
     await c.env.DB.prepare(
       `INSERT INTO messages
-        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, created_at)
-       VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, storage_bytes, created_at)
+       VALUES (?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`,
     )
-      .bind(id, key.user_id, fromMailbox.id, fromMailbox.address, body.to ?? "", body.cc ?? "", body.bcc ?? "", body.subject ?? "", now, text, html, makeSnippet(text, html), now)
+      .bind(id, key.user_id, fromMailbox.id, fromMailbox.address, toAddr, ccAddr, bccAddr, subject, now, text, html, snippet, bodyBytes, now)
       .run();
+    await recordOutboundSend(c.env.DB, key.user_id);
     return c.json({ ok: true, id });
   });
 }

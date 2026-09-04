@@ -14,6 +14,8 @@ import {
   type Prefs,
   type Signature,
   type TeamInvite,
+  type TeamMember,
+  type TeamResponse,
   type Template,
   type Webhook,
 } from "../lib/api";
@@ -58,6 +60,10 @@ export default function Settings() {
   const [aliases, setAliases] = useState<Alias[]>([]);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [teamInfo, setTeamInfo] = useState<Pick<TeamResponse, "teams_unlocked" | "plan_id" | "limits" | "workspace" | "shared_mailboxes"> | null>(null);
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteMailboxes, setInviteMailboxes] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "", notify_browser: 0 });
   const [newToken, setNewToken] = useState("");
   const [newWebhookSecret, setNewWebhookSecret] = useState("");
@@ -103,6 +109,14 @@ export default function Settings() {
     setWebhooks(w.webhooks);
     setPrefs(p.settings);
     setInvites(team.invites);
+    setMembers(team.members ?? []);
+    setTeamInfo({
+      teams_unlocked: team.teams_unlocked,
+      plan_id: team.plan_id,
+      limits: team.limits,
+      workspace: team.workspace,
+      shared_mailboxes: team.shared_mailboxes ?? [],
+    });
     setBilling(bill);
     setPlans(planList.plans);
     setCheckoutConfigured(bill?.checkout_configured ?? planList.checkout_configured ?? false);
@@ -122,6 +136,10 @@ export default function Settings() {
       setOnboardingBanner(true);
       setTab("setup");
       setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
+    }
+    if (params.get("joined") === "1") {
+      setTab("team");
+      setNotice("You joined the workspace. Shared mailboxes you were granted appear in the inbox.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -584,6 +602,10 @@ export default function Settings() {
                   <strong>{formatBytes(billing.usage.storage_bytes)} / {formatBytes(billing.limits.storage_bytes)}</strong>
                 </div>
                 <div>
+                  <p className="muted" style={{ margin: 0 }}>Sends this month</p>
+                  <strong>{billing.usage.send_per_month ?? 0} / {billing.limits.send_per_month ?? "—"}</strong>
+                </div>
+                <div>
                   <p className="muted" style={{ margin: 0 }}>API keys</p>
                   <strong>{billing.usage.api_keys} / {billing.limits.api_keys}</strong>
                 </div>
@@ -591,10 +613,19 @@ export default function Settings() {
                   <p className="muted" style={{ margin: 0 }}>Webhooks</p>
                   <strong>{billing.usage.webhooks} / {billing.limits.webhooks}</strong>
                 </div>
+                <div>
+                  <p className="muted" style={{ margin: 0 }}>Team seats</p>
+                  <strong>{billing.usage.team_seats ?? 1} / {billing.limits.team_seats}</strong>
+                </div>
               </div>
             ) : (
               <p className="empty-state">Billing data unavailable. Apply migration 0005_billing and reload.</p>
             )}
+            {billing ? (
+              <p className="muted" style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}>
+                Storage counts message bodies and attachments. Outbound sends reset each UTC calendar month.
+              </p>
+            ) : null}
             <div className="row-form" style={{ marginBottom: 16, flexWrap: "wrap" }}>
               {billing?.portal_available ? (
                 <Button variant="outline" disabled={portalBusy} onClick={() => void openPortal()}>
@@ -658,31 +689,194 @@ export default function Settings() {
           <section className="settings-card">
             <div className="section-heading">
               <div>
-                <h2>Team &amp; shared inboxes</h2>
-                <p>Business plan roadmap — not enabled yet.</p>
+                <h2>Team &amp; shared mailboxes</h2>
+                <p>
+                  {teamInfo?.teams_unlocked
+                    ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
+                    : "Upgrade to Team to invite members and share mailboxes. Pro stays solo."}
+                </p>
               </div>
-              <Badge variant="secondary">Coming soon</Badge>
+              <Badge variant={teamInfo?.teams_unlocked ? "default" : "secondary"}>
+                {teamInfo?.teams_unlocked ? "Team plan" : "Solo"}
+              </Badge>
             </div>
-            <div className="deferred-banner">
-              Shared inboxes and multi-seat access are on the Business roadmap. Flap workspaces are single-admin today.
-              You can record interest below; invites do not grant access yet.
-            </div>
-            <form className="row-form" onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const input = form.elements.namedItem("invite") as HTMLInputElement;
-              void api.inviteTeam(input.value).then((res) => {
-                setNotice(res.message || "Interest recorded. We’ll reach out when shared inboxes ship.");
-                input.value = "";
-                return refresh();
-              }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not record invite."));
-            }}>
-              <input name="invite" type="email" placeholder="teammate@example.com" required />
-              <button className="btn" type="submit">Record interest</button>
-            </form>
-            {invites.length ? <table className="table"><thead><tr><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>
-              {invites.map((i) => <tr key={i.id}><td>{i.email}</td><td>{i.role}</td><td>{i.status}</td></tr>)}
-            </tbody></table> : <p className="empty-state">No interest recorded yet. Prefer email? Write {supportEmail}.</p>}
+
+            {!teamInfo?.teams_unlocked ? (
+              <div className="deferred-banner">
+                Team seats unlock on the Team plan ($39/mo). You can still manage your own mailboxes on Free or Pro.
+                <div style={{ marginTop: 12 }}>
+                  <Button size="sm" onClick={() => setTab("billing")}>View Team plan</Button>
+                </div>
+              </div>
+            ) : null}
+
+            {teamInfo?.workspace?.can_manage_team ? (
+              <form
+                className="stack-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const input = form.elements.namedItem("invite") as HTMLInputElement;
+                  void api
+                    .inviteTeam(input.value, inviteRole, inviteMailboxes)
+                    .then((res) => {
+                      const link = res.invite.accept_path
+                        ? `${window.location.origin}${res.invite.accept_path}`
+                        : "";
+                      setNotice(link ? `Invite created. Share this link: ${link}` : "Invite created.");
+                      input.value = "";
+                      return refresh();
+                    })
+                    .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not send invite."));
+                }}
+              >
+                <div className="row-form">
+                  <input name="invite" type="email" placeholder="teammate@example.com" required disabled={!teamInfo?.teams_unlocked} />
+                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} disabled={!teamInfo?.teams_unlocked}>
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button className="btn" type="submit" disabled={!teamInfo?.teams_unlocked}>Invite</button>
+                </div>
+                {mailboxes.length ? (
+                  <div className="mailbox-grant-list">
+                    <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Grant mailbox access (optional — defaults to shared inboxes):</p>
+                    {mailboxes.map((mb) => (
+                      <label key={mb.id} className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={inviteMailboxes.includes(mb.id)}
+                          disabled={!teamInfo?.teams_unlocked}
+                          onChange={(e) => {
+                            setInviteMailboxes((prev) =>
+                              e.target.checked ? [...prev, mb.id] : prev.filter((id) => id !== mb.id),
+                            );
+                          }}
+                        />
+                        {mb.address}{mb.is_shared ? " · shared" : ""}
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
+            ) : (
+              <p className="muted">You are a {teamInfo?.workspace?.role || "member"} in this workspace.</p>
+            )}
+
+            <h3 style={{ marginTop: 28, marginBottom: 12 }}>Members</h3>
+            {members.length ? (
+              <table className="table">
+                <thead><tr><th>Email</th><th>Role</th><th></th></tr></thead>
+                <tbody>
+                  {members.map((m) => (
+                    <tr key={m.user_id}>
+                      <td>{m.email}{m.name ? ` (${m.name})` : ""}</td>
+                      <td>{m.role}</td>
+                      <td>
+                        {teamInfo?.workspace?.can_manage_team && m.role !== "owner" ? (
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            onClick={() => {
+                              void api.removeMember(m.user_id).then(refresh).catch((ex) =>
+                                setErr(ex instanceof Error ? ex.message : "Could not remove member."),
+                              );
+                            }}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty-state">No members yet.</p>
+            )}
+
+            <h3 style={{ marginTop: 28, marginBottom: 12 }}>Pending invites</h3>
+            {invites.filter((i) => i.status === "pending").length ? (
+              <table className="table">
+                <thead><tr><th>Email</th><th>Role</th><th>Link</th><th></th></tr></thead>
+                <tbody>
+                  {invites.filter((i) => i.status === "pending").map((i) => (
+                    <tr key={i.id}>
+                      <td>{i.email}</td>
+                      <td>{i.role}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {i.accept_path ? (
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(`${window.location.origin}${i.accept_path}`);
+                              setNotice("Invite link copied.");
+                            }}
+                          >
+                            Copy link
+                          </button>
+                        ) : "—"}
+                      </td>
+                      <td>
+                        {teamInfo?.workspace?.can_manage_team ? (
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            onClick={() => {
+                              void api.revokeInvite(i.id).then(refresh).catch((ex) =>
+                                setErr(ex instanceof Error ? ex.message : "Could not revoke."),
+                              );
+                            }}
+                          >
+                            Revoke
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty-state">No pending invites.</p>
+            )}
+
+            <h3 style={{ marginTop: 28, marginBottom: 12 }}>Shared mailboxes</h3>
+            <p className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
+              Mark support@ or hello@ as shared so invitees can access them. Requires Team plan.
+            </p>
+            {mailboxes.length ? (
+              <table className="table">
+                <thead><tr><th>Address</th><th>Shared</th><th></th></tr></thead>
+                <tbody>
+                  {mailboxes.map((mb) => (
+                    <tr key={mb.id}>
+                      <td>{mb.address}</td>
+                      <td>{mb.is_shared ? "Yes" : "No"}</td>
+                      <td>
+                        {teamInfo?.workspace?.can_manage_team ? (
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            disabled={!teamInfo.teams_unlocked && !mb.is_shared}
+                            onClick={() => {
+                              void api
+                                .shareMailbox(mb.id, !mb.is_shared)
+                                .then(refresh)
+                                .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update."));
+                            }}
+                          >
+                            {mb.is_shared ? "Unshare" : "Make shared"}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="empty-state">Create a mailbox in Setup first.</p>
+            )}
           </section>
         ) : null}
       </main>

@@ -92,8 +92,9 @@ function TermsBody() {
 
       <h2>5. Plans, limits, and billing</h2>
       <p>
-        Free and paid plans include usage limits (domains, mailboxes, aliases, storage, API keys, webhooks, and
-        related quotas). Exceeding limits may block new resources until you upgrade or reduce usage. Paid
+        Free and paid plans include usage limits (domains, mailboxes, aliases, storage including message bodies and
+        attachments, outbound sends per UTC calendar month, API keys, webhooks, and related quotas). Exceeding limits
+        may block inbound delivery, drafts, or sends until you upgrade or reduce usage. Paid
         subscriptions are billed through our payment processor (Dodo Payments). See{" "}
         <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a>{" "}
         for charges, renewals, and cancellations.
@@ -103,7 +104,7 @@ function TermsBody() {
       <p>
         We aim for reliable uptime but do not guarantee uninterrupted Service. Features may change; we will not
         materially reduce core mailbox access for paying customers without notice where practical. Beta or
-        roadmap items (including shared team inboxes) may be incomplete or unavailable.
+        Team features (invites, shared mailboxes, roles) require an active Team plan. Free and Pro workspaces remain solo.
       </p>
 
       <h2>7. Disclaimers</h2>

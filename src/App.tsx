@@ -7,6 +7,7 @@ const Setup = lazy(() => import("./pages/Setup"));
 const Inbox = lazy(() => import("./pages/Inbox"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Legal = lazy(() => import("./pages/Legal"));
+const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -22,6 +23,7 @@ export default function App() {
   if (path === "/setup") return <Screen><Setup /></Screen>;
   if (path === "/signup") return <Screen><Signup /></Screen>;
   if (path === "/login") return <Screen><Login /></Screen>;
+  if (path.startsWith("/invite/")) return <Screen><InviteAccept /></Screen>;
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;

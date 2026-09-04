@@ -23,5 +23,7 @@ npm run db:migrate:remote
 | `0003_product.sql` | Contacts, templates, signatures, filters, prefs |
 | `0004_ops.sql` | Threads, aliases, webhooks, catch-all, team invites |
 | `0005_billing.sql` | Subscriptions, billing events, plan columns |
+| `0006_teams_oauth.sql` | Workspace members, invites, OAuth accounts |
+| `0007_quota_enforcement.sql` | `messages.storage_bytes`, monthly send counters on users |
 
-**Launch note:** `0005_billing` must be applied on the remote D1 database before Settings → Billing or Dodo webhooks will work.
+**Launch note:** Apply through `0007_quota_enforcement` on remote D1 before relying on Billing usage or storage/send hard limits.

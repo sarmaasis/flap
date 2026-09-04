@@ -1,5 +1,15 @@
 export type User = { id: string; email: string; created_at?: number };
-export type Mailbox = { id: string; domain_id?: string; local_part?: string; address: string; display_name?: string; created_at?: number; domain?: string };
+export type Mailbox = {
+  id: string;
+  domain_id?: string;
+  local_part?: string;
+  address: string;
+  display_name?: string;
+  created_at?: number;
+  domain?: string;
+  is_shared?: number;
+  access_role?: string;
+};
 export type Domain = { id: string; name: string; catch_all_mailbox_id?: string | null; created_at: number };
 export type FolderCounts = Record<string, { total: number; unread: number }>;
 export type MailSummary = {
@@ -71,7 +81,34 @@ export type Webhook = {
   secret?: string;
 };
 export type Prefs = { vacation_enabled: number; vacation_body: string; notify_browser?: number };
-export type TeamInvite = { id: string; email: string; role: string; status: string; created_at: number };
+export type TeamInvite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: number;
+  expires_at?: number | null;
+  token?: string | null;
+  accept_path?: string | null;
+  mailbox_ids?: string;
+};
+export type TeamMember = {
+  user_id: string;
+  email: string;
+  name?: string | null;
+  role: string;
+  created_at: number;
+};
+export type TeamResponse = {
+  deferred: boolean;
+  teams_unlocked: boolean;
+  plan_id: string;
+  limits: { team_seats: number };
+  workspace: { id: string; role: string; can_manage_team: boolean };
+  members: TeamMember[];
+  invites: TeamInvite[];
+  shared_mailboxes: { id: string; address: string; display_name?: string; is_shared: number; member_ids?: string | null }[];
+};
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -119,6 +156,7 @@ export type BillingSubscription = {
   status: string;
   limits: Record<string, number>;
   usage: Record<string, number>;
+  quota_reset?: "utc_calendar_month";
   checkout_configured?: boolean;
   portal_available?: boolean;
   support_email?: string;
@@ -239,12 +277,33 @@ export const api = {
     req<{ webhook: Webhook }>("/api/webhooks", { method: "POST", body: JSON.stringify(body) }),
   toggleWebhook: (id: string) => req<{ ok: boolean; enabled: number }>(`/api/webhooks/${id}/toggle`, { method: "POST" }),
   deleteWebhook: (id: string) => req<{ ok: boolean }>(`/api/webhooks/${id}`, { method: "DELETE" }),
-  team: () => req<{ deferred: boolean; message: string; invites: TeamInvite[] }>("/api/team"),
-  inviteTeam: (email: string, role?: string) =>
-    req<{ invite: TeamInvite; deferred: boolean; message: string }>("/api/team/invites", {
+  team: () => req<TeamResponse>("/api/team"),
+  inviteTeam: (email: string, role?: string, mailbox_ids?: string[]) =>
+    req<{ invite: TeamInvite; deferred: boolean }>("/api/team/invites", {
       method: "POST",
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, role, mailbox_ids }),
     }),
+  revokeInvite: (id: string) => req<{ ok: boolean }>(`/api/team/invites/${id}`, { method: "DELETE" }),
+  removeMember: (userId: string) => req<{ ok: boolean }>(`/api/team/members/${userId}`, { method: "DELETE" }),
+  acceptInvite: (token: string) =>
+    req<{ ok: boolean; workspace_id: string }>(`/api/team/invites/${token}/accept`, { method: "POST" }),
+  invitePreview: (token: string) =>
+    req<{ invite: { email: string; role: string; status: string; inviter_email?: string; expires_at?: number } }>(
+      `/api/team/invites/${token}`,
+    ),
+  shareMailbox: (id: string, is_shared = true) =>
+    req<{ ok: boolean }>(`/api/team/mailboxes/${id}/share`, {
+      method: "POST",
+      body: JSON.stringify({ is_shared }),
+    }),
+  grantMailboxMember: (mailboxId: string, user_id: string, role?: string) =>
+    req<{ ok: boolean }>(`/api/team/mailboxes/${mailboxId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ user_id, role }),
+    }),
+  revokeMailboxMember: (mailboxId: string, userId: string) =>
+    req<{ ok: boolean }>(`/api/team/mailboxes/${mailboxId}/members/${userId}`, { method: "DELETE" }),
+  authProviders: () => req<{ google: boolean; github: boolean }>("/api/auth/providers"),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
   savePrefs: (body: { vacation_enabled?: boolean; vacation_body?: string; notify_browser?: boolean }) =>
     req<{ ok: boolean }>("/api/settings/prefs", { method: "PUT", body: JSON.stringify(body) }),

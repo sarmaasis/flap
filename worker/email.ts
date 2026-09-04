@@ -2,6 +2,7 @@ import PostalMime from "postal-mime";
 import { randomId, nowMs } from "./lib/ids";
 import { splitHeadersBody } from "./lib/mime";
 import { isNoReply, makeSnippet } from "./lib/mailutil";
+import { assertStorageRoom, messageStorageBytes } from "./lib/billing";
 import {
   applyInboundPolicy,
   fireWebhooks,
@@ -59,11 +60,36 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     console.warn("INLET_ATTACHMENTS binding missing; skipping inbound attachments");
   }
 
+  const bodyBytes = messageStorageBytes({
+    text_body: parsed.text,
+    html_body: parsed.html,
+    subject: parsed.subject,
+    snippet,
+    from_addr: parsed.from,
+    to_addr: recipients.join(", ") || message.to,
+    cc_addr: parsed.cc,
+  });
+  let attachmentBytes = 0;
+  const preparedAtts: Array<{ filename: string; mimeType: string; bytes: Uint8Array }> = [];
+  if (storeAtt && env.INLET_ATTACHMENTS) {
+    for (const att of parsed.attachments) {
+      const bytes = toBytes(att.content);
+      attachmentBytes += bytes.byteLength;
+      preparedAtts.push({ filename: att.filename, mimeType: att.mimeType, bytes });
+    }
+  }
+
+  const storageCheck = await assertStorageRoom(env.DB, userId, bodyBytes + attachmentBytes);
+  if (!storageCheck.ok) {
+    message.setReject("Mailbox storage quota exceeded. Delete mail or upgrade your Flap plan.");
+    return;
+  }
+
   await env.DB.prepare(
     `INSERT INTO messages
       (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body,
-       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, storage_bytes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -85,6 +111,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
       referencesHeader,
       threadId,
       policy.label,
+      bodyBytes,
       now,
     )
     .run();
@@ -93,7 +120,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     await maybeVacationReply(env, userId, mailbox.address, parsed.from).catch((error) => console.warn("vacation", error));
   }
   if (policy.forward_to) {
-    await maybeForwardInbound(env, mailbox.address, policy.forward_to, parsed.subject, parsed.text, parsed.html).catch(
+    await maybeForwardInbound(env, userId, mailbox.address, policy.forward_to, parsed.subject, parsed.text, parsed.html).catch(
       (error) => console.warn("forward", error),
     );
   }
@@ -106,18 +133,17 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     label: policy.label,
   }).catch((error) => console.warn("webhook", error));
 
-  if (storeAtt && env.INLET_ATTACHMENTS) {
-    for (const att of parsed.attachments) {
+  if (preparedAtts.length && env.INLET_ATTACHMENTS) {
+    for (const att of preparedAtts) {
       const attId = randomId("att");
       const key = "attachments/" + id + "/" + attId + "/" + safeName(att.filename);
-      const bytes = toBytes(att.content);
-      await env.INLET_ATTACHMENTS.put(key, bytes, {
+      await env.INLET_ATTACHMENTS.put(key, att.bytes, {
         httpMetadata: { contentType: att.mimeType },
       });
       await env.DB.prepare(
         `INSERT INTO attachments (id, message_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind(attId, id, key, att.filename, att.mimeType, bytes.byteLength, now)
+        .bind(attId, id, key, att.filename, att.mimeType, att.bytes.byteLength, now)
         .run();
     }
   }

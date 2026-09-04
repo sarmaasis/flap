@@ -1,11 +1,29 @@
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { createSession, destroySession, getSessionUser, requireUser, userCount, type UserRow } from "./lib/auth";
 import { randomId, nowMs } from "./lib/ids";
 import { hashPassword, verifyPassword } from "./lib/password";
 import { handleEmail } from "./email";
 import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
-import { assertWithinLimit, ensureSubscription, registerBillingRoutes } from "./lib/billing";
+import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
+import {
+  githubConfigured,
+  googleConfigured,
+  handleGitHubCallback,
+  handleGoogleCallback,
+  startGitHubOAuth,
+  startGoogleOAuth,
+} from "./lib/oauth";
+import {
+  assertMailboxAccess,
+  ensureOwnerMembership,
+  listAccessibleMailboxes,
+  mailboxAccessClause,
+  resolveWorkspace,
+  setMailboxShared,
+  type WorkspaceCtx,
+} from "./lib/team";
 
 type App = { Bindings: Env };
 const app = new Hono<App>();
@@ -67,6 +85,7 @@ app.post("/api/setup", async (c) => {
         .bind(id, now),
     ]);
     await ensureSubscription(c.env.DB, id);
+    await ensureOwnerMembership(c.env.DB, id);
     await createSession(c, id);
   } catch (error) {
     console.error("Failed to create the initial Flap administrator", error);
@@ -107,6 +126,7 @@ app.post("/api/signup", async (c) => {
     }
     await c.env.DB.batch(statements);
     await ensureSubscription(c.env.DB, id);
+    await ensureOwnerMembership(c.env.DB, id);
     await createSession(c, id);
   } catch {
     return c.json({ error: "An account with that email already exists. Sign in instead." }, 409);
@@ -121,12 +141,37 @@ app.post("/api/login", async (c) => {
   const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
     .bind(email)
     .first<UserRow>();
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
-    return c.json({ error: "Email or password is incorrect." }, 401);
+  if (!user || !user.password_hash || !(await verifyPassword(password, user.password_hash))) {
+    return c.json({ error: "Email or password is incorrect. If you signed up with Google, use Continue with Google." }, 401);
   }
   await createSession(c, user.id);
   return c.json({ ok: true, user: { id: user.id, email: user.email } });
 });
+
+app.get("/api/auth/providers", (c) =>
+  c.json({
+    google: googleConfigured(c.env),
+    github: githubConfigured(c.env),
+  }),
+);
+
+app.get("/api/auth/google", async (c) => {
+  return startGoogleOAuth(c, {
+    redirectTo: c.req.query("redirect") || "/app",
+    inviteToken: c.req.query("invite") || undefined,
+  });
+});
+
+app.get("/api/auth/google/callback", (c) => handleGoogleCallback(c));
+
+app.get("/api/auth/github", async (c) => {
+  return startGitHubOAuth(c, {
+    redirectTo: c.req.query("redirect") || "/app",
+    inviteToken: c.req.query("invite") || undefined,
+  });
+});
+
+app.get("/api/auth/github/callback", (c) => handleGitHubCallback(c));
 
 app.post("/api/logout", async (c) => {
   await destroySession(c);
@@ -136,24 +181,40 @@ app.post("/api/logout", async (c) => {
 app.get("/api/me", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ user: null }, 401);
-  const mailboxes = await c.env.DB.prepare(
-    "SELECT id, address, display_name FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC",
-  )
-    .bind(user.id)
-    .all<{ id: string; address: string; display_name: string }>();
+  const preferred = getCookie(c, "flap_ws") || undefined;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, preferred);
+  const mailboxes = await listAccessibleMailboxes(c.env.DB, ctx);
   return c.json({
     user: { id: user.id, email: user.email, created_at: user.created_at },
+    workspace: {
+      id: ctx.workspaceId,
+      role: ctx.role,
+      is_owner: ctx.isOwner,
+      can_manage_team: ctx.canManageTeam,
+      can_manage_settings: ctx.canManageSettings,
+    },
     mailboxes: mailboxes.results ?? [],
+    auth: {
+      has_password: Boolean(user.password_hash),
+      providers: {
+        google: googleConfigured(c.env),
+        github: githubConfigured(c.env),
+      },
+    },
   });
 });
 
 app.get("/api/domains", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) {
+    return c.json({ domains: [], read_only: true });
+  }
   const rows = await c.env.DB.prepare(
     "SELECT id, name, catch_all_mailbox_id, created_at FROM domains WHERE user_id = ? ORDER BY created_at ASC",
   )
-    .bind(user.id)
+    .bind(ctx.workspaceId)
     .all();
   return c.json({ domains: rows.results ?? [] });
 });
@@ -161,18 +222,20 @@ app.get("/api/domains", async (c) => {
 app.post("/api/domains", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can add domains." }, 403);
   const body = await c.req.json().catch(() => ({})) as { name?: string };
   const name = normalizeDomain(body.name ?? "");
   if (!name) return c.json({ error: "Enter a domain, for example mail.example.com." }, 400);
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM domains WHERE user_id = ?")
-    .bind(user.id)
+    .bind(ctx.workspaceId)
     .first<{ n: number }>();
-  const limit = await assertWithinLimit(c.env.DB, user.id, "domains", Number(count?.n ?? 0));
+  const limit = await assertWithinLimit(c.env.DB, ctx.workspaceId, "domains", Number(count?.n ?? 0));
   if (!limit.ok) return c.json({ error: limit.error }, limit.status);
   const id = randomId("dom");
   try {
     await c.env.DB.prepare("INSERT INTO domains (id, user_id, name, created_at) VALUES (?, ?, ?, ?)")
-      .bind(id, user.id, name, nowMs())
+      .bind(id, ctx.workspaceId, name, nowMs())
       .run();
   } catch {
     return c.json({ error: "That domain is already on this account." }, 409);
@@ -183,8 +246,10 @@ app.post("/api/domains", async (c) => {
 app.delete("/api/domains/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can remove domains." }, 403);
   const res = await c.env.DB.prepare("DELETE FROM domains WHERE id = ? AND user_id = ?")
-    .bind(c.req.param("id"), user.id)
+    .bind(c.req.param("id"), ctx.workspaceId)
     .run();
   if (!res.meta.changes) return c.json({ error: "Domain not found." }, 404);
   return c.json({ ok: true });
@@ -193,10 +258,12 @@ app.delete("/api/domains/:id", async (c) => {
 app.patch("/api/domains/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can update domains." }, 403);
   const body = await c.req.json().catch(() => ({})) as { catch_all_mailbox_id?: string | null };
   const domainId = c.req.param("id");
   const domain = await c.env.DB.prepare("SELECT id FROM domains WHERE id = ? AND user_id = ?")
-    .bind(domainId, user.id)
+    .bind(domainId, ctx.workspaceId)
     .first();
   if (!domain) return c.json({ error: "Domain not found." }, 404);
   let catchAll: string | null = body.catch_all_mailbox_id ?? null;
@@ -204,12 +271,12 @@ app.patch("/api/domains/:id", async (c) => {
     const mailbox = await c.env.DB.prepare(
       "SELECT id FROM mailboxes WHERE id = ? AND user_id = ? AND domain_id = ?",
     )
-      .bind(catchAll, user.id, domainId)
+      .bind(catchAll, ctx.workspaceId, domainId)
       .first();
     if (!mailbox) return c.json({ error: "Catch-all mailbox must belong to this domain." }, 400);
   }
   await c.env.DB.prepare("UPDATE domains SET catch_all_mailbox_id = ? WHERE id = ? AND user_id = ?")
-    .bind(catchAll, domainId, user.id)
+    .bind(catchAll, domainId, ctx.workspaceId)
     .run();
   return c.json({ ok: true });
 });
@@ -217,24 +284,19 @@ app.patch("/api/domains/:id", async (c) => {
 app.get("/api/mailboxes", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const rows = await c.env.DB.prepare(
-    `SELECT m.id, m.domain_id, m.local_part, m.address, m.display_name, m.created_at, d.name AS domain
-     FROM mailboxes m
-     JOIN domains d ON d.id = m.domain_id
-     WHERE m.user_id = ?
-     ORDER BY m.created_at ASC`,
-  )
-    .bind(user.id)
-    .all();
-  return c.json({ mailboxes: rows.results ?? [] });
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  const rows = await listAccessibleMailboxes(c.env.DB, ctx);
+  return c.json({ mailboxes: rows.results ?? [], workspace: { id: ctx.workspaceId, role: ctx.role } });
 });
 
 app.post("/api/mailboxes", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const body = await c.req.json().catch(() => ({})) as { domain_id?: string; local_part?: string };
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can create mailboxes." }, 403);
+  const body = await c.req.json().catch(() => ({})) as { domain_id?: string; local_part?: string; is_shared?: boolean };
   const domain = await c.env.DB.prepare("SELECT id, name FROM domains WHERE id = ? AND user_id = ?")
-    .bind(body.domain_id ?? "", user.id)
+    .bind(body.domain_id ?? "", ctx.workspaceId)
     .first<{ id: string; name: string }>();
   if (!domain) return c.json({ error: "Choose a domain first." }, 400);
   const local = (body.local_part ?? "").trim().toLowerCase();
@@ -242,40 +304,57 @@ app.post("/api/mailboxes", async (c) => {
     return c.json({ error: "Local part may use letters, numbers, dots, plus, underscore, and hyphen." }, 400);
   }
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM mailboxes WHERE user_id = ?")
-    .bind(user.id)
+    .bind(ctx.workspaceId)
     .first<{ n: number }>();
-  const limit = await assertWithinLimit(c.env.DB, user.id, "mailboxes", Number(count?.n ?? 0));
+  const limit = await assertWithinLimit(c.env.DB, ctx.workspaceId, "mailboxes", Number(count?.n ?? 0));
   if (!limit.ok) return c.json({ error: limit.error }, limit.status);
+  const isShared = body.is_shared === true ? 1 : 0;
+  if (isShared) {
+    const { limits } = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    if (limits.team_seats <= 1) {
+      return c.json({ error: "Shared mailboxes require a Team plan." }, 402);
+    }
+  }
   const address = `${local}@${domain.name}`;
   const id = randomId("mbx");
   try {
     await c.env.DB.prepare(
-      "INSERT INTO mailboxes (id, user_id, domain_id, local_part, address, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO mailboxes (id, user_id, domain_id, local_part, address, created_at, is_shared) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(id, user.id, domain.id, local, address, nowMs())
+      .bind(id, ctx.workspaceId, domain.id, local, address, nowMs(), isShared)
       .run();
   } catch {
     return c.json({ error: "That mailbox already exists." }, 409);
   }
-  return c.json({ mailbox: { id, domain_id: domain.id, local_part: local, address } }, 201);
+  return c.json({ mailbox: { id, domain_id: domain.id, local_part: local, address, is_shared: isShared } }, 201);
 });
 
 app.patch("/api/mailboxes/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const body = await c.req.json().catch(() => ({})) as { display_name?: string };
-  const res = await c.env.DB.prepare("UPDATE mailboxes SET display_name = ? WHERE id = ? AND user_id = ?")
-    .bind((body.display_name ?? "").trim().slice(0, 80), c.req.param("id"), user.id)
-    .run();
-  if (!res.meta.changes) return c.json({ error: "Mailbox not found." }, 404);
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can update mailboxes." }, 403);
+  const body = await c.req.json().catch(() => ({})) as { display_name?: string; is_shared?: boolean };
+  if (typeof body.is_shared === "boolean") {
+    const result = await setMailboxShared(c.env.DB, ctx, c.req.param("id"), body.is_shared);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+  }
+  if (body.display_name !== undefined) {
+    const res = await c.env.DB.prepare("UPDATE mailboxes SET display_name = ? WHERE id = ? AND user_id = ?")
+      .bind(body.display_name.trim().slice(0, 80), c.req.param("id"), ctx.workspaceId)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "Mailbox not found." }, 404);
+  }
   return c.json({ ok: true });
 });
 
 app.delete("/api/mailboxes/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can delete mailboxes." }, 403);
   const res = await c.env.DB.prepare("DELETE FROM mailboxes WHERE id = ? AND user_id = ?")
-    .bind(c.req.param("id"), user.id)
+    .bind(c.req.param("id"), ctx.workspaceId)
     .run();
   if (!res.meta.changes) return c.json({ error: "Mailbox not found." }, 404);
   return c.json({ ok: true });
@@ -293,13 +372,19 @@ const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_a
 app.get("/api/mail", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   await flushScheduled(c.env).catch(() => undefined);
   const folder = (c.req.query("folder") ?? "inbox").toLowerCase();
   if (!FOLDERS.has(folder) && !VIRTUAL_FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
   const mailboxId = c.req.query("mailbox");
+  if (mailboxId) {
+    const access = await assertMailboxAccess(c.env.DB, ctx, mailboxId);
+    if (!access.ok) return c.json({ error: "Mailbox not found." }, 404);
+  }
   const now = nowMs();
-  let sql = `SELECT ${LIST_COLUMNS} FROM messages WHERE user_id = ?`;
-  const binds: unknown[] = [user.id];
+  const access = mailboxAccessClause(ctx);
+  let sql = `SELECT ${LIST_COLUMNS} FROM messages WHERE user_id = ?${access.sql}`;
+  const binds: unknown[] = [ctx.workspaceId, ...access.binds];
   if (folder === "starred") {
     sql += " AND starred = 1 AND folder NOT IN ('trash', 'spam')";
   } else if (folder === "snoozed") {
@@ -324,18 +409,20 @@ app.get("/api/mail", async (c) => {
 app.get("/api/search", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const q = (c.req.query("q") ?? "").trim();
   if (q.length < 2) return c.json({ error: "Type at least two characters." }, 400);
   const like = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+  const access = mailboxAccessClause(ctx);
   const rows = await c.env.DB.prepare(
     `SELECT ${LIST_COLUMNS}
      FROM messages
-     WHERE user_id = ?
+     WHERE user_id = ?${access.sql}
        AND (subject LIKE ? ESCAPE '\\' OR from_addr LIKE ? ESCAPE '\\' OR to_addr LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\' OR text_body LIKE ? ESCAPE '\\')
      ORDER BY date_ms DESC
      LIMIT 100`,
   )
-    .bind(user.id, like, like, like, like, like)
+    .bind(ctx.workspaceId, ...access.binds, like, like, like, like, like)
     .all();
   return c.json({ q, messages: rows.results ?? [] });
 });
@@ -343,14 +430,18 @@ app.get("/api/search", async (c) => {
 app.get("/api/mail/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const id = c.req.param("id");
-  const msg = await c.env.DB.prepare("SELECT * FROM messages WHERE id = ? AND user_id = ?")
-    .bind(id, user.id)
+  const access = mailboxAccessClause(ctx);
+  const msg = await c.env.DB.prepare(
+    `SELECT * FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  )
+    .bind(id, ctx.workspaceId, ...access.binds)
     .first();
   if (!msg) return c.json({ error: "Message not found." }, 404);
   if ((msg as { unread: number }).unread) {
     await c.env.DB.prepare("UPDATE messages SET unread = 0 WHERE id = ? AND user_id = ?")
-      .bind(id, user.id)
+      .bind(id, ctx.workspaceId)
       .run();
   }
   const atts = await c.env.DB.prepare(
@@ -364,20 +455,24 @@ app.get("/api/mail/:id", async (c) => {
 app.get("/api/mail/:id/thread", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const id = c.req.param("id");
-  const root = await c.env.DB.prepare("SELECT thread_id FROM messages WHERE id = ? AND user_id = ?")
-    .bind(id, user.id)
+  const access = mailboxAccessClause(ctx);
+  const root = await c.env.DB.prepare(
+    `SELECT thread_id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  )
+    .bind(id, ctx.workspaceId, ...access.binds)
     .first<{ thread_id: string | null }>();
   if (!root) return c.json({ error: "Message not found." }, 404);
   const threadId = root.thread_id || id;
   const rows = await c.env.DB.prepare(
     `SELECT ${LIST_COLUMNS}
      FROM messages
-     WHERE user_id = ? AND (thread_id = ? OR id = ?)
+     WHERE user_id = ?${access.sql} AND (thread_id = ? OR id = ?)
      ORDER BY date_ms ASC
      LIMIT 100`,
   )
-    .bind(user.id, threadId, id)
+    .bind(ctx.workspaceId, ...access.binds, threadId, id)
     .all();
   return c.json({ thread_id: threadId, messages: rows.results ?? [] });
 });
@@ -385,16 +480,18 @@ app.get("/api/mail/:id/thread", async (c) => {
 app.get("/api/mail/:id/attachments/:attId", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   if (!c.env.INLET_ATTACHMENTS) {
     return c.json({ error: "R2 bucket INLET_ATTACHMENTS is not bound. Attachments are unavailable." }, 501);
   }
+  const access = mailboxAccessClause(ctx);
   const att = await c.env.DB.prepare(
     `SELECT a.id, a.r2_key, a.filename, a.content_type
      FROM attachments a
      JOIN messages m ON m.id = a.message_id
-     WHERE a.id = ? AND a.message_id = ? AND m.user_id = ?`,
+     WHERE a.id = ? AND a.message_id = ? AND m.user_id = ?${access.sql.replace(/mailbox_id/g, "m.mailbox_id")}`,
   )
-    .bind(c.req.param("attId"), c.req.param("id"), user.id)
+    .bind(c.req.param("attId"), c.req.param("id"), ctx.workspaceId, ...access.binds)
     .first<{ id: string; r2_key: string; filename: string; content_type: string }>();
   if (!att) return c.json({ error: "Attachment not found." }, 404);
   const obj = await c.env.INLET_ATTACHMENTS.get(att.r2_key);
@@ -410,37 +507,48 @@ app.get("/api/mail/:id/attachments/:attId", async (c) => {
 app.post("/api/mail/:id/move", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const body = await c.req.json().catch(() => ({})) as { folder?: string };
   const folder = (body.folder ?? "").toLowerCase();
   if (!FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
-  const res = await c.env.DB.prepare("UPDATE messages SET folder = ?, snooze_until = NULL WHERE id = ? AND user_id = ?")
-    .bind(folder, c.req.param("id"), user.id)
+  const access = mailboxAccessClause(ctx);
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  )
+    .bind(c.req.param("id"), ctx.workspaceId, ...access.binds)
+    .first();
+  if (!existing) return c.json({ error: "Message not found." }, 404);
+  await c.env.DB.prepare("UPDATE messages SET folder = ?, snooze_until = NULL WHERE id = ? AND user_id = ?")
+    .bind(folder, c.req.param("id"), ctx.workspaceId)
     .run();
-  if (!res.meta.changes) return c.json({ error: "Message not found." }, 404);
   return c.json({ ok: true, folder });
 });
 
 app.post("/api/mail/:id/flags", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const body = await c.req.json().catch(() => ({})) as {
     unread?: boolean;
     starred?: boolean;
     snooze_until?: number | null;
   };
-  const row = await c.env.DB.prepare("SELECT id, starred, unread FROM messages WHERE id = ? AND user_id = ?")
-    .bind(c.req.param("id"), user.id)
+  const access = mailboxAccessClause(ctx);
+  const row = await c.env.DB.prepare(
+    `SELECT id, starred, unread FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  )
+    .bind(c.req.param("id"), ctx.workspaceId, ...access.binds)
     .first<{ id: string; starred: number; unread: number }>();
   if (!row) return c.json({ error: "Message not found." }, 404);
   const starred = body.starred === undefined ? row.starred : body.starred ? 1 : 0;
   const unread = body.unread === undefined ? row.unread : body.unread ? 1 : 0;
   if (body.snooze_until === undefined) {
     await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ? WHERE id = ? AND user_id = ?")
-      .bind(starred, unread, row.id, user.id)
+      .bind(starred, unread, row.id, ctx.workspaceId)
       .run();
   } else {
     await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ?, snooze_until = ?, folder = 'inbox' WHERE id = ? AND user_id = ?")
-      .bind(starred, unread, body.snooze_until, row.id, user.id)
+      .bind(starred, unread, body.snooze_until, row.id, ctx.workspaceId)
       .run();
   }
   return c.json({ ok: true, starred, unread, snooze_until: body.snooze_until ?? null });
@@ -449,8 +557,12 @@ app.post("/api/mail/:id/flags", async (c) => {
 app.delete("/api/mail/:id", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const row = await c.env.DB.prepare("SELECT id, folder FROM messages WHERE id = ? AND user_id = ?")
-    .bind(c.req.param("id"), user.id)
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  const access = mailboxAccessClause(ctx);
+  const row = await c.env.DB.prepare(
+    `SELECT id, folder FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  )
+    .bind(c.req.param("id"), ctx.workspaceId, ...access.binds)
     .first<{ id: string; folder: string }>();
   if (!row) return c.json({ error: "Message not found." }, 404);
   if (row.folder !== "trash" && row.folder !== "spam" && row.folder !== "drafts" && row.folder !== "scheduled") {
@@ -463,13 +575,14 @@ app.delete("/api/mail/:id", async (c) => {
     await Promise.all((atts.results ?? []).map((att) => c.env.INLET_ATTACHMENTS!.delete(att.r2_key).catch(() => undefined)));
   }
   await c.env.DB.prepare("DELETE FROM attachments WHERE message_id = ?").bind(row.id).run();
-  await c.env.DB.prepare("DELETE FROM messages WHERE id = ? AND user_id = ?").bind(row.id, user.id).run();
+  await c.env.DB.prepare("DELETE FROM messages WHERE id = ? AND user_id = ?").bind(row.id, ctx.workspaceId).run();
   return c.json({ ok: true });
 });
 
 app.post("/api/mail/send", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const body = await c.req.json().catch(() => ({})) as {
     id?: string;
     to?: string;
@@ -515,9 +628,9 @@ app.post("/api/mail/send", async (c) => {
     );
   }
 
-  const fromMailbox = await pickFromMailbox(c.env.DB, user.id, body.from);
+  const fromMailbox = await pickFromMailbox(c.env.DB, ctx, body.from);
   if (!fromMailbox) {
-    return c.json({ error: "Add a mailbox in Settings before sending." }, 400);
+    return c.json({ error: "Create a mailbox before sending, or pick an address you can send from." }, 400);
   }
 
   const now = nowMs();
@@ -528,6 +641,18 @@ app.post("/api/mail/send", async (c) => {
   }
 
   const snippet = makeSnippet(text, html);
+  const bodyBytes = messageStorageBytes({
+    text_body: text,
+    html_body: html,
+    subject,
+    snippet,
+    from_addr: fromMailbox.fromHeader,
+    to_addr: to,
+    cc_addr: cc,
+    bcc_addr: bcc,
+  });
+  const newAttBytes = attachments.reduce((sum, att) => sum + att.content.byteLength, 0);
+
   const folder = scheduledAt ? "scheduled" : "drafts";
   let replyHeader: string | null = null;
   let threadId: string | null = null;
@@ -535,7 +660,7 @@ app.post("/api/mail/send", async (c) => {
     const parent = await c.env.DB.prepare(
       "SELECT id, rfc_message_id, thread_id FROM messages WHERE id = ? AND user_id = ?",
     )
-      .bind(body.in_reply_to, user.id)
+      .bind(body.in_reply_to, ctx.workspaceId)
       .first<{ id: string; rfc_message_id: string | null; thread_id: string | null }>();
     if (parent) {
       replyHeader = normalizeMessageId(parent.rfc_message_id) || `<${parent.id}@flap.local>`;
@@ -544,29 +669,42 @@ app.post("/api/mail/send", async (c) => {
       replyHeader = normalizeMessageId(body.in_reply_to) || body.in_reply_to;
     }
   }
+
+  const willSendNow = !draft && !scheduledAt;
+  if (willSendNow) {
+    const sendLimit = await assertSendRoom(c.env.DB, ctx.workspaceId);
+    if (!sendLimit.ok) return c.json({ error: sendLimit.error }, sendLimit.status);
+  }
+
   let id = (body.id ?? "").trim();
+  let oldBodyBytes = 0;
   if (id) {
-    const existing = await c.env.DB.prepare("SELECT id, folder FROM messages WHERE id = ? AND user_id = ?")
-      .bind(id, user.id)
-      .first<{ id: string; folder: string }>();
+    const existing = await c.env.DB.prepare("SELECT id, folder, storage_bytes FROM messages WHERE id = ? AND user_id = ?")
+      .bind(id, ctx.workspaceId)
+      .first<{ id: string; folder: string; storage_bytes: number }>();
     if (!existing || (existing.folder !== "drafts" && existing.folder !== "scheduled")) {
       return c.json({ error: "Draft not found." }, 404);
     }
+    oldBodyBytes = Number(existing.storage_bytes ?? 0);
+    const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes - oldBodyBytes + newAttBytes);
+    if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     await c.env.DB.prepare(
-      `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id)
+      `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id), storage_bytes = ?
        WHERE id = ? AND user_id = ?`,
     )
-      .bind(fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, threadId, id, user.id)
+      .bind(fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, threadId, bodyBytes, id, ctx.workspaceId)
       .run();
   } else {
+    const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes + newAttBytes);
+    if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     id = randomId("msg");
     const rfcId = `<${id}@${(fromMailbox.address.split("@")[1] || "flap.local")}>`;
     await c.env.DB.prepare(
       `INSERT INTO messages
-        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, scheduled_at, in_reply_to, rfc_message_id, thread_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, scheduled_at, in_reply_to, rfc_message_id, thread_id, storage_bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, user.id, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, rfcId, threadId || id, now)
+      .bind(id, ctx.workspaceId, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, rfcId, threadId || id, bodyBytes, now)
       .run();
   }
   if (attachments.length) {
@@ -574,7 +712,7 @@ app.post("/api/mail/send", async (c) => {
   }
 
   for (const address of uniqueRecipients) {
-    await touchContact(c.env.DB, user.id, address);
+    await touchContact(c.env.DB, ctx.workspaceId, address);
   }
 
   if (draft) return c.json({ ok: true, draft: true, id });
@@ -604,8 +742,9 @@ app.post("/api/mail/send", async (c) => {
   }
 
   await c.env.DB.prepare("UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0 WHERE id = ? AND user_id = ?")
-    .bind(now, id, user.id)
+    .bind(now, id, ctx.workspaceId)
     .run();
+  await recordOutboundSend(c.env.DB, ctx.workspaceId);
   return c.json({ ok: true, id });
 });
 
@@ -680,16 +819,22 @@ function dnsRecords(domain: string) {
   };
 }
 
-async function pickFromMailbox(db: D1Database, userId: string, from?: string) {
-  const row = from
-    ? await db
-        .prepare("SELECT id, address, display_name FROM mailboxes WHERE user_id = ? AND lower(address) = ?")
-        .bind(userId, from.trim().toLowerCase())
-        .first<{ id: string; address: string; display_name: string }>()
-    : await db
-        .prepare("SELECT id, address, display_name FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC LIMIT 1")
-        .bind(userId)
-        .first<{ id: string; address: string; display_name: string }>();
+async function pickFromMailbox(db: D1Database, ctx: WorkspaceCtx, from?: string) {
+  let row: { id: string; address: string; display_name: string } | null = null;
+  if (from) {
+    const candidate = await db
+      .prepare("SELECT id, address, display_name FROM mailboxes WHERE user_id = ? AND lower(address) = ?")
+      .bind(ctx.workspaceId, from.trim().toLowerCase())
+      .first<{ id: string; address: string; display_name: string }>();
+    if (candidate) {
+      const ok = await assertMailboxAccess(db, ctx, candidate.id);
+      if (ok.ok) row = candidate;
+    }
+  } else {
+    const list = await listAccessibleMailboxes(db, ctx);
+    const first = (list.results ?? [])[0] as { id: string; address: string; display_name: string } | undefined;
+    if (first) row = first;
+  }
   if (!row) return null;
   const name = (row.display_name ?? "").trim().replace(/["\r\n]/g, "");
   return {

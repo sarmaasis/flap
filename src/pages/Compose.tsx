@@ -116,8 +116,12 @@ export default function Compose({
           setDraftId(result.id);
           dirtyRef.current = false;
           setStatus("Draft saved");
+          setErr("");
         })
-        .catch(() => undefined)
+        .catch((ex) => {
+          const message = ex instanceof Error ? ex.message : "Could not save draft.";
+          if (/storage|quota|plan|upgrade/i.test(message)) setErr(message);
+        })
         .finally(() => { savingRef.current = false; });
     }, 1800);
     return () => window.clearInterval(timer);
