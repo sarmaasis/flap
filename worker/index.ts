@@ -515,7 +515,36 @@ app.post("/api/domains/:id/migrate-ses", async (c) => {
   });
 });
 
-const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, created_at`;
+const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, rfc_message_id, created_at`;
+
+/** Prefer the earliest copy when SES dual-rules stored the same Message-ID twice. */
+function dedupeByRfcMessageId<T extends { id?: unknown; rfc_message_id?: unknown; date_ms?: unknown }>(
+  rows: T[],
+): T[] {
+  const best = new Map<string, T>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const rfc = String(row.rfc_message_id || "");
+    if (!rfc) {
+      out.push(row);
+      continue;
+    }
+    const prev = best.get(rfc);
+    if (!prev) {
+      best.set(rfc, row);
+      out.push(row);
+      continue;
+    }
+    const prevDate = Number(prev.date_ms) || 0;
+    const nextDate = Number(row.date_ms) || 0;
+    if (nextDate < prevDate) {
+      const idx = out.indexOf(prev);
+      if (idx >= 0) out[idx] = row;
+      best.set(rfc, row);
+    }
+  }
+  return out;
+}
 
 app.get("/api/mail", async (c) => {
   const user = await requireUser(c);
@@ -551,7 +580,10 @@ app.get("/api/mail", async (c) => {
   }
   sql += " ORDER BY date_ms DESC LIMIT 200";
   const rows = await c.env.DB.prepare(sql).bind(...binds).all();
-  return c.json({ folder, messages: rows.results ?? [] });
+  return c.json({
+    folder,
+    messages: dedupeByRfcMessageId((rows.results ?? []) as Array<{ rfc_message_id?: string; date_ms?: number }>),
+  });
 });
 
 app.get("/api/search", async (c) => {
@@ -621,8 +653,14 @@ app.get("/api/mail/:id/thread", async (c) => {
      LIMIT 100`,
   )
     .bind(ctx.workspaceId, ...access.binds, threadId, id)
-    .all();
-  return c.json({ thread_id: threadId, messages: rows.results ?? [] });
+    .all<Record<string, unknown>>();
+
+  // Collapse accidental duplicate copies (same RFC Message-ID from dual SES receipt rules).
+  const messages = dedupeByRfcMessageId(
+    (rows.results ?? []) as Array<{ rfc_message_id?: string; date_ms?: number }>,
+  );
+
+  return c.json({ thread_id: threadId, messages });
 });
 
 app.get("/api/mail/:id/attachments/:attId", async (c) => {
@@ -682,24 +720,65 @@ app.post("/api/mail/:id/flags", async (c) => {
     snooze_until?: number | null;
   };
   const access = mailboxAccessClause(ctx);
-  const row = await c.env.DB.prepare(
-    `SELECT id, starred, unread FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+  const id = c.req.param("id");
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
   )
-    .bind(c.req.param("id"), ctx.workspaceId, ...access.binds)
-    .first<{ id: string; starred: number; unread: number }>();
-  if (!row) return c.json({ error: "Message not found." }, 404);
-  const starred = body.starred === undefined ? row.starred : body.starred ? 1 : 0;
-  const unread = body.unread === undefined ? row.unread : body.unread ? 1 : 0;
-  if (body.snooze_until === undefined) {
-    await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ? WHERE id = ? AND user_id = ?")
-      .bind(starred, unread, row.id, ctx.workspaceId)
-      .run();
-  } else {
-    await c.env.DB.prepare("UPDATE messages SET starred = ?, unread = ?, snooze_until = ?, folder = 'inbox' WHERE id = ? AND user_id = ?")
-      .bind(starred, unread, body.snooze_until, row.id, ctx.workspaceId)
-      .run();
+    .bind(id, ctx.workspaceId, ...access.binds)
+    .first();
+  if (!existing) return c.json({ error: "Message not found." }, 404);
+
+  const patches: string[] = [];
+  const binds: Array<string | number | null> = [];
+  if (typeof body.unread === "boolean") {
+    patches.push("unread = ?");
+    binds.push(body.unread ? 1 : 0);
   }
-  return c.json({ ok: true, starred, unread, snooze_until: body.snooze_until ?? null });
+  if (typeof body.starred === "boolean") {
+    patches.push("starred = ?");
+    binds.push(body.starred ? 1 : 0);
+  }
+  if ("snooze_until" in body) {
+    patches.push("snooze_until = ?");
+    binds.push(body.snooze_until == null ? null : Number(body.snooze_until));
+    if (body.snooze_until) {
+      patches.push("folder = ?");
+      binds.push("inbox");
+    }
+  }
+  if (!patches.length) return c.json({ error: "No flags provided." }, 400);
+  binds.push(id, ctx.workspaceId);
+  await c.env.DB.prepare(`UPDATE messages SET ${patches.join(", ")} WHERE id = ? AND user_id = ?`)
+    .bind(...binds)
+    .run();
+  return c.json({ ok: true });
+});
+
+app.post("/api/mail/mark-read", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  const body = await c.req.json().catch(() => ({})) as { folder?: string; mailbox?: string };
+  const folder = (body.folder || "inbox").toLowerCase();
+  if (!FOLDERS.has(folder) && !VIRTUAL_FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
+  const access = mailboxAccessClause(ctx);
+  const binds: unknown[] = [ctx.workspaceId, ...access.binds];
+  let where = `user_id = ?${access.sql} AND unread = 1`;
+  if (folder === "starred") {
+    where += " AND starred = 1 AND folder NOT IN ('trash', 'spam')";
+  } else if (folder === "snoozed") {
+    where += " AND snooze_until > ?";
+    binds.push(nowMs());
+  } else {
+    where += " AND folder = ?";
+    binds.push(folder);
+  }
+  if (body.mailbox) {
+    where += " AND mailbox_id = ?";
+    binds.push(body.mailbox);
+  }
+  const result = await c.env.DB.prepare(`UPDATE messages SET unread = 0 WHERE ${where}`).bind(...binds).run();
+  return c.json({ ok: true, updated: result.meta.changes ?? 0 });
 });
 
 app.delete("/api/mail/:id", async (c) => {

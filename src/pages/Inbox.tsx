@@ -53,7 +53,11 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [thread, setThread] = useState<MailSummary[]>([]);
   const [notifyBrowser, setNotifyBrowser] = useState(false);
+  const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [copyNotice, setCopyNotice] = useState("");
   const lastUnreadRef = useRef<number | null>(null);
+  const pollBusyRef = useRef(false);
   /** When true, selected id is for draft/scheduled compose — do not load the reader. */
   const openInComposeRef = useRef(false);
   const [openingDraft, setOpeningDraft] = useState(false);
@@ -152,28 +156,92 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }, [composeOpen]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      void api.counts().then((d) => {
-        const inboxUnread = d.counts.inbox?.unread ?? 0;
-        const prev = lastUnreadRef.current ?? counts.inbox?.unread ?? 0;
-        if (lastUnreadRef.current !== null && inboxUnread > prev) {
-          if (folder === "inbox" && qDebounced.length < 2) void loadList();
-          if (notifyBrowser && typeof Notification !== "undefined" && Notification.permission === "granted") {
-            try {
-              new Notification("Flap", { body: `You have ${inboxUnread} unread message${inboxUnread === 1 ? "" : "s"}.`, tag: "flap-mail" });
-            } catch {
-              /* ignore notification failures */
+    const poll = () => {
+      if (pollBusyRef.current || document.visibilityState === "hidden") return;
+      pollBusyRef.current = true;
+      void api.counts()
+        .then((d) => {
+          const inboxUnread = d.counts.inbox?.unread ?? 0;
+          const prev = lastUnreadRef.current ?? counts.inbox?.unread ?? 0;
+          if (lastUnreadRef.current !== null && inboxUnread > prev) {
+            const added = inboxUnread - prev;
+            setToast({
+              title: added === 1 ? "New email" : `${added} new emails`,
+              body: "Your inbox was updated.",
+            });
+            if (folder === "inbox" && qDebounced.length < 2) void loadList();
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+              try {
+                new Notification("Flap", {
+                  body: added === 1 ? "You have a new message." : `You have ${added} new messages.`,
+                  tag: "flap-mail",
+                });
+              } catch {
+                /* ignore */
+              }
+            } else if (notifyBrowser && typeof Notification !== "undefined" && Notification.permission === "default") {
+              void Notification.requestPermission();
             }
           }
-        }
-        lastUnreadRef.current = inboxUnread;
-        setCounts(d.counts);
-      }).catch(() => undefined);
-    }, 8000);
-    return () => window.clearInterval(id);
+          lastUnreadRef.current = inboxUnread;
+          setCounts(d.counts);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pollBusyRef.current = false;
+        });
+    };
+    const id = window.setInterval(poll, 3500);
+    const onVis = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    const onFocus = () => poll();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [counts.inbox?.unread, folder, loadList, notifyBrowser, qDebounced.length]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!copyNotice) return;
+    const t = window.setTimeout(() => setCopyNotice(""), 1800);
+    return () => window.clearTimeout(t);
+  }, [copyNotice]);
+
   const title = useMemo(() => FOLDERS.find((f) => f.id === folder)?.label ?? "Inbox", [folder]);
+  const visibleList = useMemo(
+    () => (unreadOnly ? list.filter((m) => m.unread) : list),
+    [list, unreadOnly],
+  );
+
+  async function markFolderRead() {
+    try {
+      await api.markFolderRead(folder, mailbox || undefined);
+      setList((prev) => prev.map((m) => ({ ...m, unread: 0 })));
+      if (message) setMessage({ ...message, unread: 0 });
+      await refreshBootstrap().catch(() => undefined);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not mark as read.");
+    }
+  }
+
+  async function copyText(value: string, label = "Copied") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyNotice(label);
+    } catch {
+      setCopyNotice("Could not copy");
+    }
+  }
 
   const openCompose = useCallback((draft?: ComposeDraft) => {
     // New / reply / forward use the modal — clear any drafts-folder reader selection.
@@ -330,7 +398,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     onRowClick,
   });
   keyCtx.current = {
-    list,
+    list: visibleList,
     selected,
     message,
     showCompose,
@@ -449,7 +517,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
                 <h2>{qDebounced ? `Results for “${qDebounced}”` : title}</h2>
               </div>
-              <span className="mail-count">{loadingList ? "…" : list.length}</span>
+              <span className="mail-count">{loadingList ? "…" : visibleList.length}</span>
             </div>
             <div className="search-field">
               <span aria-hidden>⌕</span>
@@ -463,6 +531,20 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 ))}
               </select>
             ) : null}
+            {!qDebounced ? (
+              <div className="list-toolbar">
+                <button
+                  type="button"
+                  className={`btn${unreadOnly ? " active" : ""}`}
+                  onClick={() => setUnreadOnly((v) => !v)}
+                >
+                  {unreadOnly ? "Showing unread" : "Unread only"}
+                </button>
+                <button type="button" className="btn" onClick={() => void markFolderRead()}>
+                  Mark all read
+                </button>
+              </div>
+            ) : null}
           </div>
           {err ? <div className="err" style={{ margin: 12 }}>{err}</div> : null}
           <div className="list-body">
@@ -470,26 +552,38 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <div className="skeleton-stack" aria-hidden>
                 <div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" />
               </div>
-            ) : list.length === 0 ? (
+            ) : visibleList.length === 0 ? (
               <div className="empty-panel">
-                <strong>{qDebounced ? "No matches" : needsSetup ? "No mailbox yet" : domainSetupPending ? "Waiting on domain setup" : `No ${title.toLowerCase()} yet`}</strong>
+                <strong>
+                  {qDebounced
+                    ? "No matches"
+                    : unreadOnly
+                      ? "No unread mail"
+                      : needsSetup
+                        ? "No mailbox yet"
+                        : domainSetupPending
+                          ? "Waiting on domain setup"
+                          : `No ${title.toLowerCase()} yet`}
+                </strong>
                 <p>
                   {qDebounced
                     ? "Try a different name, subject, or phrase."
-                    : needsSetup
-                      ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
-                      : domainSetupPending
-                        ? "Your mailboxes are ready. Finish domain verification to receive mail."
-                        : EMPTY[folder]}
+                    : unreadOnly
+                      ? "Everything in this folder is read."
+                      : needsSetup
+                        ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
+                        : domainSetupPending
+                          ? "Your mailboxes are ready. Finish domain verification to receive mail."
+                          : EMPTY[folder]}
                 </p>
-                {(needsSetup || domainSetupPending) && !qDebounced ? (
+                {(needsSetup || domainSetupPending) && !qDebounced && !unreadOnly ? (
                   <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
                     {domainSetupPending ? "Finish setup" : "Start setup"}
                   </button>
                 ) : null}
               </div>
             ) : (
-              list.map((m) => (
+              visibleList.map((m) => (
                 <MessageRow
                   key={m.id}
                   row={m}
@@ -569,6 +663,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           ) : (
             <>
               <button type="button" className="mobile-back" onClick={() => setSelected(null)}>Back to {title}</button>
+              <article className="read-card">
               <div className="read-head">
                 <div className="read-subject-row">
                   <h2>{message.subject || "(no subject)"}</h2>
@@ -581,8 +676,29 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                     <div className="read-kv">{message.from_addr || "(unknown)"} <span>→</span> {message.to_addr || "(unknown)"}</div>
                     {message.cc_addr ? <div className="read-kv">Cc {message.cc_addr}</div> : null}
                   </div>
+                  <div className="sender-actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => void copyText(extractEmail(message.from_addr) || message.from_addr, "Sender copied")}
+                    >
+                      Copy sender
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        const frame = document.querySelector<HTMLIFrameElement>(".message-frame");
+                        if (frame?.contentWindow) frame.contentWindow.print();
+                        else window.print();
+                      }}
+                    >
+                      Print
+                    </button>
+                  </div>
                 </div>
               </div>
+              {copyNotice ? <p className="muted" style={{ margin: "8px 0 0" }}>{copyNotice}</p> : null}
               {message.label ? <div className="label-chip">{message.label}</div> : null}
               {thread.length > 1 ? (
                 <div className="thread-rail" aria-label="Conversation">
@@ -653,11 +769,33 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               ) : message.has_attachments ? (
                 <p className="muted">This message had attachments, but R2 is not bound so files were not stored.</p>
               ) : null}
+              </article>
             </>
           )}
         </section>
       </div>
       </div>
+
+      {toast ? (
+        <div className="mail-toast" role="status">
+          <div>
+            <strong>{toast.title}</strong>
+            <span>{toast.body}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFolder("inbox");
+              setUnreadOnly(false);
+              setToast(null);
+              void loadList();
+            }}
+          >
+            View
+          </button>
+          <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setToast(null)}>×</button>
+        </div>
+      ) : null}
 
       {showCompose && !editingDraft ? (
         <Suspense fallback={<div className="modal-back"><div className="modal"><p className="muted">Opening composer…</p></div></div>}>

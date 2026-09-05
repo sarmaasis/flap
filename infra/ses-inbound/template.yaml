@@ -8,7 +8,7 @@ Parameters:
   FlapWebhookUrl:
     Type: String
     Default: https://useflap.online/api/inbound/ses
-    Description: Flap Worker inbound URL
+    Description: Flap Worker inbound URL on the custom domain. Free-plan Bot Fight Mode cannot skip paths — turn Bot Fight Mode OFF for useflap.online (HMAC still authenticates ingest), or upgrade to Pro and Skip Super Bot Fight for /api/inbound/*.
   FlapWebhookSecret:
     Type: String
     NoEcho: true
@@ -214,6 +214,7 @@ Resources:
               for (const rec of body.Records || []) {
                 const bucket = rec.s3.bucket.name;
                 const key = decodeURIComponent(rec.s3.object.key.replace(/\+/g, " "));
+                if (/AMAZON_SES_SETUP_NOTIFICATION$/i.test(key)) continue;
                 const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
                 const bytes = Buffer.from(await obj.Body.transformToByteArray());
                 // SES stores raw MIME; message id from key or object metadata when present
@@ -221,14 +222,10 @@ Resources:
                   (obj.Metadata && (obj.Metadata["x-amz-ses-message-id"] || obj.Metadata["ses-message-id"])) ||
                   key.split("/").pop() ||
                   crypto.randomUUID();
-                // Recipients: best-effort from key prefix raw/{domain}/…
-                const parts = key.split("/");
-                const domainHint = parts[1] || "";
-                const recipients = domainHint.includes(".") ? [`inbound@${domainHint}`] : [];
-                // Prefer parsing envelope from MIME in Flap; pass domain catch-all via recipients empty → Flap uses To headers
+                // Let Flap resolve mailbox from MIME To / Delivered-To — do not invent recipients.
                 const payload = JSON.stringify({
                   provider_message_id: String(providerMessageId),
-                  recipients,
+                  recipients: [],
                   raw_mime_base64: bytes.toString("base64"),
                   s3_bucket: bucket,
                   s3_key: key,
@@ -240,6 +237,7 @@ Resources:
                   method: "POST",
                   headers: {
                     "content-type": "application/json",
+                    "user-agent": "FlapSESIngest/1.0",
                     "X-Flap-Timestamp": ts,
                     "X-Flap-Signature": "sha256=" + sig,
                   },

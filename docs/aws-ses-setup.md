@@ -133,7 +133,7 @@ aws cloudformation deploy \
 
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
-| `FlapWebhookUrl` | `https://useflap.online/api/inbound/ses` | Worker ingest URL |
+| `FlapWebhookUrl` | `https://useflap.online/api/inbound/ses` | Worker ingest URL on the custom domain |
 | `FlapWebhookSecret` | *(required)* | Shared HMAC; must match Worker `SES_INBOUND_WEBHOOK_SECRET` |
 | `RuleSetName` | `flap-inbound` | SES receipt rule set name |
 | `RawMailRetentionDays` | `7` | S3 lifecycle expiry for `raw/` (1–90) |
@@ -237,6 +237,21 @@ npx wrangler secret put SES_INBOUND_BUCKET     # stack output InboundBucketName
 ```
 
 Alternatively set non-secret vars in the Cloudflare dashboard / `wrangler` vars if you prefer; treat access keys and the webhook secret as secrets always.
+
+### Cloudflare Bot Fight Mode (required for inbound on Free)
+
+SES Lambda POSTs to `https://useflap.online/api/inbound/ses`. That request is machine traffic. On the **Free** plan, **Bot Fight Mode cannot skip paths** (WAF Skip does not apply to BFM).
+
+1. Cloudflare Dashboard → zone **useflap.online** → **Security** → **Bots**
+2. Turn **Bot Fight Mode** **Off**
+3. Keep ingest auth via `SES_INBOUND_WEBHOOK_SECRET` (HMAC). Optional: add a WAF rate-limit rule on `/api/inbound/*` if you want volume protection without challenges.
+
+On **Pro+**, you can leave Super Bot Fight Mode on and add a custom rule:
+
+- Expression: `starts_with(http.request.uri.path, "/api/inbound")`
+- Action: **Skip** → Super Bot Fight Mode (and other checks as needed)
+
+Do not use `*.workers.dev` as the long-term webhook URL.
 
 ### Local (`.dev.vars`)
 
@@ -358,13 +373,15 @@ Free-plan COGS is gated by **Flap quotas and anti-abuse**, not by a second mail 
 |---------|--------|
 | Domain won’t verify | `_amazonses` TXT exact; wait for DNS TTL; `GetIdentityVerificationAttributes` in same region |
 | DKIM pending | All three CNAMEs; no proxy/orange-cloud on DKIM at Cloudflare |
-| MX green but no inbox | Active rule set? S3 objects under `raw/`? Ingest Lambda errors? HMAC secret? |
+| MX green but no inbox | Active rule set? S3 objects under `raw/`? Ingest Lambda errors? HMAC secret? Cloudflare Bot Fight on the zone? |
+| Lambda `Flap ingest 403` + HTML `Just a moment...` | Cloudflare Bot Fight Mode is challenging AWS Lambda. On **Free**, BFM cannot be skipped per path — turn **Bot Fight Mode OFF** for `useflap.online` (Security → Bots). Inbound stays protected by `SES_INBOUND_WEBHOOK_SECRET` HMAC. On **Pro+**, use Super Bot Fight Mode + a Skip custom rule for `starts_with(http.request.uri.path, "/api/inbound")`. Do **not** rely on `*.workers.dev` as the permanent webhook. |
 | Lambda `Flap ingest 401` | `SES_INBOUND_WEBHOOK_SECRET` ≠ `FlapWebhookSecret` |
 | Lambda `406` | Flap rejected recipient (no mailbox) — expected for junk; Lambda treats 406 as non-fatal |
 | Messages in DLQ | Fix Worker/Lambda, then redrive or resend test mail |
 | Send fails sandbox | Verify recipient identity or exit sandbox |
 | `CreateReceiptRule` errors in logs | IAM missing `ses:CreateReceiptRule` or wrong rule set name; catch-all may still work |
 | Wrong region in Settings MX | Fix `AWS_SES_REGION` and redeploy Worker |
+| Multiple SPF TXT on `@` | Keep **one** SPF TXT (merge includes). Extra `v=spf1` rows confuse receivers |
 
 Useful commands:
 
@@ -386,6 +403,7 @@ aws sqs get-queue-attributes \
 - [ ] Stack `flap-ses-inbound` deployed; outputs saved
 - [ ] Receipt rule set **active**
 - [ ] Worker IAM + secrets set; webhook secret matches
+- [ ] Bot Fight Mode **Off** on Free for `useflap.online` (or Pro Skip rule for `/api/inbound`) so Lambda can POST the custom domain
 - [ ] Optional: configuration set + SNS → `/api/inbound/ses/events`
 - [ ] First domain DNS + Check setup + send/receive
 - [ ] Alarms or weekly glance at SQS DLQ / SES reputation

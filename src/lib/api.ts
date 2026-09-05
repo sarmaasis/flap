@@ -46,6 +46,7 @@ export type MailSummary = {
   snippet?: string;
   label?: string;
   thread_id?: string | null;
+  rfc_message_id?: string | null;
   created_at: number;
 };
 export type MailFull = MailSummary & {
@@ -260,6 +261,11 @@ export const api = {
     req<{ ok: boolean }>(`/api/mail/${id}/move`, { method: "POST", body: JSON.stringify({ folder }) }),
   flags: (id: string, flags: { unread?: boolean; starred?: boolean; snooze_until?: number | null }) =>
     req<{ ok: boolean }>(`/api/mail/${id}/flags`, { method: "POST", body: JSON.stringify(flags) }),
+  markFolderRead: (folder: string, mailbox?: string) =>
+    req<{ ok: boolean; updated: number }>("/api/mail/mark-read", {
+      method: "POST",
+      body: JSON.stringify({ folder, mailbox: mailbox || undefined }),
+    }),
   remove: (id: string) => req<{ ok: boolean }>(`/api/mail/${id}`, { method: "DELETE" }),
   send: (body: SendPayload) =>
     req<{ ok: boolean; id: string; draft?: boolean; scheduled?: boolean }>(

@@ -56,18 +56,44 @@ export async function ingestRawEmail(
   }
 
   if (opts.providerMessageId) {
-    const dup = await env.DB.prepare(
-      "SELECT id FROM inbound_idempotency WHERE provider = ? AND provider_message_id = ?",
+    const claim = await env.DB.prepare(
+      `INSERT OR IGNORE INTO inbound_idempotency
+        (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
+       VALUES (?, ?, ?, NULL, NULL, NULL, 'processing', ?)`,
+    )
+      .bind(randomId("idem"), opts.provider || "ses", opts.providerMessageId, nowMs())
+      .run();
+    if ((claim.meta.changes ?? 0) === 0) {
+      return { ok: false, reason: "duplicate" };
+    }
+  }
+
+  const releaseClaim = async (outcome: string) => {
+    if (!opts.providerMessageId) return;
+    await env.DB.prepare(
+      `DELETE FROM inbound_idempotency WHERE provider = ? AND provider_message_id = ? AND outcome = 'processing'`,
     )
       .bind(opts.provider || "ses", opts.providerMessageId)
-      .first();
-    if (dup) return { ok: false, reason: "duplicate" };
-  }
+      .run()
+      .catch(() => undefined);
+    if (outcome === "duplicate") {
+      // Keep a permanent row so racing twin deliveries stay collapsed.
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO inbound_idempotency
+          (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
+         VALUES (?, ?, ?, NULL, NULL, NULL, 'duplicate', ?)`,
+      )
+        .bind(randomId("idem"), opts.provider || "ses", opts.providerMessageId, nowMs())
+        .run()
+        .catch(() => undefined);
+    }
+  };
 
   let parsed: Parsed;
   try {
     parsed = await parseMessage(rawBuf);
   } catch (err) {
+    await releaseClaim("parse_error");
     return {
       ok: false,
       reason: "parse_error",
@@ -79,6 +105,7 @@ export async function ingestRawEmail(
 
   const mailbox = await resolveMailbox(env.DB, recipients);
   if (!mailbox) {
+    await releaseClaim("no_mailbox");
     return { ok: false, reason: "no_mailbox" };
   }
 
@@ -102,7 +129,10 @@ export async function ingestRawEmail(
   if (domain) {
     const p = (domain.mail_provider || "ses").toLowerCase();
     const suspended = /SUSPENDED|FAILED/i.test(domain.provider_state || "");
-    if (suspended) return { ok: false, reason: "disabled" };
+    if (suspended) {
+      await releaseClaim("disabled");
+      return { ok: false, reason: "disabled" };
+    }
     if (p === "ses") {
       const ready =
         Boolean(domain.receiving_ready_at) ||
@@ -114,6 +144,7 @@ export async function ingestRawEmail(
         // Still accept mail if MX was pointed (ops may mark later) — only hard-block when
         // explicitly not ready and identity never verified. Soft-allow for migration.
         if (domain.provider_state === "PENDING" && !domain.identity_verified_at) {
+          await releaseClaim("domain_not_ready");
           return { ok: false, reason: "domain_not_ready" };
         }
       }
@@ -134,6 +165,20 @@ export async function ingestRawEmail(
   const rfcMessageId = normalizeMessageId(parsed.messageId) || `<${id}@flap.local>`;
   const inReplyTo = normalizeMessageId(parsed.inReplyTo);
   const referencesHeader = (parsed.references || "").slice(0, 4000);
+
+  // Same MIME Message-ID already stored (e.g. SES catch-all + per-domain rule race).
+  if (parsed.messageId) {
+    const existing = await env.DB.prepare(
+      `SELECT id FROM messages WHERE user_id = ? AND rfc_message_id = ? LIMIT 1`,
+    )
+      .bind(mailbox.user_id, rfcMessageId)
+      .first<{ id: string }>();
+    if (existing) {
+      await releaseClaim("duplicate");
+      return { ok: false, reason: "duplicate" };
+    }
+  }
+
   const threadId = await resolveThreadId(env.DB, userId, rfcMessageId, inReplyTo, referencesHeader);
   const storeAtt = Boolean(parsed.attachments.length && env.ATTACHMENTS);
   const hasAttachments = storeAtt ? 1 : 0;
@@ -162,6 +207,7 @@ export async function ingestRawEmail(
 
   const storageCheck = await assertStorageRoom(env.DB, userId, bodyBytes + attachmentBytes);
   if (!storageCheck.ok) {
+    await releaseClaim("quota");
     return { ok: false, reason: "quota" };
   }
 
@@ -232,18 +278,16 @@ export async function ingestRawEmail(
 
   if (opts.providerMessageId) {
     await env.DB.prepare(
-      `INSERT OR IGNORE INTO inbound_idempotency
-        (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'stored', ?)`,
+      `UPDATE inbound_idempotency
+       SET rfc_message_id = ?, domain_id = ?, mailbox_id = ?, outcome = 'stored'
+       WHERE provider = ? AND provider_message_id = ?`,
     )
       .bind(
-        randomId("idem"),
-        opts.provider || "ses",
-        opts.providerMessageId,
         rfcMessageId.slice(0, 500),
         mailbox.domain_id,
         mailbox.id,
-        now,
+        opts.provider || "ses",
+        opts.providerMessageId,
       )
       .run()
       .catch(() => undefined);

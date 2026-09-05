@@ -17,6 +17,8 @@ Internet
   → ingestRawEmail() → D1 / R2
 ```
 
+> **Cloudflare Bot Fight Mode (Free):** it cannot skip `/api/*` with WAF rules. For Lambda → Worker ingest, turn Bot Fight Mode **off** on `useflap.online` (Security → Bots). Auth is the HMAC `SES_INBOUND_WEBHOOK_SECRET`, not Bot Fight. On Pro+, use Super Bot Fight Mode + a Skip rule for `/api/inbound`.
+
 Outbound: Worker SigV4 `SendRawEmail` (see `worker/lib/ses.ts`).
 
 ## Deploy (CloudFormation)
