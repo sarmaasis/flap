@@ -419,12 +419,87 @@ textarea { min-height: 160px; resize: vertical; }
 
 .notice {
   background: rgba(var(--cta-rgb), 0.08);
-  color: #9ee9de;
+  color: var(--fg);
   border: 1px solid rgba(var(--cta-rgb), 0.22);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-size: 13px;
+  line-height: 1.45;
   margin-bottom: 18px;
+}
+.notice.dns-issues {
+  background: rgba(180, 120, 40, 0.08);
+  border-color: rgba(180, 120, 40, 0.28);
+  color: var(--fg);
+}
+.notice .muted,
+.notice p.muted {
+  color: var(--muted);
+}
+.dns-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.dns-status-pill {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.dns-status-pill strong {
+  display: block;
+  font-size: 12px;
+  color: var(--fg);
+}
+.dns-status-pill span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dns-status-pill.ok span { color: var(--cta); }
+.dns-status-pill.warn span { color: #a86a12; }
+.dns-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 16px;
+  font-size: 13px;
+}
+.dns-table th,
+.dns-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+}
+.dns-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.dns-table code {
+  display: block;
+  word-break: break-all;
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--fg);
+}
+.dns-step-title {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.dns-step-help {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

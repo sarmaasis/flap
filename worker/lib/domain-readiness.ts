@@ -143,23 +143,13 @@ export async function checkDomainSetup(
   const mxOk = mxParsed.some((r) => isFlapMx(r.exchange, provider, region));
   const spfOk = spfRecords.some((t) => isFlapSpf(t, provider));
 
-  if (!mxParsed.length) issues.push("MX record is missing");
+  if (!mxParsed.length) issues.push("Add the MX record so mail can be delivered to Flap");
   else if (!mxOk) {
-    if (provider === "ses") {
-      issues.push(`MX must point at inbound-smtp.${region}.amazonaws.com (Amazon SES receiving)`);
-    } else if (provider === "mailgun") {
-      issues.push("MX must point at mxa/mxb.mailgun.org (legacy Mailgun)");
-    } else {
-      issues.push("MX records do not point at Flap yet");
-    }
+    issues.push(`Point MX at inbound-smtp.${region}.amazonaws.com (priority 10, DNS only — not proxied)`);
   }
-  if (!spfRecords.length) issues.push("SPF record is missing");
+  if (!spfRecords.length) issues.push("Add the SPF TXT record (or merge include:amazonses.com into your existing SPF)");
   else if (!spfOk) {
-    issues.push(
-      provider === "ses"
-        ? "SPF must include amazonses.com"
-        : "SPF does not yet include Flap’s mail provider",
-    );
+    issues.push("Update SPF so it includes amazonses.com (keep a single SPF TXT on the root)");
   }
 
   let identityVerified = Boolean(row.identity_verified_at);
@@ -174,11 +164,16 @@ export async function checkDomainSetup(
       sendingReady = status.sendingReady;
       identityStatus = status.verificationStatus;
       dkimStatus = status.dkimVerificationStatus;
-      if (!status.identityVerified) issues.push("SES domain identity is not verified yet (publish _amazonses TXT + wait)");
-      if (!status.sendingReady) issues.push("SES DKIM / sending verification is still pending (publish Easy DKIM CNAMEs)");
+      if (!status.identityVerified) {
+        issues.push("Publish the domain verification TXT (_amazonses…) and wait a few minutes, then Check setup");
+      }
+      if (!status.sendingReady) {
+        issues.push("Publish the three DKIM CNAME records, then Check setup");
+      }
     } else if (!sesKeysPresent(env)) {
-      // Without AWS keys, MX+SPF alone cannot mark identity — keep honest.
-      if (!identityVerified) issues.push("SES API not configured yet — identity check skipped (ops: set AWS credentials)");
+      if (!identityVerified) {
+        issues.push("DNS values are still being prepared — refresh this page or contact support if they stay empty");
+      }
     }
   } else {
     // Legacy: MX+SPF green ≈ identity for product purposes.
@@ -194,9 +189,7 @@ export async function checkDomainSetup(
   } else if (provider !== "ses") {
     inboundRuleActive = mxOk;
   }
-  if (provider === "ses" && !inboundRuleActive) {
-    issues.push("Inbound receipt route is not active yet (Flap ops: SES receipt rule set)");
-  }
+  // Ops-only inbound gap is not listed as a customer DNS to-do.
 
   const receivingReady =
     provider === "ses"

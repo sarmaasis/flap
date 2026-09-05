@@ -6,6 +6,30 @@ End-to-end setup so customer domains can **receive** and **send** mail through A
 
 ---
 
+## Inbound vs Outbound
+
+Flap splits SES into two independent paths. Infra under `infra/ses-inbound` is **receive-only**. Sending never goes through that stack.
+
+| | **Inbound (receive)** | **Outbound (send)** |
+|--|----------------------|---------------------|
+| **What** | Internet → SES receiving → S3 → SQS → Lambda → Worker webhook | Worker → SES **API** `SendRawEmail` |
+| **Infra** | CloudFormation: [`infra/ses-inbound/template.yaml`](../infra/ses-inbound/template.yaml) | No CFN for send — Worker calls SES HTTP API with SigV4 |
+| **Auth** | Lambda role (S3/SQS) + HMAC `SES_INBOUND_WEBHOOK_SECRET` | IAM user keys on Worker: `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` |
+| **Code** | `worker/lib/inbound-webhook.ts`, ingest routes | `worker/lib/ses.ts` (`sendRawViaSes`), `mail-provider.ts` (`sendRawEmail`), compose `POST /api/mail/send` |
+| **IAM (Worker)** | Optional: `CreateReceiptRule` / `DeleteReceiptRule` for per-domain rules | **Required for send:** `ses:SendRawEmail` (+ identity/DKIM APIs for provision) |
+
+Same AWS account and usually the **same IAM user** (`flap-worker-ses`) and **same region** (`AWS_SES_REGION`) for identity, send, and receipt-rule APIs. The inbound CFN stack does **not** create send infrastructure; it only stores and forwards received mail.
+
+Outbound call chain (customer From, not `useflap.online`):
+
+1. UI Compose → `POST /api/mail/send` (`worker/index.ts`)
+2. After readiness checks → `sendRawEmail` in `worker/lib/mail-provider.ts`
+3. `sendRawViaSes` → form-urlencoded SES v1 `Action=SendRawEmail` signed with custom SigV4 (`worker/lib/aws-sigv4.ts`) — **not** the AWS SDK and **not** the inbound Lambda
+
+Sandbox note: until SES production access is approved, `SendRawEmail` only works to verified identities (and quotas stay tiny). Inbound receiving can work while outbound is still sandboxed.
+
+---
+
 ## TL;DR
 
 1. Pick a **receiving-capable** region (recommend `us-east-1`).

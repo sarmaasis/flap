@@ -34,22 +34,21 @@ export function defaultSesDnsRecords(domain: string, region: string): FlapDnsBun
   return {
     provider: "ses",
     note:
-      "Add these records at your DNS host (Namecheap, GoDaddy, Cloudflare DNS-only, Route 53, etc.). Your domain does not need to be a Cloudflare zone. Flap does not write DNS for you.",
+      "Log into wherever you manage DNS for this domain (registrar or DNS panel). Add each row below exactly — Type, Host/Name, and Value. Flap cannot change your DNS for you.",
     mx: [{ type: "MX", name: domain, priority: 10, value: mxHost }],
     spf: { type: "TXT", name: domain, value: "v=spf1 include:amazonses.com ~all" },
     dkim: [
       {
         type: "CNAME",
         name: `one._domainkey.${domain}`,
-        value:
-          "After Flap provisions this domain with SES, replace with the three Easy DKIM CNAME values shown in Settings.",
+        value: "Values appear here once Flap finishes preparing this domain — refresh Settings in a minute.",
       },
     ],
     verification: [
       {
         type: "TXT",
         name: `_amazonses.${domain}`,
-        value: "Verification token appears here after SES identity provisioning.",
+        value: "Token appears here once Flap finishes preparing this domain — refresh Settings in a minute.",
       },
     ],
     dmarc: {
@@ -59,7 +58,7 @@ export function defaultSesDnsRecords(domain: string, region: string): FlapDnsBun
     },
     worker_rule: "",
     send_note:
-      "Outbound mail for customer domains uses Amazon SES after identity + DKIM verify. System mail for useflap.online stays on Cloudflare Email Sending.",
+      "After these records verify, you can send from addresses on this domain in Compose. Adding more addresses later never needs new DNS.",
     region,
   };
 }

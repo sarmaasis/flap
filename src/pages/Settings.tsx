@@ -40,6 +40,44 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+/** Host/Name field for most DNS panels (@ = domain root). */
+function dnsHostField(fqdn: string, domain: string): string {
+  const d = domain.toLowerCase().replace(/\.$/, "");
+  const n = fqdn.toLowerCase().replace(/\.$/, "");
+  if (n === d) return "@";
+  if (n.endsWith(`.${d}`)) return n.slice(0, -(d.length + 1));
+  return fqdn;
+}
+
+function isPlaceholderDnsValue(value: string): boolean {
+  return /appears here|replace with|provision|refresh Settings|copy the three/i.test(value);
+}
+
+function setupLifecycleLabel(lifecycle?: string): string {
+  switch ((lifecycle || "").toUpperCase()) {
+    case "ACTIVE":
+      return "Ready";
+    case "SENDING_READY":
+      return "Sending ready";
+    case "RECEIVING_READY":
+      return "Receiving ready";
+    case "IDENTITY_VERIFIED":
+      return "Domain verified — finish MX & SPF";
+    case "DNS_PENDING":
+    default:
+      return "Waiting on DNS";
+  }
+}
+
+function dnsProviderGuideLabel(provider: string): string {
+  if (provider === "cloudflare") return "Cloudflare";
+  if (provider === "vercel") return "Vercel";
+  if (provider === "route53" || provider === "aws") return "Route 53";
+  if (provider === "namecheap") return "Namecheap";
+  if (provider === "godaddy") return "GoDaddy";
+  return "your DNS host";
+}
+
 export default function Settings() {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [email, setEmail] = useState("");
@@ -489,7 +527,7 @@ export default function Settings() {
                 <li className={emailVerified ? "complete" : ""}>Verify account email</li>
                 <li className={hasDomain ? "complete" : ""}>Add first domain</li>
                 <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : ""}>
-                  Publish SES DNS records
+                  Publish DNS records
                 </li>
                 <li className={dnsStatus?.receiving?.receiving_ready ? "complete" : ""}>Verify receiving</li>
                 <li className={hasMailbox ? "complete" : ""}>Create an address</li>
@@ -535,10 +573,10 @@ export default function Settings() {
             ) : null}
             <ol className="setup-steps" aria-label="Setup progress">
               <li className={hasDomain ? "complete" : "current"}>
-                <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "Any DNS host — Namecheap, GoDaddy, Route 53, Cloudflare DNS-only…"}</small></div>
+                <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "Any domain you control"}</small></div>
               </li>
               <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : hasDomain ? "current" : ""}>
-                <span>2</span><div><strong>Publish SES DNS</strong><small>Verification + DKIM + MX to Amazon SES</small></div>
+                <span>2</span><div><strong>Publish DNS records</strong><small>Copy the table below into your DNS panel</small></div>
               </li>
               <li className={hasMailbox ? "complete" : hasDomain ? "current" : ""}>
                 <span>3</span><div><strong>Create an address</strong><small>{hasMailbox ? `${mailboxes.length} mailbox${mailboxes.length === 1 ? "" : "es"}` : "hello@your-domain.com — no extra DNS"}</small></div>
@@ -553,7 +591,7 @@ export default function Settings() {
               </div>
             ) : null}
             <section className="settings-card" aria-labelledby="domains-title">
-              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>Add any domain you control. DNS can live at Namecheap, GoDaddy, Cloudflare, Route 53, or elsewhere — Flap does not require a Cloudflare zone. All plans use the same Amazon SES path; upgrades unlock quotas only.</p></div></div>
+              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>Add any domain you control. Publish the DNS records Flap shows at your registrar or DNS host — then create mailboxes here.</p></div></div>
               <form className="row-form" onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
@@ -584,7 +622,7 @@ export default function Settings() {
                 </p>
               ) : (
                 <p className="muted" style={{ marginTop: 8 }}>
-                  All plans use the same SES setup. Upgrades unlock more domains/mailboxes/sends — never a DNS cutover.
+                  All plans use the same mail setup. Upgrades unlock more domains/mailboxes/sends — never a DNS cutover.
                 </p>
               )}
               {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Receiving</th><th>Sending</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
@@ -598,7 +636,7 @@ export default function Settings() {
                       <button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button>
                       {legacy ? (
                         <div className="muted" style={{ fontSize: 12 }}>
-                          Legacy {d.mail_provider}
+                          Legacy setup
                           {" · "}
                           <button
                             type="button"
@@ -607,7 +645,7 @@ export default function Settings() {
                               void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed."));
                             }}
                           >
-                            Migrate to SES
+                            Switch to current mail path
                           </button>
                         </div>
                       ) : null}
@@ -668,7 +706,11 @@ export default function Settings() {
               <div className="section-heading">
                 <div>
                   <h2 id="routing-title">DNS records</h2>
-                  <p>Copy these records into your DNS host for {selectedName}. Exact values matter — prefer copy/paste over typing.</p>
+                  <p>
+                    Open the DNS panel for <strong>{selectedName || "your domain"}</strong> (wherever the nameservers point).
+                    Add one row per line below. Use the <strong>Host</strong> column in the Name/Host field —{" "}
+                    <code>@</code> means the root of the domain.
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {dnsPolling ? (
@@ -689,37 +731,46 @@ export default function Settings() {
               ) : null}
               {dnsStatus ? (
                 <div className={`notice ${dnsStatus.verified ? "" : "dns-issues"}`} role="status">
-                  <p style={{ marginBottom: 8 }}>
+                  <p style={{ marginBottom: 4 }}>
                     <strong>{selectedName}</strong>
-                    {dnsStatus.lifecycle ? ` · ${dnsStatus.lifecycle}` : ""}
+                    <span className="muted"> · {setupLifecycleLabel(dnsStatus.lifecycle)}</span>
                   </p>
                   {dnsStatus.receiving ? (
-                    <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
-                      <li>SES identity {dnsStatus.receiving.identity_verified ? "✓ Verified" : "⚠ Pending"}</li>
-                      <li>MX record {dnsStatus.receiving.mx_configured ? "✓ Configured" : "⚠ Missing"}</li>
-                      <li>Inbound route {dnsStatus.receiving.inbound_rule_active ? "✓ Active" : "⚠ Pending"}</li>
-                      <li>Sending {dnsStatus.sending?.sending_ready ? "✓ Ready" : "⚠ Verification pending"}</li>
-                    </ul>
+                    <div className="dns-status-grid" aria-label="Setup checklist">
+                      <div className={`dns-status-pill ${dnsStatus.receiving.identity_verified ? "ok" : "warn"}`}>
+                        <strong>Domain ownership</strong>
+                        <span>{dnsStatus.receiving.identity_verified ? "Verified" : "Add verification TXT"}</span>
+                      </div>
+                      <div className={`dns-status-pill ${dnsStatus.receiving.mx_configured ? "ok" : "warn"}`}>
+                        <strong>Incoming mail (MX)</strong>
+                        <span>{dnsStatus.receiving.mx_configured ? "Configured" : "Add MX record"}</span>
+                      </div>
+                      <div className={`dns-status-pill ${dnsStatus.sending?.sending_ready ? "ok" : "warn"}`}>
+                        <strong>Outgoing mail (DKIM)</strong>
+                        <span>{dnsStatus.sending?.sending_ready ? "Ready" : "Add DKIM CNAMEs"}</span>
+                      </div>
+                      <div className={`dns-status-pill ${dnsStatus.spf_ok ? "ok" : "warn"}`}>
+                        <strong>SPF</strong>
+                        <span>{dnsStatus.spf_ok ? "OK" : "Add or update SPF"}</span>
+                      </div>
+                    </div>
                   ) : null}
                   {dnsStatus.verified ? (
-                    <p>Receiving checks look good. Create an address and send a real test email to finish onboarding.</p>
-                  ) : (
+                    <p style={{ marginTop: 10 }}>Receiving looks good. Create an address and send a real test email to finish onboarding.</p>
+                  ) : dnsStatus.issues.length ? (
                     <>
-                      <p>Remaining issues:</p>
-                      <ul>
+                      <p className="dns-step-title" style={{ marginTop: 12 }}>What to fix</p>
+                      <ul style={{ margin: "0 0 4px", paddingLeft: 18 }}>
                         {dnsStatus.issues.map((issue) => (
                           <li key={issue}>{issue}</li>
                         ))}
                       </ul>
                     </>
-                  )}
-                  {dnsStatus.provider && dnsStatus.provider !== "unknown" ? (
-                    <p className="muted" style={{ marginTop: 8 }}>Detected DNS provider: {dnsStatus.provider}</p>
                   ) : null}
                   {dnsStatus.guide_path ? (
-                    <p style={{ marginTop: 8 }}>
+                    <p style={{ marginTop: 10 }}>
                       <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
-                        Open {dnsStatus.provider === "vercel" ? "Vercel" : dnsStatus.provider === "cloudflare" ? "Cloudflare DNS" : "DNS"} setup guide
+                        Step-by-step guide for {dnsProviderGuideLabel(dnsStatus.provider)}
                       </a>
                     </p>
                   ) : null}
@@ -728,62 +779,116 @@ export default function Settings() {
               {dns ? (
                 <div className="dns">
                   <p>{dns.note}</p>
-                  {dns.verification?.length ? (
-                    <>
-                      <p style={{ marginTop: 12 }}><strong>1. Domain verification</strong> — TXT at your DNS host</p>
-                      {dns.verification.map((r) => (
-                        <div key={r.name} className="dns-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            <code>{r.type} {r.name}</code>
-                            <button type="button" className="text-button" onClick={() => copyText(r.name)}>Copy name</button>
-                            <button type="button" className="text-button" onClick={() => copyText(r.value)}>Copy value</button>
-                          </div>
-                          <p className="muted" style={{ margin: 0, wordBreak: "break-all" }}>{r.value}</p>
-                        </div>
-                      ))}
-                    </>
-                  ) : null}
-                  <p style={{ marginTop: 12 }}><strong>2. DKIM</strong> — CNAME records for signing</p>
-                  {(dns.dkim_records?.length ? dns.dkim_records : [dns.dkim]).map((r) => (
-                    <div key={r.name} className="dns-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                        <code>{r.type} {r.name}</code>
-                        <button type="button" className="text-button" onClick={() => copyText(r.name)}>Copy name</button>
-                        {r.value && !/replace this|provision|copy the|appears here/i.test(r.value) ? (
-                          <button type="button" className="text-button" onClick={() => copyText(r.value)}>Copy value</button>
+                  {(() => {
+                    const domain = selectedName || "";
+                    const dkimRows = dns.dkim_records?.length ? dns.dkim_records : [dns.dkim];
+                    const pendingValues =
+                      [...(dns.verification || []), ...dkimRows].some((r) => isPlaceholderDnsValue(r.value));
+                    type Row = { type: string; host: string; value: string; hint?: string; copyable: boolean };
+                    const rows: Row[] = [];
+                    for (const r of dns.verification || []) {
+                      rows.push({
+                        type: r.type,
+                        host: dnsHostField(r.name, domain),
+                        value: r.value,
+                        hint: "Proves you own the domain",
+                        copyable: !isPlaceholderDnsValue(r.value),
+                      });
+                    }
+                    for (const r of dkimRows) {
+                      rows.push({
+                        type: r.type,
+                        host: dnsHostField(r.name, domain),
+                        value: r.value,
+                        hint: "Signs outgoing mail",
+                        copyable: !isPlaceholderDnsValue(r.value),
+                      });
+                    }
+                    for (const r of dns.mx) {
+                      rows.push({
+                        type: r.type,
+                        host: dnsHostField(r.name, domain),
+                        value: `${r.priority} ${r.value}`,
+                        hint: "Receiving — do not proxy / keep DNS-only",
+                        copyable: true,
+                      });
+                    }
+                    rows.push({
+                      type: dns.spf.type,
+                      host: dnsHostField(dns.spf.name, domain),
+                      value: dns.spf.value,
+                      hint: "Merge into your existing SPF if you already have one (only one SPF TXT on @)",
+                      copyable: true,
+                    });
+                    if (dns.dmarc) {
+                      rows.push({
+                        type: dns.dmarc.type,
+                        host: dnsHostField(dns.dmarc.name, domain),
+                        value: dns.dmarc.value,
+                        hint: "Recommended",
+                        copyable: true,
+                      });
+                    }
+                    return (
+                      <>
+                        {pendingValues ? (
+                          <p className="notice dns-issues" style={{ marginTop: 12 }}>
+                            Some values are still being prepared for this domain. Wait a minute, refresh this page, then copy the real tokens — do not publish the placeholder text.
+                          </p>
                         ) : null}
-                      </div>
-                      <p className="muted" style={{ margin: 0, wordBreak: "break-all" }}>{r.value}</p>
-                    </div>
-                  ))}
-                  <p style={{ marginTop: 12 }}><strong>3. MX</strong> — point receiving at Amazon SES (do not proxy MX)</p>
-                  {dns.mx.map((r) => (
-                    <div key={`${r.priority}-${r.value}`} className="dns-row">
-                      <code>{r.type} {r.name} {r.priority} {r.value}</code>
-                      <button type="button" className="text-button" onClick={() => copyText(`${r.priority} ${r.value}`)}>Copy</button>
-                    </div>
-                  ))}
-                  <p style={{ marginTop: 12 }}><strong>SPF</strong> — merge into an existing SPF TXT if you already have one (only one SPF per name)</p>
-                  <div className="dns-row">
-                    <code>{dns.spf.type} {dns.spf.name} {dns.spf.value}</code>
-                    <button type="button" className="text-button" onClick={() => copyText(dns.spf.value)}>Copy</button>
-                  </div>
-                  {dns.dmarc ? (
-                    <>
-                      <p style={{ marginTop: 12 }}><strong>DMARC</strong> (recommended)</p>
-                      <div className="dns-row">
-                        <code>{dns.dmarc.type} {dns.dmarc.name} {dns.dmarc.value}</code>
-                        <button type="button" className="text-button" onClick={() => copyText(dns.dmarc!.value)}>Copy</button>
-                      </div>
-                    </>
-                  ) : null}
-                  <p style={{ marginTop: 12 }}><strong>Sending</strong></p>
-                  <p>{dns.send_note}</p>
-                  <p style={{ marginTop: 12 }} className="muted">
-                    Adding more addresses (support@, hello@) never requires new DNS or a new SES receipt rule — create them in Flap only.
-                  </p>
+                        <p className="dns-step-title">Records to add</p>
+                        <p className="dns-step-help">
+                          In your DNS UI: set Type, set Host/Name to the Host column, paste Value. TTL can stay default.
+                          After saving, click <strong>Check setup</strong> (propagation can take a few minutes).
+                        </p>
+                        <table className="dns-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Type</th>
+                              <th scope="col">Host</th>
+                              <th scope="col">Value</th>
+                              <th scope="col"><span className="sr-only">Copy</span></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((r) => (
+                              <tr key={`${r.type}-${r.host}-${r.value.slice(0, 24)}`}>
+                                <td><strong>{r.type}</strong></td>
+                                <td>
+                                  <code>{r.host}</code>
+                                  <button type="button" className="text-button" style={{ display: "block", marginTop: 4 }} onClick={() => copyText(r.host)}>
+                                    Copy host
+                                  </button>
+                                </td>
+                                <td>
+                                  <code>{r.value}</code>
+                                  {r.hint ? <p className="dns-step-help" style={{ marginTop: 4 }}>{r.hint}</p> : null}
+                                </td>
+                                <td>
+                                  {r.copyable ? (
+                                    <button type="button" className="text-button" onClick={() => copyText(r.value)}>
+                                      Copy value
+                                    </button>
+                                  ) : (
+                                    <span className="muted">Pending</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="muted" style={{ marginTop: 8 }}>
+                          {dns.send_note} Extra addresses (support@, hello@) never need new DNS — create them under Mailboxes only.
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
-              ) : null}
+              ) : hasDomain ? (
+                <p className="empty-state">Select a domain above to see the exact DNS rows to add.</p>
+              ) : (
+                <p className="empty-state">Add a domain first — then Flap will show the exact DNS rows to paste.</p>
+              )}
             </section>
           </>
         ) : null}

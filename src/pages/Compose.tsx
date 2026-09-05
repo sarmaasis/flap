@@ -234,7 +234,7 @@ export default function Compose({
       ) : sendableMailboxes.length === 0 ? (
         <div className="notice dns-issues" role="status">
           <p>No sender is sending-ready yet. Finish SES sending verification for your domain in Settings, then compose again.</p>
-          <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but outbound requires a verified SES identity (DKIM).</p>
+          <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but this domain’s sending DNS is not verified yet. Finish Setup → DNS records, then try again.</p>
         </div>
       ) : (
         <div className="compose-from-row">
