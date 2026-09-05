@@ -5,11 +5,12 @@ import { createAuth, githubConfigured, googleConfigured } from "./lib/better-aut
 import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
 import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
-import { dispatchStoredMessage, flushScheduled, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
+import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
 import { registerInboundWebhookRoutes } from "./lib/inbound-webhook";
+import { registerProductFeatureRoutes } from "./lib/product-features";
 import {
   canSendMail,
   defaultCustomerDnsRecords,
@@ -224,7 +225,7 @@ app.get("/api/domains", async (c) => {
     return c.json({ domains: [], read_only: true });
   }
   const rows = await c.env.DB.prepare(
-    `SELECT id, name, catch_all_mailbox_id, mail_provider, provider_state, provider_region,
+    `SELECT id, name, catch_all_mailbox_id, color, muted_until, mail_provider, provider_state, provider_region,
             identity_verified_at, mx_verified_at, inbound_rule_ready_at, receiving_ready_at,
             sending_ready_at, last_provider_check_at, last_provider_error, migration_from,
             migration_state, created_at
@@ -338,13 +339,18 @@ app.patch("/api/domains/:id", async (c) => {
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can update domains." }, 403);
-  const body = await c.req.json().catch(() => ({})) as { catch_all_mailbox_id?: string | null };
+  const body = await c.req.json().catch(() => ({})) as {
+    catch_all_mailbox_id?: string | null;
+    color?: string;
+    muted_until?: number | null;
+    muted_days?: number | null;
+  };
   const domainId = c.req.param("id");
   const domain = await c.env.DB.prepare("SELECT id FROM domains WHERE id = ? AND user_id = ?")
     .bind(domainId, ctx.workspaceId)
     .first();
   if (!domain) return c.json({ error: "Domain not found." }, 404);
-  let catchAll: string | null = body.catch_all_mailbox_id ?? null;
+  let catchAll: string | null | undefined = body.catch_all_mailbox_id;
   if (catchAll) {
     const mailbox = await c.env.DB.prepare(
       "SELECT id FROM mailboxes WHERE id = ? AND user_id = ? AND domain_id = ?",
@@ -353,8 +359,28 @@ app.patch("/api/domains/:id", async (c) => {
       .first();
     if (!mailbox) return c.json({ error: "Catch-all mailbox must belong to this domain." }, 400);
   }
-  await c.env.DB.prepare("UPDATE domains SET catch_all_mailbox_id = ? WHERE id = ? AND user_id = ?")
-    .bind(catchAll, domainId, ctx.workspaceId)
+
+  const patches: string[] = [];
+  const binds: Array<string | number | null> = [];
+  if ("catch_all_mailbox_id" in body) {
+    patches.push("catch_all_mailbox_id = ?");
+    binds.push(catchAll ?? null);
+  }
+  if (typeof body.color === "string") {
+    patches.push("color = ?");
+    binds.push(body.color.slice(0, 32));
+  }
+  if ("muted_until" in body) {
+    patches.push("muted_until = ?");
+    binds.push(body.muted_until == null ? null : Number(body.muted_until));
+  } else if (typeof body.muted_days === "number") {
+    patches.push("muted_until = ?");
+    binds.push(body.muted_days > 0 ? nowMs() + body.muted_days * 86400000 : null);
+  }
+  if (!patches.length) return c.json({ error: "No updates provided." }, 400);
+  binds.push(domainId, ctx.workspaceId);
+  await c.env.DB.prepare(`UPDATE domains SET ${patches.join(", ")} WHERE id = ? AND user_id = ?`)
+    .bind(...binds)
     .run();
   return c.json({ ok: true });
 });
@@ -515,7 +541,7 @@ app.post("/api/domains/:id/migrate-ses", async (c) => {
   });
 });
 
-const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, rfc_message_id, created_at`;
+const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, rfc_message_id, assignee_user_id, plus_tag, created_at`;
 
 /** Prefer the earliest copy when SES dual-rules stored the same Message-ID twice. */
 function dedupeByRfcMessageId<T extends { id?: unknown; rfc_message_id?: unknown; date_ms?: unknown }>(
@@ -978,6 +1004,19 @@ app.post("/api/mail/send", async (c) => {
   if (draft) return c.json({ ok: true, draft: true, id });
   if (scheduledAt) return c.json({ ok: true, scheduled: true, id, scheduled_at: scheduledAt });
 
+  // Undo-send: short delay via scheduled folder instead of immediate SES dispatch.
+  const prefs = await loadSettings(c.env.DB, ctx.workspaceId).catch(() => ({ undo_send_seconds: 10 }));
+  const undoSeconds = Math.max(0, Math.min(60, Number(prefs.undo_send_seconds ?? 10)));
+  if (undoSeconds > 0) {
+    const undoAt = now + undoSeconds * 1000;
+    await c.env.DB.prepare(
+      "UPDATE messages SET folder = 'scheduled', scheduled_at = ? WHERE id = ? AND user_id = ?",
+    )
+      .bind(undoAt, id, ctx.workspaceId)
+      .run();
+    return c.json({ ok: true, scheduled: true, undo: true, id, scheduled_at: undoAt, undo_seconds: undoSeconds });
+  }
+
   const error = await dispatchStoredMessage(c.env, {
     id,
     user_id: ctx.workspaceId,
@@ -1105,6 +1144,7 @@ registerBillingRoutes(app);
 registerDnsToolRoutes(app);
 registerGrowthRoutes(app);
 registerInboundWebhookRoutes(app);
+registerProductFeatureRoutes(app);
 
 export default {
   fetch: app.fetch,

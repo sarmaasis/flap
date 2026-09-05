@@ -9,10 +9,12 @@ import {
   type DnsRecords,
   type Domain,
   type Filter,
+  type Label,
   type Mailbox,
   type PlanSummary,
   type Prefs,
   type Signature,
+  type Suppression,
   type TeamInvite,
   type TeamMember,
   type TeamResponse,
@@ -24,12 +26,12 @@ import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 
-type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "developers" | "privacy" | "billing" | "team" | "referrals";
+type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "delivery" | "developers" | "privacy" | "billing" | "team" | "referrals";
 
 function initialTab(): Tab {
   if (window.location.pathname === "/settings/referrals") return "referrals";
   const q = new URLSearchParams(window.location.search).get("tab");
-  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "developers", "privacy", "billing", "team", "referrals"];
+  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "delivery", "developers", "privacy", "billing", "team", "referrals"];
   return allowed.includes(q as Tab) ? (q as Tab) : "setup";
 }
 
@@ -103,7 +105,11 @@ export default function Settings() {
   const [teamInfo, setTeamInfo] = useState<Pick<TeamResponse, "teams_unlocked" | "plan_id" | "limits" | "workspace" | "shared_mailboxes"> | null>(null);
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteMailboxes, setInviteMailboxes] = useState<string[]>([]);
-  const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "", notify_browser: 0 });
+  const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "", notify_browser: 0, undo_send_seconds: 10 });
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [labelName, setLabelName] = useState("");
+  const [suppressions, setSuppressions] = useState<Suppression[]>([]);
+  const [deliveryInfo, setDeliveryInfo] = useState<Awaited<ReturnType<typeof api.deliverability>> | null>(null);
   const [newToken, setNewToken] = useState("");
   const [newWebhookSecret, setNewWebhookSecret] = useState("");
   const [billing, setBilling] = useState<BillingSubscription | null>(null);
@@ -201,6 +207,13 @@ export default function Settings() {
         case "aliases": {
           const a = await api.aliases();
           setAliases(a.aliases);
+          break;
+        }
+        case "delivery": {
+          const [d, s, l] = await Promise.all([api.deliverability(), api.suppressions().catch(() => ({ suppressions: [] })), api.labels()]);
+          setDeliveryInfo(d);
+          setSuppressions(s.suppressions);
+          setLabels(l.labels);
           break;
         }
         case "developers": {
@@ -477,6 +490,7 @@ export default function Settings() {
     ["contacts", "Contacts"],
     ["filters", "Rules"],
     ["aliases", "Aliases"],
+    ["delivery", "Delivery"],
     ["developers", "Developers"],
     ["privacy", "Privacy"],
     ["billing", "Billing"],
@@ -625,15 +639,19 @@ export default function Settings() {
                   All plans use the same mail setup. Upgrades unlock more domains/mailboxes/sends — never a DNS cutover.
                 </p>
               )}
-              {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Receiving</th><th>Sending</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+              {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Color</th><th>Mute</th><th>Receiving</th><th>Sending</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
                 {domains.map((d) => {
                   const receivingReady = Boolean(d.receiving_ready_at);
                   const sendingReady = Boolean(d.sending_ready_at);
                   const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
+                  const muted = Boolean(d.muted_until && d.muted_until > Date.now());
                   return (
                   <tr key={d.id}>
                     <td>
-                      <button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button>
+                      <button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>
+                        <span className="domain-swatch" style={{ background: d.color || "#1c6e5c" }} aria-hidden />
+                        {d.name}
+                      </button>
                       {legacy ? (
                         <div className="muted" style={{ fontSize: 12 }}>
                           Legacy setup
@@ -650,6 +668,30 @@ export default function Settings() {
                         </div>
                       ) : null}
                     </td>
+                    <td>
+                      <input
+                        type="color"
+                        value={d.color && /^#/.test(d.color) ? d.color : "#1c6e5c"}
+                        aria-label={`Color for ${d.name}`}
+                        onChange={(e) => {
+                          void api.updateDomain(d.id, { color: e.target.value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color."));
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
+                            setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days — new mail goes to Archive.`);
+                            return refresh();
+                          }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute."));
+                        }}
+                      >
+                        {muted ? "Unmute" : "Mute 7d"}
+                      </button>
+                    </td>
                     <td>{receivingReady ? "✓ Ready" : "⚠ Setup required"}</td>
                     <td>{sendingReady ? "✓ Ready" : "⚠ Setup required"}</td>
                     <td>
@@ -657,7 +699,7 @@ export default function Settings() {
                         value={d.catch_all_mailbox_id ?? ""}
                         onChange={(e) => {
                           const value = e.target.value || null;
-                          void api.updateDomain(d.id, value).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
+                          void api.updateDomain(d.id, { catch_all_mailbox_id: value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
                         }}
                         aria-label={`Catch-all for ${d.name}`}
                       >
@@ -672,6 +714,9 @@ export default function Settings() {
                   );
                 })}
               </tbody></table> : setupLoading ? null : <p className="empty-state">No domains yet. Add the domain you plan to receive mail on.</p>}
+              <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
+                Plus-addressing works automatically: mail to <code>hello+stripe@yourdomain.com</code> lands in <code>hello@</code>.
+              </p>
             </section>
             <section className="settings-card" aria-labelledby="mailboxes-title">
               <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Flap accepts mail for addresses listed here, plus aliases and catch-all when enabled.</p></div></div>
@@ -981,6 +1026,82 @@ export default function Settings() {
           </section>
         ) : null}
 
+        {tab === "delivery" ? (
+          <>
+            <section className="settings-card">
+              <div className="section-heading"><div><h2>Deliverability</h2><p>Domain sending readiness, bounces, and client access status.</p></div></div>
+              {deliveryInfo ? (
+                <>
+                  <p className="muted">Active suppressions: {deliveryInfo.suppressions_active}
+                    {Object.keys(deliveryInfo.suppressions_by_reason).length
+                      ? ` (${Object.entries(deliveryInfo.suppressions_by_reason).map(([k, v]) => `${k}: ${v}`).join(", ")})`
+                      : ""}
+                  </p>
+                  <table className="table" style={{ marginTop: 12 }}>
+                    <thead><tr><th>Domain</th><th>Identity</th><th>MX</th><th>Receiving</th><th>Sending</th><th>Last error</th></tr></thead>
+                    <tbody>
+                      {(deliveryInfo.domains || []).map((d) => (
+                        <tr key={d.id}>
+                          <td><span className="domain-swatch" style={{ background: d.color || "#1c6e5c" }} aria-hidden />{d.name}</td>
+                          <td>{d.identity_verified_at ? "✓" : "—"}</td>
+                          <td>{d.mx_verified_at ? "✓" : "—"}</td>
+                          <td>{d.receiving_ready_at ? "✓" : "—"}</td>
+                          <td>{d.sending_ready_at ? "✓" : "—"}</td>
+                          <td className="muted" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="notice" style={{ marginTop: 16 }}>
+                    <strong>IMAP / SMTP</strong>
+                    <p style={{ margin: "6px 0 0" }}>{deliveryInfo.imap?.note || "Coming soon."}</p>
+                  </div>
+                </>
+              ) : <p className="muted">Loading…</p>}
+            </section>
+            <section className="settings-card">
+              <div className="section-heading"><div><h2>Labels</h2><p>Organize mail with reusable labels. Apply them from the open message or Rules.</p></div></div>
+              <form className="row-form" onSubmit={(e) => {
+                e.preventDefault();
+                void api.createLabel(labelName).then(() => { setLabelName(""); return api.labels(); }).then((r) => setLabels(r.labels)).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not create label."));
+              }}>
+                <input placeholder="Label name" value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
+                <button className="btn" type="submit">Add label</button>
+              </form>
+              {labels.length ? (
+                <ul className="mt-2" style={{ listStyle: "none", padding: 0 }}>
+                  {labels.map((l) => (
+                    <li key={l.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                      <span className="domain-swatch" style={{ background: l.color }} aria-hidden />
+                      <span>{l.name}</span>
+                      <button type="button" className="btn btn-danger" style={{ marginLeft: "auto" }} onClick={() => void api.deleteLabel(l.id).then(() => api.labels()).then((r) => setLabels(r.labels))}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="empty-state">No labels yet.</p>}
+            </section>
+            <section className="settings-card">
+              <div className="section-heading"><div><h2>Bounce &amp; complaint list</h2><p>Addresses suppressed after SES bounce/complaint events. Remove to allow sending again.</p></div></div>
+              {suppressions.length ? (
+                <table className="table">
+                  <thead><tr><th>Email</th><th>Reason</th><th>Source</th><th>When</th><th /></tr></thead>
+                  <tbody>
+                    {suppressions.map((s) => (
+                      <tr key={s.id}>
+                        <td>{s.email}</td>
+                        <td>{s.reason}</td>
+                        <td>{s.source}</td>
+                        <td className="muted">{new Date(s.created_at).toLocaleString()}</td>
+                        <td><button type="button" className="btn btn-ghost" onClick={() => void api.deleteSuppression(s.id).then(() => api.suppressions()).then((r) => setSuppressions(r.suppressions))}>Remove</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <p className="empty-state">No suppressions.</p>}
+            </section>
+          </>
+        ) : null}
+
         {tab === "developers" ? (
           <>
             <section className="settings-card">
@@ -1055,6 +1176,7 @@ export default function Settings() {
                     vacation_enabled: Boolean(prefs.vacation_enabled),
                     vacation_body: prefs.vacation_body,
                     notify_browser: Boolean(prefs.notify_browser),
+                    undo_send_seconds: Number(prefs.undo_send_seconds ?? 10),
                   });
                   setErr("");
                   setNotice(prefs.notify_browser ? "Notifications on. Keep a Flap tab open to receive alerts." : "Notifications disabled.");
@@ -1068,6 +1190,17 @@ export default function Settings() {
                   />
                   Enable browser notifications for new mail
                 </label>
+                <label>
+                  Undo send window (seconds)
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={prefs.undo_send_seconds ?? 10}
+                    onChange={(e) => setPrefs((p) => ({ ...p, undo_send_seconds: Number(e.target.value) }))}
+                  />
+                </label>
+                <p className="muted" style={{ fontSize: 12 }}>0 disables undo. Default 10 — message sits in Scheduled until the timer fires.</p>
                 <button className="btn" type="submit">Save notifications</button>
               </form>
             </section>

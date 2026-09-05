@@ -1948,3 +1948,52 @@ kbd {
   color: var(--cta);
 }
 .problem-viz code { font-size: 0.9em; }
+
+.domain-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1px solid rgba(20, 20, 19, 0.12);
+}
+.msg-row {
+  position: relative;
+}
+.msg-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--domain-color, transparent);
+}
+.collab-panel {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.collab-panel h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.note-list { list-style: none; padding: 0; margin: 0 0 8px; }
+.note-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.note-list .muted { font-size: 11px; }
+
+@media (max-width: 900px) {
+  .read-actions .btn { font-size: 12px; }
+  .sender-actions { width: 100%; margin-left: 0; margin-top: 8px; }
+  .list-toolbar .btn { flex: 1; }
+}

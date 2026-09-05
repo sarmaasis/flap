@@ -129,7 +129,17 @@ export default function Login() {
           </div>
           {mode === "password" ? (
             <div className="stack gap-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <Label htmlFor="password">Password</Label>
+                <a
+                  href="/forgot-password"
+                  className="muted"
+                  style={{ fontSize: 12 }}
+                  onClick={(e) => { e.preventDefault(); go("/forgot-password"); }}
+                >
+                  Forgot password?
+                </a>
+              </div>
               <Input
                 id="password"
                 type="password"

@@ -7,6 +7,8 @@ import { BLOG_POSTS } from "./content/blog";
 
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Inbox = lazy(() => import("./pages/Inbox"));
@@ -44,6 +46,8 @@ export default function App() {
   if (path === "/setup") return <Screen><Setup /></Screen>;
   if (path === "/signup") return <Screen><Signup /></Screen>;
   if (path === "/login") return <Screen><Login /></Screen>;
+  if (path === "/forgot-password") return <Screen><ForgotPassword /></Screen>;
+  if (path === "/reset-password") return <Screen><ResetPassword /></Screen>;
   if (path === "/verify-email") return <Screen><VerifyEmail /></Screen>;
   if (path.startsWith("/invite/")) return <Screen><InviteAccept /></Screen>;
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;

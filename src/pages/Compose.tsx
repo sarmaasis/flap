@@ -37,7 +37,10 @@ export default function Compose({
   variant?: "modal" | "pane";
   onClose?: () => void;
   onDiscard?: () => void | Promise<void>;
-  onSent?: (kind: "sent" | "draft" | "scheduled") => void | Promise<void>;
+  onSent?: (
+    kind: "sent" | "draft" | "scheduled",
+    meta?: { id?: string; undo?: boolean; undo_seconds?: number },
+  ) => void | Promise<void>;
 }) {
   const editorRef = useRef<EditorHandle>(null);
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -128,7 +131,12 @@ export default function Compose({
       const result = await api.send(payload(kind === "draft", scheduled_at));
       setDraftId(result.id);
       dirtyRef.current = false;
-      await onSent?.(kind === "schedule" ? "scheduled" : kind === "draft" ? "draft" : "sent");
+      const sentKind = kind === "schedule" ? "scheduled" : kind === "draft" ? "draft" : "sent";
+      await onSent?.(sentKind, {
+        id: result.id,
+        undo: Boolean(result.undo),
+        undo_seconds: result.undo_seconds,
+      });
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Send failed.");
     } finally {

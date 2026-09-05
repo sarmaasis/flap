@@ -109,6 +109,15 @@ export async function ingestRawEmail(
     return { ok: false, reason: "no_mailbox" };
   }
 
+  const plusTag =
+    recipients
+      .map((a) => {
+        const local = a.split("@")[0] || "";
+        const i = local.indexOf("+");
+        return i >= 0 ? local.slice(i + 1).toLowerCase() : "";
+      })
+      .find(Boolean) || "";
+
   // Never auto-create mailboxes; require domain receiving readiness for SES domains.
   const domain = await env.DB.prepare(
     `SELECT id, mail_provider, receiving_ready_at, mx_verified_at, identity_verified_at,
@@ -153,11 +162,22 @@ export async function ingestRawEmail(
 
   const userId = mailbox.user_id;
 
+  // Muted domains skip the inbox (still stored under Archive).
+  const domainMute = await env.DB.prepare(
+    "SELECT muted_until FROM domains WHERE id = ?",
+  )
+    .bind(mailbox.domain_id)
+    .first<{ muted_until: number | null }>();
+  const domainMuted = Boolean(domainMute?.muted_until && domainMute.muted_until > nowMs());
+
   const policy = await applyInboundPolicy(env.DB, userId, {
     from: parsed.from,
     to: recipients.join(", ") || envelopeRecipients[0] || "",
     subject: parsed.subject,
   });
+  if (domainMuted && policy.folder === "inbox") {
+    policy.folder = "archive";
+  }
   const snippet = makeSnippet(parsed.text, parsed.html);
   const id = randomId("msg");
   const now = nowMs();
@@ -214,8 +234,8 @@ export async function ingestRawEmail(
   await env.DB.prepare(
     `INSERT INTO messages
       (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body,
-       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, storage_bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, plus_tag, storage_bytes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -237,6 +257,7 @@ export async function ingestRawEmail(
       referencesHeader,
       threadId,
       policy.label,
+      plusTag.slice(0, 120),
       bodyBytes,
       now,
     )
@@ -389,8 +410,20 @@ async function parseMessage(raw: ArrayBuffer): Promise<Parsed> {
 
 async function resolveMailbox(db: D1Database, addresses: string[]): Promise<MailboxRow | null> {
   const now = nowMs();
+  const candidates: string[] = [];
   for (const addr of addresses) {
-    const lower = addr.toLowerCase();
+    const lower = addr.toLowerCase().trim();
+    if (!lower.includes("@")) continue;
+    candidates.push(lower);
+    // Plus-addressing: hello+stripe@domain → hello@domain
+    const [local, domain] = lower.split("@");
+    if (local.includes("+")) {
+      const base = `${local.split("+")[0]}@${domain}`;
+      if (base !== lower) candidates.push(base);
+    }
+  }
+
+  for (const lower of candidates) {
     const row = await db
       .prepare("SELECT id, user_id, address, domain_id FROM mailboxes WHERE lower(address) = ?")
       .bind(lower)
@@ -410,7 +443,7 @@ async function resolveMailbox(db: D1Database, addresses: string[]): Promise<Mail
     if (alias) return alias;
   }
 
-  for (const addr of addresses) {
+  for (const addr of candidates) {
     const domainName = addr.split("@")[1]?.toLowerCase();
     if (!domainName) continue;
     const catchAll = await db

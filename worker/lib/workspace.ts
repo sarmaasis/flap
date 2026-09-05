@@ -114,16 +114,39 @@ function policyFromAction(action: string, label: string, forwardTo: string): Inb
 }
 
 export async function loadSettings(db: D1Database, userId: string) {
-  return (
-    (await db
+  try {
+    const row = await db
+      .prepare(
+        "SELECT vacation_enabled, vacation_body, notify_browser, undo_send_seconds FROM user_settings WHERE user_id = ?",
+      )
+      .bind(userId)
+      .first<{
+        vacation_enabled: number;
+        vacation_body: string;
+        notify_browser: number;
+        undo_send_seconds: number | null;
+      }>();
+    if (row) {
+      return {
+        vacation_enabled: row.vacation_enabled,
+        vacation_body: row.vacation_body,
+        notify_browser: row.notify_browser,
+        undo_send_seconds: row.undo_send_seconds ?? 10,
+      };
+    }
+  } catch {
+    const legacy = await db
       .prepare("SELECT vacation_enabled, vacation_body, notify_browser FROM user_settings WHERE user_id = ?")
       .bind(userId)
-      .first<{ vacation_enabled: number; vacation_body: string; notify_browser: number }>()) ?? {
-      vacation_enabled: 0,
-      vacation_body: "",
-      notify_browser: 0,
-    }
-  );
+      .first<{ vacation_enabled: number; vacation_body: string; notify_browser: number }>();
+    if (legacy) return { ...legacy, undo_send_seconds: 10 };
+  }
+  return {
+    vacation_enabled: 0,
+    vacation_body: "",
+    notify_browser: 0,
+    undo_send_seconds: 10,
+  };
 }
 
 export function normalizeMessageId(value: string | null | undefined): string {
@@ -823,6 +846,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       vacation_enabled?: boolean;
       vacation_body?: string;
       notify_browser?: boolean;
+      undo_send_seconds?: number;
     };
     const now = nowMs();
     const current = await loadSettings(c.env.DB, user.id);
@@ -831,16 +855,21 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const vacationBody = typeof body.vacation_body === "string" ? body.vacation_body : current.vacation_body;
     const notifyBrowser =
       typeof body.notify_browser === "boolean" ? (body.notify_browser ? 1 : 0) : current.notify_browser;
+    const undoSendSeconds =
+      typeof body.undo_send_seconds === "number"
+        ? Math.max(0, Math.min(60, Math.floor(body.undo_send_seconds)))
+        : current.undo_send_seconds ?? 10;
     await c.env.DB.prepare(
-      `INSERT INTO user_settings (user_id, vacation_enabled, vacation_body, notify_browser, updated_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO user_settings (user_id, vacation_enabled, vacation_body, notify_browser, undo_send_seconds, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          vacation_enabled = excluded.vacation_enabled,
          vacation_body = excluded.vacation_body,
          notify_browser = excluded.notify_browser,
+         undo_send_seconds = excluded.undo_send_seconds,
          updated_at = excluded.updated_at`,
     )
-      .bind(user.id, vacationEnabled, vacationBody, notifyBrowser, now)
+      .bind(user.id, vacationEnabled, vacationBody, notifyBrowser, undoSendSeconds, now)
       .run();
     return c.json({ ok: true });
   });

@@ -14,6 +14,8 @@ export type Domain = {
   id: string;
   name: string;
   catch_all_mailbox_id?: string | null;
+  color?: string | null;
+  muted_until?: number | null;
   created_at: number;
   mail_provider?: string | null;
   provider_state?: string | null;
@@ -47,6 +49,8 @@ export type MailSummary = {
   label?: string;
   thread_id?: string | null;
   rfc_message_id?: string | null;
+  assignee_user_id?: string | null;
+  plus_tag?: string | null;
   created_at: number;
 };
 export type MailFull = MailSummary & {
@@ -97,7 +101,23 @@ export type Webhook = {
   last_triggered_at: number | null;
   secret?: string;
 };
-export type Prefs = { vacation_enabled: number; vacation_body: string; notify_browser?: number };
+export type Prefs = {
+  vacation_enabled: number;
+  vacation_body: string;
+  notify_browser?: number;
+  undo_send_seconds?: number;
+};
+export type Label = { id: string; name: string; color: string; created_at: number };
+export type MessageNote = { id: string; body: string; created_at: number; user_id: string; author_email?: string };
+export type Suppression = {
+  id: string;
+  email: string;
+  reason: string;
+  source: string;
+  provider_message_id?: string | null;
+  created_at: number;
+  expires_at?: number | null;
+};
 export type TeamInvite = {
   id: string;
   email: string;
@@ -239,8 +259,10 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
-  updateDomain: (id: string, catch_all_mailbox_id: string | null) =>
-    req<{ ok: boolean }>(`/api/domains/${id}`, { method: "PATCH", body: JSON.stringify({ catch_all_mailbox_id }) }),
+  updateDomain: (
+    id: string,
+    patch: { catch_all_mailbox_id?: string | null; color?: string; muted_until?: number | null; muted_days?: number | null },
+  ) => req<{ ok: boolean }>(`/api/domains/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteDomain: (id: string) => req<{ ok: boolean }>(`/api/domains/${id}`, { method: "DELETE" }),
   mailboxes: () => req<{ mailboxes: Mailbox[] }>("/api/mailboxes"),
   createMailbox: (domain_id: string, local_part: string) =>
@@ -268,10 +290,40 @@ export const api = {
     }),
   remove: (id: string) => req<{ ok: boolean }>(`/api/mail/${id}`, { method: "DELETE" }),
   send: (body: SendPayload) =>
-    req<{ ok: boolean; id: string; draft?: boolean; scheduled?: boolean }>(
+    req<{ ok: boolean; id: string; draft?: boolean; scheduled?: boolean; undo?: boolean; scheduled_at?: number; undo_seconds?: number }>(
       "/api/mail/send",
       { method: "POST", body: JSON.stringify(body) },
     ),
+  undoSend: (id: string) =>
+    req<{ ok: boolean; draft?: boolean; id: string }>(`/api/mail/${id}/undo-send`, { method: "POST", body: "{}" }),
+  labels: () => req<{ labels: Label[] }>("/api/labels"),
+  createLabel: (name: string, color?: string) =>
+    req<{ label: Label }>("/api/labels", { method: "POST", body: JSON.stringify({ name, color }) }),
+  deleteLabel: (id: string) => req<{ ok: boolean }>(`/api/labels/${id}`, { method: "DELETE" }),
+  addMessageLabel: (messageId: string, body: { label_id?: string; name?: string }) =>
+    req<{ ok: boolean; label_id: string; name: string }>(`/api/mail/${messageId}/labels`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeMessageLabel: (messageId: string, labelId: string) =>
+    req<{ ok: boolean }>(`/api/mail/${messageId}/labels/${labelId}`, { method: "DELETE" }),
+  messageNotes: (messageId: string) => req<{ notes: MessageNote[] }>(`/api/mail/${messageId}/notes`),
+  addMessageNote: (messageId: string, body: string) =>
+    req<{ note: MessageNote }>(`/api/mail/${messageId}/notes`, { method: "POST", body: JSON.stringify({ body }) }),
+  assignMessage: (messageId: string, user_id: string | null) =>
+    req<{ ok: boolean; assignee_user_id: string | null }>(`/api/mail/${messageId}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ user_id }),
+    }),
+  suppressions: () => req<{ suppressions: Suppression[] }>("/api/suppressions"),
+  deleteSuppression: (id: string) => req<{ ok: boolean }>(`/api/suppressions/${id}`, { method: "DELETE" }),
+  deliverability: () =>
+    req<{
+      domains: Domain[];
+      suppressions_active: number;
+      suppressions_by_reason: Record<string, number>;
+      imap: { status: string; note: string };
+    }>("/api/deliverability"),
   search: (q: string, signal?: AbortSignal) => req<{ q: string; messages: MailSummary[] }>(`/api/search?q=${encodeURIComponent(q)}`, { signal }),
   contacts: () => req<{ contacts: Contact[] }>("/api/contacts"),
   createContact: (email: string, name?: string) =>
@@ -345,7 +397,12 @@ export const api = {
     req<{ ok: boolean }>(`/api/team/mailboxes/${mailboxId}/members/${userId}`, { method: "DELETE" }),
   authProviders: () => req<{ google: boolean; github: boolean }>("/api/auth/providers"),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
-  savePrefs: (body: { vacation_enabled?: boolean; vacation_body?: string; notify_browser?: boolean }) =>
+  savePrefs: (body: {
+    vacation_enabled?: boolean;
+    vacation_body?: string;
+    notify_browser?: boolean;
+    undo_send_seconds?: number;
+  }) =>
     req<{ ok: boolean }>("/api/settings/prefs", { method: "PUT", body: JSON.stringify(body) }),
   exportBackup: async () => {
     const res = await fetch("/api/export", { credentials: "same-origin" });

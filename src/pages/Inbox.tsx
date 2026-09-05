@@ -1,12 +1,15 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   api,
   type Attachment,
   type Contact,
+  type Domain,
   type FolderCounts,
+  type Label,
   type MailFull,
   type MailSummary,
   type Mailbox,
+  type MessageNote,
   type Signature,
   type Template,
 } from "../lib/api";
@@ -39,7 +42,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [qDebounced, setQDebounced] = useState("");
   const [err, setErr] = useState("");
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [notes, setNotes] = useState<MessageNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [teamMembers, setTeamMembers] = useState<Array<{ user_id: string; email: string }>>([]);
+  const [teamsUnlocked, setTeamsUnlocked] = useState(false);
   const [mailbox, setMailbox] = useState("");
+  const [undoToast, setUndoToast] = useState<{ id: string; seconds: number } | null>(null);
   const [showCompose, setShowCompose] = useState(Boolean(composeOpen));
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | null>(null);
   const [email, setEmail] = useState("");
@@ -69,6 +79,18 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => window.clearTimeout(t);
   }, [q]);
 
+  useEffect(() => {
+    if (!undoToast) return;
+    if (undoToast.seconds <= 0) {
+      setUndoToast(null);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setUndoToast((prev) => (prev && prev.id === undoToast.id ? { ...prev, seconds: prev.seconds - 1 } : prev));
+    }, 1000);
+    return () => window.clearTimeout(t);
+  }, [undoToast]);
+
   const refreshBootstrap = useCallback(async () => {
     const data = await api.bootstrap();
     setEmail(data.user.email);
@@ -79,6 +101,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setSignatures(data.signatures);
     setNotifyBrowser(Boolean(data.settings.notify_browser));
     const domains = await api.domains().catch(() => ({ domains: [] as import("../lib/api").Domain[] }));
+    setDomains(domains.domains);
+    void api.labels().then((r) => setLabels(r.labels)).catch(() => undefined);
+    void api.team().then((t) => {
+      setTeamsUnlocked(Boolean(t.teams_unlocked));
+      setTeamMembers((t.members || []).map((m) => ({ user_id: m.user_id, email: m.email })));
+    }).catch(() => undefined);
     if (data.mailboxes.length === 0) {
       setNeedsSetup(true);
       setDomainSetupPending(false);
@@ -136,6 +164,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         setMessage(d.message);
         setAtts(d.attachments);
         setList((prev) => prev.map((m) => (m.id === selected ? { ...m, unread: 0 } : m)));
+        void api.messageNotes(selected).then((n) => { if (!ac.signal.aborted) setNotes(n.notes); }).catch(() => setNotes([]));
         try {
           const t = await api.thread(selected, ac.signal);
           if (!ac.signal.aborted) setThread(t.messages);
@@ -583,17 +612,21 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 ) : null}
               </div>
             ) : (
-              visibleList.map((m) => (
+              visibleList.map((m) => {
+                const domain = domains.find((d) => d.id === mailboxes.find((mb) => mb.id === m.mailbox_id)?.domain_id);
+                return (
                 <MessageRow
                   key={m.id}
                   row={m}
                   folder={folder}
+                  domainColor={domain?.color || undefined}
                   active={selected === m.id || composeDraft?.id === m.id}
                   onOpen={() => onRowClick(m)}
                   onStar={() => void toggleStar(m)}
                   onDelete={() => void discardMail(m.id, m.folder || folder)}
                 />
-              ))
+                );
+              })
             )}
           </div>
         </section>
@@ -629,9 +662,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                     variant="pane"
                     onClose={closeCompose}
                     onDiscard={composeDraft?.id ? () => void discardMail(composeDraft.id!, folder) : undefined}
-                    onSent={async (kind) => {
+                    onSent={async (kind, meta) => {
                       closeCompose();
-                      setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
+                      if (meta?.undo && meta.id) {
+                        setUndoToast({ id: meta.id, seconds: meta.undo_seconds || 10 });
+                        setFolder("scheduled");
+                      } else {
+                        setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
+                      }
                       await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
                     }}
                   />
@@ -769,6 +807,79 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               ) : message.has_attachments ? (
                 <p className="muted">This message had attachments, but R2 is not bound so files were not stored.</p>
               ) : null}
+              <div className="collab-panel">
+                <h3>Organize</h3>
+                <div className="list-toolbar" style={{ marginTop: 0 }}>
+                  <select
+                    aria-label="Add label"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      e.target.value = "";
+                      if (!name) return;
+                      void api.addMessageLabel(message.id, { name }).then((r) => {
+                        setMessage({ ...message, label: r.name });
+                        setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: r.name } : item)));
+                        return api.labels().then((l) => setLabels(l.labels));
+                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not label."));
+                    }}
+                  >
+                    <option value="">Add label…</option>
+                    {labels.map((l) => <option key={l.id} value={l.name}>{l.name}</option>)}
+                    <option value="Follow-up">Follow-up</option>
+                    <option value="Customer">Customer</option>
+                  </select>
+                  {teamsUnlocked ? (
+                    <select
+                      aria-label="Assign"
+                      value={message.assignee_user_id || ""}
+                      onChange={(e) => {
+                        const user_id = e.target.value || null;
+                        void api.assignMessage(message.id, user_id).then(() => {
+                          setMessage({ ...message, assignee_user_id: user_id });
+                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not assign."));
+                      }}
+                    >
+                      <option value="">Unassigned</option>
+                      {teamMembers.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>{m.email}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 12 }}>Assignment on Studio</span>
+                  )}
+                </div>
+                {message.plus_tag ? <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>Plus-tag: +{message.plus_tag}</p> : null}
+                <h3 style={{ marginTop: 14 }}>Internal notes</h3>
+                {teamsUnlocked ? (
+                  <>
+                    <ul className="note-list">
+                      {notes.map((n) => (
+                        <li key={n.id}>
+                          <div>{n.body}</div>
+                          <div className="muted">{n.author_email || "teammate"} · {new Date(n.created_at).toLocaleString()}</div>
+                        </li>
+                      ))}
+                    </ul>
+                    <form
+                      className="row-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!noteDraft.trim()) return;
+                        void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
+                          setNotes((prev) => [...prev, r.note]);
+                          setNoteDraft("");
+                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
+                      }}
+                    >
+                      <input placeholder="Private note (not emailed)" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
+                      <button className="btn" type="submit">Add note</button>
+                    </form>
+                  </>
+                ) : (
+                  <p className="muted" style={{ fontSize: 12 }}>Private team notes are on Studio.</p>
+                )}
+              </div>
               </article>
             </>
           )}
@@ -809,13 +920,40 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             variant="modal"
             onClose={closeCompose}
             onDiscard={composeDraft?.id && composeDraft.mode === "draft" ? () => void discardMail(composeDraft.id!, "drafts") : undefined}
-            onSent={async (kind) => {
+            onSent={async (kind, meta) => {
               closeCompose();
-              setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
+              if (meta?.undo && meta.id) {
+                setUndoToast({ id: meta.id, seconds: meta.undo_seconds || 10 });
+                setFolder("scheduled");
+              } else {
+                setFolder(kind === "draft" ? "drafts" : kind === "scheduled" ? "scheduled" : "sent");
+              }
               await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
             }}
           />
         </Suspense>
+      ) : null}
+      {undoToast ? (
+        <div className="mail-toast" role="status">
+          <div>
+            <strong>Message queued</strong>
+            <span>Sending in {undoToast.seconds}s — undo to keep as draft.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const id = undoToast.id;
+              setUndoToast(null);
+              void api.undoSend(id).then(() => {
+                setFolder("drafts");
+                return loadList();
+              }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not undo."));
+            }}
+          >
+            Undo
+          </button>
+          <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setUndoToast(null)}>×</button>
+        </div>
       ) : null}
       {helpOpen ? (
         <div className="modal-back" onClick={() => setHelpOpen(false)}>
@@ -845,6 +983,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
 const MessageRow = memo(function MessageRow({
   row,
   folder,
+  domainColor,
   active,
   onOpen,
   onStar,
@@ -852,6 +991,7 @@ const MessageRow = memo(function MessageRow({
 }: {
   row: MailSummary;
   folder: string;
+  domainColor?: string;
   active: boolean;
   onOpen: () => void;
   onStar: () => void;
@@ -865,7 +1005,10 @@ const MessageRow = memo(function MessageRow({
       ? "Delete forever"
       : "Move to Trash";
   return (
-    <div className={`msg-row${active ? " active" : ""}${row.unread ? " unread" : ""}`}>
+    <div
+      className={`msg-row${active ? " active" : ""}${row.unread ? " unread" : ""}`}
+      style={domainColor ? ({ ["--domain-color"]: domainColor } as CSSProperties) : undefined}
+    >
       <button type="button" className="star-btn" aria-label={row.starred ? "Unstar" : "Star"} onClick={(e) => { e.stopPropagation(); onStar(); }}>{row.starred ? "★" : "☆"}</button>
       <button type="button" className="msg-row-main" onClick={onOpen}>
         <span className="mail-avatar" aria-hidden>{initials(who)}</span>
