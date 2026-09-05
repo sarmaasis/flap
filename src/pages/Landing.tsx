@@ -89,7 +89,7 @@ const FAQS = [
   },
   {
     q: "How does DNS / delivery work?",
-    a: "Flap uses Cloudflare Email Routing under the hood. You add MX/SPF at your DNS host, then a Worker routing rule for each mailbox. Flap shows the exact records and can check them for you.",
+    a: "Add the domain in Flap, publish the MX/SPF/DKIM records Flap shows at any DNS host (Namecheap, GoDaddy, Cloudflare, Route 53, etc.), create a mailbox, then Check DNS. Your domain does not need to be a Cloudflare zone.",
   },
   {
     q: "Can I export my data?",

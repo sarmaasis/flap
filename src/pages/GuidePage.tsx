@@ -34,8 +34,8 @@ function GuideDiagram({ provider }: { provider: string }) {
 
   const stages = [
     { title: "1 · Flap", body: "Add domain + mailbox in Settings → Setup" },
-    { title: `2 · ${dnsHost}`, body: "Paste MX + SPF (and DKIM TXT) from Flap / Cloudflare" },
-    { title: "3 · Cloudflare Email Routing", body: "Rule: address → Send to Flap Worker" },
+    { title: `2 · ${dnsHost}`, body: "Paste MX + SPF + DKIM from Flap Settings" },
+    { title: "3 · Mail provider", body: "MX delivers to Amazon SES → Flap ingest" },
     { title: "4 · Flap Check DNS", body: "Auto-poll or Check DNS until MX + SPF look good" },
   ];
 

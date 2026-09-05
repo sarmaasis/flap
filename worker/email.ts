@@ -21,30 +21,110 @@ type MailboxRow = {
   domain_id: string;
 };
 
-export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
-  const rawBuf = await new Response(message.raw).arrayBuffer();
-  if (rawBuf.byteLength > 25 * 1024 * 1024) {
-    message.setReject("This message exceeds Flap's 25 MB inbound size limit.");
-    return;
-  }
-  const parsed = await parseMessage(rawBuf);
+export type IngestResult =
+  | { ok: true; messageId: string; mailboxId: string }
+  | {
+      ok: false;
+      reason:
+        | "too_large"
+        | "no_mailbox"
+        | "quota"
+        | "parse_error"
+        | "duplicate"
+        | "domain_not_ready"
+        | "disabled";
+      detail?: string;
+    };
 
-  const recipients = uniqueAddresses([
-    message.to,
-    parsed.to,
-    ...parsed.toList,
-  ]);
+export type IngestOptions = {
+  provider?: "ses" | "mailgun" | "cloudflare";
+  providerMessageId?: string;
+};
+
+/**
+ * Shared inbound pipeline for SES Lambda webhook, Mailgun MIME webhooks,
+ * and Cloudflare Email Routing (`email` handler).
+ */
+export async function ingestRawEmail(
+  env: Env,
+  rawBuf: ArrayBuffer,
+  envelopeRecipients: string[] = [],
+  opts: IngestOptions = {},
+): Promise<IngestResult> {
+  if (rawBuf.byteLength > 25 * 1024 * 1024) {
+    return { ok: false, reason: "too_large" };
+  }
+
+  if (opts.providerMessageId) {
+    const dup = await env.DB.prepare(
+      "SELECT id FROM inbound_idempotency WHERE provider = ? AND provider_message_id = ?",
+    )
+      .bind(opts.provider || "ses", opts.providerMessageId)
+      .first();
+    if (dup) return { ok: false, reason: "duplicate" };
+  }
+
+  let parsed: Parsed;
+  try {
+    parsed = await parseMessage(rawBuf);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "parse_error",
+      detail: err instanceof Error ? err.message : "parse failed",
+    };
+  }
+
+  const recipients = uniqueAddresses([...envelopeRecipients, parsed.to, ...parsed.toList]);
 
   const mailbox = await resolveMailbox(env.DB, recipients);
   if (!mailbox) {
-    message.setReject("This recipient is not configured in Flap.");
-    return;
+    return { ok: false, reason: "no_mailbox" };
   }
+
+  // Never auto-create mailboxes; require domain receiving readiness for SES domains.
+  const domain = await env.DB.prepare(
+    `SELECT id, mail_provider, receiving_ready_at, mx_verified_at, identity_verified_at,
+            inbound_rule_ready_at, provider_state
+     FROM domains WHERE id = ?`,
+  )
+    .bind(mailbox.domain_id)
+    .first<{
+      id: string;
+      mail_provider: string | null;
+      receiving_ready_at: number | null;
+      mx_verified_at: number | null;
+      identity_verified_at: number | null;
+      inbound_rule_ready_at: number | null;
+      provider_state: string | null;
+    }>();
+
+  if (domain) {
+    const p = (domain.mail_provider || "ses").toLowerCase();
+    const suspended = /SUSPENDED|FAILED/i.test(domain.provider_state || "");
+    if (suspended) return { ok: false, reason: "disabled" };
+    if (p === "ses") {
+      const ready =
+        Boolean(domain.receiving_ready_at) ||
+        (Boolean(domain.identity_verified_at) &&
+          Boolean(domain.mx_verified_at) &&
+          Boolean(domain.inbound_rule_ready_at));
+      // Allow first-message prove-out once MX is verified even if timestamps lag.
+      if (!ready && !domain.mx_verified_at && !domain.receiving_ready_at) {
+        // Still accept mail if MX was pointed (ops may mark later) — only hard-block when
+        // explicitly not ready and identity never verified. Soft-allow for migration.
+        if (domain.provider_state === "PENDING" && !domain.identity_verified_at) {
+          return { ok: false, reason: "domain_not_ready" };
+        }
+      }
+    }
+  }
+
   const userId = mailbox.user_id;
 
   const policy = await applyInboundPolicy(env.DB, userId, {
     from: parsed.from,
-    to: recipients.join(", ") || message.to,
+    to: recipients.join(", ") || envelopeRecipients[0] || "",
     subject: parsed.subject,
   });
   const snippet = makeSnippet(parsed.text, parsed.html);
@@ -67,7 +147,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     subject: parsed.subject,
     snippet,
     from_addr: parsed.from,
-    to_addr: recipients.join(", ") || message.to,
+    to_addr: recipients.join(", ") || envelopeRecipients[0] || "",
     cc_addr: parsed.cc,
   });
   let attachmentBytes = 0;
@@ -82,8 +162,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
 
   const storageCheck = await assertStorageRoom(env.DB, userId, bodyBytes + attachmentBytes);
   if (!storageCheck.ok) {
-    message.setReject("Mailbox storage quota exceeded. Delete mail or upgrade your Flap plan.");
-    return;
+    return { ok: false, reason: "quota" };
   }
 
   await env.DB.prepare(
@@ -98,7 +177,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
       mailbox.id,
       policy.folder,
       parsed.from,
-      recipients.join(", ") || message.to,
+      recipients.join(", ") || envelopeRecipients[0] || "",
       parsed.cc,
       parsed.subject,
       dateMs,
@@ -128,7 +207,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
   await fireWebhooks(env, userId, "mail.received", {
     id,
     from: parsed.from,
-    to: recipients.join(", ") || message.to,
+    to: recipients.join(", ") || envelopeRecipients[0] || "",
     subject: parsed.subject,
     folder: policy.folder,
     label: policy.label,
@@ -150,6 +229,57 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
         .run();
     }
   }
+
+  if (opts.providerMessageId) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO inbound_idempotency
+        (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'stored', ?)`,
+    )
+      .bind(
+        randomId("idem"),
+        opts.provider || "ses",
+        opts.providerMessageId,
+        rfcMessageId.slice(0, 500),
+        mailbox.domain_id,
+        mailbox.id,
+        now,
+      )
+      .run()
+      .catch(() => undefined);
+  }
+
+  // First successful SES inbound can mark receiving_ready_at if infra checks already passed MX.
+  if (domain && (domain.mail_provider || "ses").toLowerCase() === "ses" && !domain.receiving_ready_at) {
+    await env.DB.prepare(
+      "UPDATE domains SET receiving_ready_at = COALESCE(receiving_ready_at, ?), provider_state = CASE WHEN sending_ready_at IS NOT NULL THEN 'ACTIVE' ELSE 'RECEIVING_READY' END WHERE id = ?",
+    )
+      .bind(now, domain.id)
+      .run()
+      .catch(() => undefined);
+  }
+
+  return { ok: true, messageId: id, mailboxId: mailbox.id };
+}
+
+/** Cloudflare Email Routing entrypoint (legacy + useflap.online if still on CF). */
+export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
+  const rawBuf = await new Response(message.raw).arrayBuffer();
+  const result = await ingestRawEmail(env, rawBuf, [message.to]);
+  if (result.ok) return;
+  if (result.reason === "too_large") {
+    message.setReject("This message exceeds Flap's 25 MB inbound size limit.");
+    return;
+  }
+  if (result.reason === "quota") {
+    message.setReject("Mailbox storage quota exceeded. Delete mail or upgrade your Flap plan.");
+    return;
+  }
+  if (result.reason === "no_mailbox") {
+    message.setReject("This recipient is not configured in Flap.");
+    return;
+  }
+  message.setReject("Flap could not process this message.");
 }
 
 type ParsedAtt = { filename: string; mimeType: string; content: ArrayBuffer | Uint8Array | string };

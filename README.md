@@ -52,31 +52,45 @@ DODO_PRODUCT_STUDIO=pdt_…
 
 1. Set Worker secrets (see `.dev.vars.example`):
    - `BETTER_AUTH_SECRET` (or `SESSION_SECRET`), `APP_URL=https://useflap.online`, `SAAS_MODE=true`
-   - `SYSTEM_FROM_EMAIL=noreply@useflap.online` (magic-link + verification via SEB)
+   - `SYSTEM_FROM_EMAIL=noreply@useflap.online`
+   - **Amazon SES (required for customer domains):** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_REGION`, `SES_INBOUND_WEBHOOK_SECRET` (plus `SES_RECEIPT_RULE_SET` / `SES_INBOUND_BUCKET` after deploying `infra/ses-inbound`)
+   - Mailgun secrets optional (legacy domains only during migration)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
    - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
    - OAuth optional: Google / GitHub client IDs + secrets
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
-3. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0011_auth_email_rate_limit**), then deploys the Worker/assets
-4. Complete **Outbound auth mail (SEB)** below so magic-link / verify emails deliver
+3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets
+5. Complete **Outbound auth mail** below so magic-link / verify emails deliver
 
 To apply remote migrations without deploying: `npm run db:migrate:remote`. Local Miniflare D1 stays separate: `npm run db:migrate:local`.
 
-### Outbound auth mail (SEB) — useflap.online
+### Mail architecture (DNS-agnostic)
 
-Magic-link and verification mail use the Worker `send_email` binding (`SEB`) and `SYSTEM_FROM_EMAIL`. Without Email Sending onboarding, Cloudflare only delivers to **verified destination addresses** in the account (not arbitrary user inboxes).
+Customer domains use **Amazon SES** on every plan (any DNS host → SES MX/DKIM → S3/queue → Worker → D1/R2). Outbound compose uses SES `SendRawEmail`. System mail for `useflap.online` stays on Cloudflare SEB. See [docs/mail-architecture.md](docs/mail-architecture.md), the founder AWS walkthrough [docs/aws-ses-setup.md](docs/aws-ses-setup.md), and [infra/ses-inbound/README.md](infra/ses-inbound/README.md).
 
-1. **Workers Paid** — required to send to arbitrary recipients (not only verified destinations).
-2. **`wrangler.jsonc`** — keep an unrestricted binding (no `destination_address` / `allowed_destination_addresses` on `SEB`), or magic links to user Gmail/etc. will fail with `E_RECIPIENT_NOT_ALLOWED`.
-3. **Secret** — `wrangler secret put SYSTEM_FROM_EMAIL` → `noreply@useflap.online` (or another mailbox on a Flap-managed / Email Routing domain). Envelope `from` must match this address.
-4. **Domain onboarding** — Cloudflare Dashboard → Email → Email Routing (and Email Sending if shown): enable routing for `useflap.online`, then **onboard the domain for sending** so SEB may send to any recipient. Until onboarded, only Email Routing “Destination addresses” work.
-5. **DNS** — MX to `route*.mx.cloudflare.net`; SPF includes `_spf.mx.cloudflare.net`; publish DKIM from Email Routing → Settings (often `cf2024-1`).
-6. **Optional mailbox** — create `noreply@useflap.online` (or catch-all) and a routing rule → Send to Worker if you want replies/bounces visible in Flap; sending still needs the domain onboarded as above.
-7. **Verify** — request a magic link to an address that is *not* a verified destination; Workers logs should no longer show `system email send failed`. On failure, logs now include `code=` / SEB detail (e.g. `E_SENDER_NOT_VERIFIED`, `E_RECIPIENT_NOT_ALLOWED`).
+**Cost note:** SES is metered but inexpensive at early volume; Free is limited by Flap quotas and anti-abuse, not by a separate Free=Cloudflare transport.
+
+### Outbound auth mail — useflap.online
+
+Magic-link and verification mail use `SYSTEM_FROM_EMAIL` via **SEB** when the `send_email` binding is configured. Do not send critical auth mail through the customer SES configuration.
+
+#### Option A — SEB (Cloudflare Email Sending) for system mail
+
+1. **Workers Paid** — required to send to arbitrary recipients.
+2. **`wrangler.jsonc`** — unrestricted `SEB` binding (no destination allowlist).
+3. **Secret** — `SYSTEM_FROM_EMAIL=noreply@useflap.online`.
+4. Onboard `useflap.online` for Email Sending in the Cloudflare dashboard; publish MX/SPF/DKIM for that domain as Cloudflare documents.
+5. Ensure Email Routing has a domain-level catch-all (or address routes) to Worker `flap` for inbound system replies if needed.
+6. Verify with a magic link to a non-verified destination address.
+
+#### Option B — Temporary fallback
+
+If SEB is unbound in local/dev, configure a verified system From elsewhere; production should use SEB for `useflap.online`.
 
 ### Auth email rate limits
 
-Magic-link and verification sends are throttled in D1 (`auth_email_rate_log`, migration **0011**) to protect Cloudflare Email Sending quotas (~1000/day free). Fail closed with HTTP **429**.
+Magic-link and verification sends are throttled in D1 (`auth_email_rate_log`, migration **0011**) to protect sending quotas. Fail closed with HTTP **429**.
 
 | Scope | Limit |
 |-------|--------|
@@ -89,7 +103,7 @@ Enforced on `/sign-in/magic-link` (before hook) and inside `sendVerificationEmai
 
 | Script | Purpose |
 |--------|---------|
-| `npm run check` | Typecheck app + worker |
+| `npm run check` | Typecheck app + worker + unit tests |
 | `npm run build` | Production frontend build + marketing HTML prerender |
 | `npm run prerender` | Write SEO HTML shells into `dist/client` (after vite build) |
 | `npm run deploy` | Build → remote D1 migrations → Wrangler deploy |
@@ -102,7 +116,7 @@ This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prere
 ## Notes
 
 - Password reset is not shipped yet; support resets are manual.
-- Password signups / magic links need `SYSTEM_FROM_EMAIL` + SEB with Email Sending onboarded for `useflap.online` (see checklist above). OAuth accounts are verified on first login.
+- Password signups / magic links need `SYSTEM_FROM_EMAIL` plus SEB (see checklist above). OAuth accounts are verified on first login.
 - Referral rewards require verified email + a connected domain; self/disposable emails and shared Dodo customer / payment fingerprints are blocked.
 
 ## Cloudflare rename: `inlet` → `flap`

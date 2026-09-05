@@ -78,7 +78,8 @@ function TermsBody() {
         Flap provides a hosted mailbox for domains you control: inbound and outbound email, aliases, rules,
         storage, and related developer features (API keys and webhooks) according to your plan. Flap is not a
         law firm, not a postal carrier, and not a guaranteed spam filter. Delivery depends on DNS configuration,
-        Cloudflare Email Routing (or equivalent routing you configure), recipient servers, and third-party
+        Cloudflare Workers (compute), D1, R2, optional Email Sending for system mail,
+        Mailgun (legacy domains during migration), Amazon SES (customer-domain send/receive), recipient servers, and other subprocessors
         networks outside our control.
       </p>
 
@@ -214,7 +215,9 @@ function PrivacyBody() {
       <h2>4. Processors and subprocessors</h2>
       <p>We rely on infrastructure and payment providers, including:</p>
       <ul>
-        <li>Cloudflare (Workers, D1, R2, Email Routing, and related edge services)</li>
+        <li>Cloudflare (Workers, D1, R2, Email Sending when used for system mail, and related edge services)</li>
+        <li>Amazon SES (inbound/outbound email for customer domains)</li>
+        <li>Mailgun (legacy customer domains during migration, if any)</li>
         <li>Dodo Payments (checkout, subscriptions, invoices, customer portal)</li>
       </ul>
       <p>

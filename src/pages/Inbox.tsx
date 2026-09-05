@@ -58,6 +58,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const openInComposeRef = useRef(false);
   const [openingDraft, setOpeningDraft] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [domainSetupPending, setDomainSetupPending] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setQDebounced(q.trim()), 280);
@@ -73,11 +74,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setTemplates(data.templates);
     setSignatures(data.signatures);
     setNotifyBrowser(Boolean(data.settings.notify_browser));
+    const domains = await api.domains().catch(() => ({ domains: [] as import("../lib/api").Domain[] }));
     if (data.mailboxes.length === 0) {
-      const domains = await api.domains().catch(() => ({ domains: [] as { id: string }[] }));
-      setNeedsSetup(domains.domains.length === 0 || data.mailboxes.length === 0);
+      setNeedsSetup(true);
+      setDomainSetupPending(false);
     } else {
       setNeedsSetup(false);
+      const pending = domains.domains.some((d) => !d.receiving_ready_at);
+      setDomainSetupPending(pending);
     }
   }, []);
 
@@ -419,10 +423,21 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           <div className="onboarding-banner inbox-onboarding" role="status">
             <div>
               <strong>Finish setup to receive mail</strong>
-              <p>Add your domain and create a mailbox in Settings, then point Cloudflare Email Routing at Flap.</p>
+              <p>Add your domain and create a mailbox in Settings, then publish the SES DNS records Flap shows at your DNS host.</p>
             </div>
             <button type="button" className="btn" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
               Open setup checklist
+            </button>
+          </div>
+        ) : null}
+        {domainSetupPending && !needsSetup && folder === "inbox" && !qDebounced ? (
+          <div className="onboarding-banner inbox-onboarding" role="status">
+            <div>
+              <strong>Your mailboxes are ready. Finish domain verification to receive mail.</strong>
+              <p>Publish SES verification, DKIM, and MX records, then click Check setup.</p>
+            </div>
+            <button type="button" className="btn" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+              Finish setup
             </button>
           </div>
         ) : null}
@@ -457,17 +472,19 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               </div>
             ) : list.length === 0 ? (
               <div className="empty-panel">
-                <strong>{qDebounced ? "No matches" : needsSetup ? "No mailbox yet" : `No ${title.toLowerCase()} yet`}</strong>
+                <strong>{qDebounced ? "No matches" : needsSetup ? "No mailbox yet" : domainSetupPending ? "Waiting on domain setup" : `No ${title.toLowerCase()} yet`}</strong>
                 <p>
                   {qDebounced
                     ? "Try a different name, subject, or phrase."
                     : needsSetup
                       ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
-                      : EMPTY[folder]}
+                      : domainSetupPending
+                        ? "Your mailboxes are ready. Finish domain verification to receive mail."
+                        : EMPTY[folder]}
                 </p>
-                {needsSetup && !qDebounced ? (
+                {(needsSetup || domainSetupPending) && !qDebounced ? (
                   <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
-                    Start setup
+                    {domainSetupPending ? "Finish setup" : "Start setup"}
                   </button>
                 ) : null}
               </div>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type Contact, type Mailbox, type Signature, type Template } from "../lib/api";
+import { api, type Contact, type Domain, type Mailbox, type Signature, type Template } from "../lib/api";
 import { htmlToText } from "../lib/format";
 import type { EditorHandle } from "../components/RichTextEditor";
 
@@ -40,7 +40,20 @@ export default function Compose({
   onSent?: (kind: "sent" | "draft" | "scheduled") => void | Promise<void>;
 }) {
   const editorRef = useRef<EditorHandle>(null);
-  const [from, setFrom] = useState(draft?.from || mailboxes[0]?.address || "");
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const sendableMailboxes = useMemo(() => {
+    if (!domains.length) return mailboxes;
+    return mailboxes.filter((m) => {
+      const d = domains.find((x) => x.id === m.domain_id);
+      if (!d) return true;
+      // Legacy providers: allow if no readiness timestamps (pre-SES schema).
+      if ((d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare") {
+        return Boolean(d.sending_ready_at || d.mx_verified_at || !d.mail_provider);
+      }
+      return Boolean(d.sending_ready_at);
+    });
+  }, [domains, mailboxes]);
+  const [from, setFrom] = useState(draft?.from || sendableMailboxes[0]?.address || mailboxes[0]?.address || "");
   const [to, setTo] = useState(draft?.to ?? "");
   const [cc, setCc] = useState(draft?.cc ?? "");
   const [bcc, setBcc] = useState(draft?.bcc ?? "");
@@ -64,8 +77,14 @@ export default function Compose({
   }, [draft?.html, defaultSig?.html_body]);
 
   useEffect(() => {
-    if (!from && mailboxes[0]) setFrom(mailboxes[0].address);
-  }, [from, mailboxes]);
+    void api.domains().then((r) => setDomains(r.domains)).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (from && sendableMailboxes.some((m) => m.address === from)) return;
+    if (sendableMailboxes[0]) setFrom(sendableMailboxes[0].address);
+    else if (!from && mailboxes[0]) setFrom(mailboxes[0].address);
+  }, [from, mailboxes, sendableMailboxes]);
 
   const suggestions = useMemo(() => {
     const field = suggest === "to" ? to : suggest === "cc" ? cc : suggest === "bcc" ? bcc : "";
@@ -95,6 +114,10 @@ export default function Compose({
 
   async function submit(kind: "send" | "draft" | "schedule") {
     setErr("");
+    if (kind === "send" && sendableMailboxes.length === 0) {
+      setErr("Finish sending setup for your domain before sending.");
+      return;
+    }
     setBusy(true);
     try {
       const scheduled_at = kind === "schedule" && scheduleAt ? new Date(scheduleAt).getTime() : null;
@@ -208,14 +231,25 @@ export default function Compose({
       {err ? <div className="err">{err}</div> : null}
       {mailboxes.length === 0 ? (
         <p className="muted">Add a mailbox in Settings before you send.</p>
+      ) : sendableMailboxes.length === 0 ? (
+        <div className="notice dns-issues" role="status">
+          <p>No sender is sending-ready yet. Finish SES sending verification for your domain in Settings, then compose again.</p>
+          <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but outbound requires a verified SES identity (DKIM).</p>
+        </div>
       ) : (
         <div className="compose-from-row">
           <div className="field" style={{ marginBottom: 0, flex: 1 }}>
             <label htmlFor="from">From</label>
             <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }}>
-              {mailboxes.map((m) => (
-                <option key={m.id} value={m.address}>{m.display_name ? `${m.display_name} · ${m.address}` : m.address}</option>
-              ))}
+              {sendableMailboxes.map((m) => {
+                const d = domains.find((x) => x.id === m.domain_id);
+                const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
+                return (
+                  <option key={m.id} value={m.address}>
+                    {d?.name ? `${label} (${d.name})` : label}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <button type="button" className="text-button" onClick={() => setShowCc((v) => !v)}>{showCc ? "Hide Cc/Bcc" : "Cc/Bcc"}</button>

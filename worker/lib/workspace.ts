@@ -1,11 +1,11 @@
 import type { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { EmailMessage } from "cloudflare:email";
 import { requireUser } from "./auth";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend } from "./billing";
 import { markFirstEmailSent } from "./activation";
 import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
+import { canSendMail, sendRawEmail } from "./mail-provider";
 import {
   EMAIL_RE,
   extractEmail,
@@ -197,7 +197,7 @@ export async function maybeForwardInbound(
   text: string,
   html: string,
 ): Promise<void> {
-  if (!env.SEB || !EMAIL_RE.test(forwardTo)) return;
+  if (!canSendMail(env) || !EMAIL_RE.test(forwardTo)) return;
   const sendLimit = await assertSendRoom(env.DB, userId);
   if (!sendLimit.ok) {
     console.warn("Inbound forward blocked by monthly send quota", userId);
@@ -211,7 +211,11 @@ export async function maybeForwardInbound(
     html: html || undefined,
   });
   try {
-    await env.SEB.send(new EmailMessage(fromMailbox, forwardTo, raw));
+    await sendRawEmail(env, {
+      envelopeFrom: fromMailbox,
+      recipients: [forwardTo],
+      rawMime: raw,
+    });
     await recordOutboundSend(env.DB, userId);
   } catch (error) {
     console.warn("Inbound forward failed", error);
@@ -224,7 +228,7 @@ export async function maybeVacationReply(
   fromMailbox: string,
   toAddress: string,
 ): Promise<void> {
-  if (!env.SEB) return;
+  if (!canSendMail(env)) return;
   const settings = await loadSettings(env.DB, userId);
   if (!settings.vacation_enabled || !settings.vacation_body.trim()) return;
   const email = extractEmail(toAddress);
@@ -249,7 +253,11 @@ export async function maybeVacationReply(
     text: settings.vacation_body,
   });
   try {
-    await env.SEB.send(new EmailMessage(fromMailbox, email, raw));
+    await sendRawEmail(env, {
+      envelopeFrom: fromMailbox,
+      recipients: [email],
+      rawMime: raw,
+    });
     await env.DB.prepare(
       `INSERT INTO vacation_replies (user_id, address, sent_at) VALUES (?, ?, ?)
        ON CONFLICT(user_id, address) DO UPDATE SET sent_at = excluded.sent_at`,
@@ -297,7 +305,9 @@ async function loadAttachmentContents(env: Env, messageId: string) {
 }
 
 export async function dispatchStoredMessage(env: Env, message: StoredMessage): Promise<string | null> {
-  if (!env.SEB) return "The send_email binding (SEB) is not configured.";
+  if (!canSendMail(env)) {
+    return "Mail sending is not configured. Set AWS SES credentials (customer domains) or the SEB send_email binding.";
+  }
   const to = parseRecipients(message.to_addr);
   const cc = message.cc_addr ? parseRecipients(message.cc_addr) : [];
   const bcc = message.bcc_addr ? parseRecipients(message.bcc_addr) : [];
@@ -306,6 +316,12 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
   const attachments = await loadAttachmentContents(env, message.id);
   const envelopeFrom = extractEmail(message.from_addr) || message.from_addr;
   const domain = envelopeFrom.split("@")[1] || "flap.local";
+
+  const domainRow = await env.DB.prepare(
+    "SELECT mail_provider, sending_ready_at, provider_state FROM domains WHERE lower(name) = ? LIMIT 1",
+  )
+    .bind(domain.toLowerCase())
+    .first<{ mail_provider: string | null; sending_ready_at: number | null; provider_state: string | null }>();
 
   let text = message.text_body;
   let html = message.html_body || undefined;
@@ -333,7 +349,18 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
     inReplyTo: message.in_reply_to || undefined,
   });
   try {
-    await Promise.all(recipients.map((recipient) => env.SEB!.send(new EmailMessage(envelopeFrom, recipient, raw))));
+    const result = await sendRawEmail(env, {
+      envelopeFrom,
+      recipients,
+      rawMime: raw,
+      mailProvider: domainRow?.mail_provider || "ses",
+    });
+    if (result.messageId) {
+      await env.DB.prepare("UPDATE messages SET provider_message_id = ? WHERE id = ?")
+        .bind(result.messageId, message.id)
+        .run()
+        .catch(() => undefined);
+    }
   } catch (err) {
     return err instanceof Error ? err.message : "send failed";
   }
@@ -1258,7 +1285,9 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
           .bind(key.user_id)
           .first<{ id: string; address: string }>();
     if (!fromMailbox) return c.json({ error: "Add a mailbox before sending." }, 400);
-    if (!c.env.SEB) return c.json({ error: "The send_email binding is not configured." }, 501);
+    if (!canSendMail(c.env)) {
+      return c.json({ error: "Mail sending is not configured. Set MAILGUN_API_KEY or the SEB binding." }, 501);
+    }
     const sendLimit = await assertSendRoom(c.env.DB, key.user_id);
     if (!sendLimit.ok) return c.json({ error: sendLimit.error }, sendLimit.status);
     const id = randomId("msg");

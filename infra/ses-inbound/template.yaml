@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Flap customer inbound mail: SES receipt rule set → private S3 (raw MIME) → SQS → Lambda
+  that POSTs signed JSON to the Flap Worker /api/inbound/ses.
+  Deploy in a region that supports SES email receiving (e.g. us-east-1).
+
+Parameters:
+  FlapWebhookUrl:
+    Type: String
+    Default: https://useflap.online/api/inbound/ses
+    Description: Flap Worker inbound URL
+  FlapWebhookSecret:
+    Type: String
+    NoEcho: true
+    Description: Shared HMAC secret (SES_INBOUND_WEBHOOK_SECRET on Worker)
+  RawMailRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 90
+    Description: Days to keep raw MIME in S3 before lifecycle expiry
+  RuleSetName:
+    Type: String
+    Default: flap-inbound
+
+Resources:
+  InboundBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireRawMime
+            Status: Enabled
+            ExpirationInDays: !Ref RawMailRetentionDays
+            Prefix: raw/
+
+  InboundBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref InboundBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowSESPuts
+            Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "${InboundBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                aws:Referer: !Ref AWS::AccountId
+
+  InboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 120
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InboundDLQ.Arn
+        maxReceiveCount: 5
+
+  InboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  S3ToSqsNotifyPermission:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref InboundQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt InboundQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt InboundBucket.Arn
+
+  InboundBucketNotify:
+    Type: Custom::S3BucketNotification
+    DependsOn: S3ToSqsNotifyPermission
+    Properties:
+      ServiceToken: !GetAtt NotifyFunction.Arn
+      Bucket: !Ref InboundBucket
+      QueueArn: !GetAtt InboundQueue.Arn
+
+  # Minimal custom resource to attach S3→SQS notification (CFN native EventConfigurations need Lambda often)
+  NotifyFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: s3-notify
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutBucketNotification
+                  - s3:GetBucketNotification
+                Resource: !GetAtt InboundBucket.Arn
+
+  NotifyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt NotifyFunctionRole.Arn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          const { S3Client, PutBucketNotificationConfigurationCommand } = require("@aws-sdk/client-s3");
+          const s3 = new S3Client({});
+          exports.handler = async (event) => {
+            if (event.RequestType === "Delete") return send(event, "SUCCESS");
+            try {
+              await s3.send(new PutBucketNotificationConfigurationCommand({
+                Bucket: event.ResourceProperties.Bucket,
+                NotificationConfiguration: {
+                  QueueConfigurations: [{
+                    Events: ["s3:ObjectCreated:*"],
+                    QueueArn: event.ResourceProperties.QueueArn,
+                    Filter: { Key: { FilterRules: [{ Name: "prefix", Value: "raw/" }] } },
+                  }],
+                },
+              }));
+              return send(event, "SUCCESS");
+            } catch (e) {
+              console.error(e);
+              return send(event, "FAILED", e.message);
+            }
+          };
+          async function send(event, status, reason) {
+            const body = JSON.stringify({
+              Status: status,
+              Reason: reason || "ok",
+              PhysicalResourceId: event.PhysicalResourceId || "flap-s3-notify",
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: {},
+            });
+            await fetch(event.ResponseURL, { method: "PUT", body, headers: { "content-type": "" } });
+          }
+
+  IngestFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: flap-ingest
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "${InboundBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt InboundQueue.Arn
+
+  IngestFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt IngestFunctionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          FLAP_WEBHOOK_URL: !Ref FlapWebhookUrl
+          FLAP_WEBHOOK_SECRET: !Ref FlapWebhookSecret
+      Code:
+        ZipFile: |
+          const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
+          const crypto = require("crypto");
+          const s3 = new S3Client({});
+          exports.handler = async (event) => {
+            for (const record of event.Records || []) {
+              const body = JSON.parse(record.body);
+              for (const rec of body.Records || []) {
+                const bucket = rec.s3.bucket.name;
+                const key = decodeURIComponent(rec.s3.object.key.replace(/\+/g, " "));
+                const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+                const bytes = Buffer.from(await obj.Body.transformToByteArray());
+                // SES stores raw MIME; message id from key or object metadata when present
+                const providerMessageId =
+                  (obj.Metadata && (obj.Metadata["x-amz-ses-message-id"] || obj.Metadata["ses-message-id"])) ||
+                  key.split("/").pop() ||
+                  crypto.randomUUID();
+                // Recipients: best-effort from key prefix raw/{domain}/…
+                const parts = key.split("/");
+                const domainHint = parts[1] || "";
+                const recipients = domainHint.includes(".") ? [`inbound@${domainHint}`] : [];
+                // Prefer parsing envelope from MIME in Flap; pass domain catch-all via recipients empty → Flap uses To headers
+                const payload = JSON.stringify({
+                  provider_message_id: String(providerMessageId),
+                  recipients,
+                  raw_mime_base64: bytes.toString("base64"),
+                  s3_bucket: bucket,
+                  s3_key: key,
+                });
+                const ts = Math.floor(Date.now() / 1000).toString();
+                const secret = process.env.FLAP_WEBHOOK_SECRET || "";
+                const sig = crypto.createHmac("sha256", secret).update(ts + "." + payload).digest("hex");
+                const res = await fetch(process.env.FLAP_WEBHOOK_URL, {
+                  method: "POST",
+                  headers: {
+                    "content-type": "application/json",
+                    "X-Flap-Timestamp": ts,
+                    "X-Flap-Signature": "sha256=" + sig,
+                  },
+                  body: payload,
+                });
+                if (!res.ok && res.status !== 406) {
+                  const text = await res.text();
+                  throw new Error(`Flap ingest ${res.status}: ${text.slice(0, 200)}`);
+                }
+              }
+            }
+          };
+
+  IngestEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt InboundQueue.Arn
+      FunctionName: !Ref IngestFunction
+      BatchSize: 5
+      Enabled: true
+
+  ReceiptRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+    Properties:
+      RuleSetName: !Ref RuleSetName
+
+  # Seed rule — Worker CreateReceiptRule adds per-domain rules at provision time.
+  # This catch-all stores mail for any recipient to S3 (Flap app validates recipients).
+  CatchAllRule:
+    Type: AWS::SES::ReceiptRule
+    DependsOn: InboundBucketPolicy
+    Properties:
+      RuleSetName: !Ref ReceiptRuleSet
+      Rule:
+        Name: flap-catchall-store
+        Enabled: true
+        ScanEnabled: true
+        Actions:
+          - S3Action:
+              BucketName: !Ref InboundBucket
+              ObjectKeyPrefix: raw/catchall/
+
+Outputs:
+  InboundBucketName:
+    Value: !Ref InboundBucket
+  ReceiptRuleSetName:
+    Value: !Ref RuleSetName
+  InboundQueueUrl:
+    Value: !Ref InboundQueue
+  IngestFunctionName:
+    Value: !Ref IngestFunction
+  NextSteps:
+    Value: !Sub |
+      1. aws ses set-active-receipt-rule-set --rule-set-name ${RuleSetName} --region <region>
+      2. Request SES production access (leave sandbox) before broad Free signups
+      3. wrangler secret put AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / SES_INBOUND_WEBHOOK_SECRET
+      4. Set SES_RECEIPT_RULE_SET=${RuleSetName} SES_INBOUND_BUCKET=${InboundBucket} AWS_SES_REGION=<region>

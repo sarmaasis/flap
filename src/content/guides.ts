@@ -14,7 +14,7 @@ export type GuideBody = {
   related: Array<{ href: string; label: string }>;
 };
 
-const UPDATED = "2026-09-04";
+const UPDATED = "2026-09-05";
 
 const SHARED_RELATED = [
   { href: "/tools/email-setup-checker", label: "Email setup checker" },
@@ -24,41 +24,42 @@ const SHARED_RELATED = [
   { href: "/#pricing", label: "Pricing" },
 ];
 
+const SHARED_STEPS_TAIL = [
+  "Add or merge SPF so it includes include:amazonses.com (only one SPF TXT per name).",
+  "Add the SES verification TXT (_amazonses) and Easy DKIM CNAMEs Flap shows.",
+  "Optional: add DMARC at _dmarc (start with p=none).",
+  "In Flap, use Check setup. Send a test from an external inbox (Gmail, etc.).",
+];
+
 export const GUIDE_CONTENT: Record<string, GuideBody> = {
   cloudflare: {
-    heading: "Cloudflare custom domain email with Flap",
+    heading: "Cloudflare DNS for Flap email",
     intro:
-      "Most Flap mailers already use Cloudflare. Email Routing + Worker delivery is how Flap receives mail. Keep proxy status correct and copy records exactly from Flap and the Cloudflare dashboard.",
+      "If your domain’s nameservers are on Cloudflare, add Flap’s MX/SPF/DKIM in the DNS tab. Your domain does not need Cloudflare Email Routing — Flap receives mail via Amazon SES after those records publish.",
     definition:
-      "Flap custom-domain email on Cloudflare means your domain’s MX points at Cloudflare Email Routing (route*.mx.cloudflare.net), SPF includes _spf.mx.cloudflare.net, DKIM is published from Cloudflare, and a routing rule sends matching addresses to the Flap Worker so mail appears in your Flap inbox at useflap.online.",
+      "Flap on Cloudflare DNS means you publish SES MX (inbound-smtp.<region>.amazonaws.com), SPF include:amazonses.com, and SES Easy DKIM CNAMEs at Cloudflare DNS (grey-cloud / DNS-only for mail records). Mailbox, aliases, and catch-all are configured in Flap — not as Cloudflare Email Routing Worker rules.",
     updated: UPDATED,
     steps: [
       "In Flap: Settings → Setup → Add your domain and create a mailbox (e.g. hello@).",
-      "In Cloudflare: Email → Email Routing → enable routing for the domain if prompted.",
-      "Copy the MX records Flap shows (route1/2/3.mx.cloudflare.net) into DNS. MX must be DNS-only (grey cloud), never proxied.",
-      "Add or update the SPF TXT so it includes include:_spf.mx.cloudflare.net. Merge with existing SPF carefully — only one SPF TXT per name.",
-      "Copy DKIM from Cloudflare Email Routing → Settings (selector often cf2024-1) into a TXT record.",
-      "Create a Routing rule: match your mailbox (or catch-all) → Send to a Worker → select the Flap Worker.",
-      "Optional: add a DMARC TXT at _dmarc (start with p=none if you are learning).",
-      "Back in Flap, use Check DNS. Send a test message from an external account.",
+      "In Cloudflare: DNS → Records. Copy the MX records Flap shows (inbound-smtp.<region>.amazonaws.com). MX must be DNS-only (grey cloud), never proxied.",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "Orange-cloud / proxied MX (mail breaks).",
-      "Forgetting the Worker routing rule after MX is live.",
-      "SPF that does not include _spf.mx.cloudflare.net.",
-      "Creating the mailbox in Flap but not the matching routing rule.",
-      "Leaving old Google/Zoho/Microsoft MX alongside Cloudflare MX.",
+      "Leaving Cloudflare Email Routing MX (route*.mx.cloudflare.net) when you intend to use Flap’s SES path — pick one inbound provider.",
+      "SPF that does not include amazonses.com.",
+      "Leaving old Google/Zoho/Microsoft MX alongside Flap MX.",
     ],
     records_note:
-      "Flap displays the MX/SPF values to paste. DKIM values come from the Cloudflare Email Routing dashboard — Flap does not generate DKIM keys. Always copy the live values from your Flap setup screen and Cloudflare.",
+      "Always copy live values from Flap Settings → Setup. DKIM is provisioned with the domain; do not invent selectors.",
     verification:
-      "Flap’s Check DNS looks for expected MX and SPF. Use /tools/mx-checker and /tools/spf-checker for a second opinion. Propagation can take minutes to hours depending on TTL.",
+      "Flap’s Check setup looks for SES MX + SPF (legacy Cloudflare Routing MX still passes for older setups). Propagation can take minutes to hours depending on TTL.",
     proxy_notes:
-      "MX and mail-related TXT must not be proxied. Website A/AAAA records can stay orange-clouded; that is unrelated to mail delivery.",
+      "MX and mail-related TXT/CNAME must not be proxied. Website A/AAAA can stay orange-clouded; that is unrelated to mail delivery.",
     faqs: [
       {
-        q: "Do I need Cloudflare nameservers?",
-        a: "Email Routing is a Cloudflare product. Many founders use Cloudflare DNS; if DNS is elsewhere, you still publish Cloudflare’s MX/SPF/DKIM values at that host and complete routing in Cloudflare Email Routing.",
+        q: "Do I need Cloudflare Email Routing?",
+        a: "No. Flap’s current path is DNS → Amazon SES → Flap ingest. Email Routing Worker rules are only needed for legacy setups that still point MX at route*.mx.cloudflare.net.",
       },
       {
         q: "Why grey cloud on MX?",
@@ -66,7 +67,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
       {
         q: "Is catch-all supported?",
-        a: "Create a catch-all routing rule in Cloudflare Email Routing and enable catch-all on a paid Flap plan when you want any local-part delivered.",
+        a: "Enable catch-all on a Flap mailbox for the domain (plan allowing). No extra Cloudflare routing rule is required on the SES path.",
       },
     ],
     related: [
@@ -79,28 +80,25 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
   vercel: {
     heading: "Vercel DNS for Flap email",
     intro:
-      "If your domain uses vercel-dns.com nameservers, add Flap’s Cloudflare Email Routing MX/SPF records in the Vercel Domains DNS UI, then finish the Worker rule in Cloudflare Email Routing.",
+      "If your domain uses vercel-dns.com nameservers, add Flap’s MX/SPF/DKIM in the Vercel Domains DNS UI. No Cloudflare zone or Email Routing is required.",
     definition:
-      "Using Vercel DNS with Flap means the domain’s nameservers stay on Vercel while MX/TXT records publish Cloudflare Email Routing values so Flap can receive and send custom-domain email.",
+      "Using Vercel DNS with Flap means nameservers stay on Vercel while MX/TXT/CNAME publish Flap’s SES DNS values so you can send and receive at useflap.online.",
     updated: UPDATED,
     steps: [
       "Add the domain and a mailbox in Flap (Settings → Setup).",
       "Open Vercel → Domains → your domain → DNS Records.",
-      "Add the three MX records Flap lists (priorities → route1/2/3.mx.cloudflare.net). Remove conflicting MX from another mail product.",
-      "Add or merge SPF TXT so it includes include:_spf.mx.cloudflare.net.",
-      "Add DKIM TXT from Cloudflare Email Routing settings (Vercel hosts the TXT; Cloudflare Email Routing still owns the keys).",
-      "In Cloudflare Email Routing, create the Worker rule that delivers to Flap.",
-      "In Flap, Check DNS (auto-poll watches while records propagate).",
+      "Add the MX records Flap lists (inbound-smtp.<region>.amazonaws.com). Remove conflicting MX from another mail product.",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "Editing DNS at the registrar while nameservers still point at Vercel.",
       "Leaving Vercel or third-party email MX in place.",
-      "Skipping the Cloudflare Worker routing rule — MX alone is not enough for Flap.",
+      "Assuming you need a Cloudflare account — you do not for Flap mail.",
     ],
     records_note:
-      "Vercel apex host is usually @ or blank. Subdomains use the subdomain label only. Flap still receives mail via Cloudflare Email Routing even when DNS is hosted on Vercel.",
+      "Vercel apex host is usually @ or blank. Subdomains use the subdomain label only. Copy values from Flap.",
     verification:
-      "Confirm MX with /tools/mx-checker from outside Vercel’s UI. Flap Check DNS should turn green once MX + SPF match expectations.",
+      "Confirm MX with /tools/mx-checker. Flap Check setup should turn green once MX + SPF match expectations.",
     faqs: [
       {
         q: "Can my site stay on Vercel?",
@@ -108,41 +106,39 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
       {
         q: "Do I need a Cloudflare account?",
-        a: "Yes for Email Routing and the Worker delivery path Flap uses — even if DNS stays on Vercel.",
+        a: "No. Flap runs on Cloudflare Workers for the app, but your customer domain DNS can stay entirely on Vercel.",
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       ...SHARED_RELATED,
     ],
   },
 
   namecheap: {
     heading: "Namecheap DNS for Flap email",
-    intro: "Point Namecheap Advanced DNS at Cloudflare Email Routing so Flap can receive mail on your custom domain.",
+    intro: "Publish Flap’s MX/SPF/DKIM in Namecheap Advanced DNS so mail for your domain lands in Flap.",
     definition:
-      "Namecheap + Flap means you publish Cloudflare Email Routing MX/SPF/DKIM in Namecheap Advanced DNS, complete the Flap Worker routing rule in Cloudflare, and manage the inbox at useflap.online.",
+      "Namecheap + Flap means you add SES MX/SPF/DKIM in Namecheap Advanced DNS and manage the inbox at useflap.online — no requirement that the domain be a Cloudflare zone.",
     updated: UPDATED,
     steps: [
       "Add the domain in Flap and create your first address.",
       "In Namecheap → Domain List → Manage → Advanced DNS (nameservers must be Namecheap BasicDNS / PremiumDNS for these edits to matter).",
-      "Add the three MX records Flap shows (priorities typically 13 / 27 / 40 → route*.mx.cloudflare.net).",
-      "Add or update TXT SPF: include include:_spf.mx.cloudflare.net (merge carefully if you already have SPF).",
-      "Add DKIM TXT from Cloudflare Email Routing settings.",
-      "Finish the Cloudflare Email Routing Worker rule, then Check DNS in Flap.",
+      "Add the MX records Flap shows (typically priority 10 → inbound-smtp.<region>.amazonaws.com).",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "Leaving old MX records in place.",
       "Host field mistakes (@ vs blank vs domain.com).",
       "Editing Advanced DNS while nameservers point elsewhere.",
     ],
-    records_note: "Use Host @ for apex MX/TXT unless Namecheap’s UI requires the bare domain. Copy exact values from Flap — do not invent priorities.",
+    records_note: "Use Host @ for apex MX/TXT unless Namecheap’s UI requires the bare domain. Copy exact values from Flap.",
     verification:
-      "Wait for TTL, then Flap Check DNS or /tools/email-setup-checker. Namecheap TTL defaults can delay visible changes.",
+      "Wait for TTL, then Flap Check setup or /tools/email-setup-checker. Namecheap TTL defaults can delay visible changes.",
     faqs: [
       {
         q: "Namecheap email forwarding still on?",
-        a: "Disable or remove forwarding MX that conflicts. Only Cloudflare Email Routing MX should remain for Flap.",
+        a: "Disable or remove forwarding MX that conflicts. Only Flap’s SES MX should remain.",
       },
       {
         q: "Private email from Namecheap?",
@@ -150,7 +146,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       { href: "/guides/porkbun-custom-domain-email", label: "Porkbun guide" },
       ...SHARED_RELATED,
     ],
@@ -158,17 +154,15 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
 
   porkbun: {
     heading: "Porkbun DNS for Flap email",
-    intro: "Add Flap’s Cloudflare Email Routing records in Porkbun DNS so your domain’s mail lands in Flap.",
+    intro: "Add Flap’s mail DNS records in Porkbun so your domain’s mail lands in Flap.",
     definition:
-      "Porkbun + Flap means MX/TXT at Porkbun publish Cloudflare Email Routing values and Cloudflare routes matching addresses to the Flap Worker.",
+      "Porkbun + Flap means MX/TXT/CNAME at Porkbun publish Flap’s SES DNS values; you use the inbox at useflap.online.",
     updated: UPDATED,
     steps: [
       "Add domain + mailbox in Flap.",
       "Porkbun → Domain → DNS.",
-      "Create MX records exactly as Flap lists them (route1/2/3.mx.cloudflare.net with listed priorities).",
-      "Add SPF TXT including _spf.mx.cloudflare.net (single SPF record).",
-      "Add DKIM from Cloudflare Email Routing.",
-      "Complete Worker routing in Cloudflare, then verify in Flap.",
+      "Create MX records exactly as Flap lists them (inbound-smtp.<region>.amazonaws.com).",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "TTL confusion — wait for propagation before assuming failure.",
@@ -176,7 +170,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       "Leaving Porkbun forwarding MX active.",
     ],
     records_note: "Porkbun usually uses blank host for apex. Paste values from Flap without adding trailing dots unless the UI requires them.",
-    verification: "Use Flap Check DNS and /tools/spf-checker after TTL. Send an external test to hello@ once green.",
+    verification: "Use Flap Check setup and /tools/spf-checker after TTL. Send an external test to hello@ once green.",
     faqs: [
       {
         q: "Can I keep the site on Porkbun URL forwarding?",
@@ -184,7 +178,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       { href: "/guides/namecheap-custom-domain-email", label: "Namecheap guide" },
       ...SHARED_RELATED,
     ],
@@ -192,17 +186,15 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
 
   godaddy: {
     heading: "GoDaddy DNS for Flap email",
-    intro: "Replace or add MX/TXT at GoDaddy so mail routes through Cloudflare Email Routing to Flap.",
+    intro: "Replace or add MX/TXT at GoDaddy so mail routes to Flap via Amazon SES.",
     definition:
-      "GoDaddy DNS for Flap means your GoDaddy-hosted DNS zone publishes Cloudflare Email Routing MX/SPF/DKIM and Cloudflare delivers to Flap.",
+      "GoDaddy DNS for Flap means your GoDaddy-hosted DNS zone publishes Flap’s SES MX/SPF/DKIM; Flap hosts the inbox.",
     updated: UPDATED,
     steps: [
       "Add domain + mailbox in Flap.",
       "GoDaddy → DNS Management for the correct domain.",
-      "Remove conflicting MX if present; add Flap’s three MX values.",
-      "Update SPF TXT to include Cloudflare’s include:_spf.mx.cloudflare.net.",
-      "Add DKIM TXT from Cloudflare Email Routing.",
-      "Create the Worker rule in Cloudflare Email Routing → Check DNS in Flap.",
+      "Remove conflicting MX if present; add Flap’s MX values.",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "GoDaddy parking or Microsoft 365 / GoDaddy email MX left enabled.",
@@ -219,7 +211,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       { href: "/guides/squarespace-custom-domain-email", label: "Squarespace guide" },
       ...SHARED_RELATED,
     ],
@@ -227,24 +219,23 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
 
   squarespace: {
     heading: "Squarespace Domains DNS for Flap",
-    intro: "If DNS is on Squarespace Domains, add the Flap MX/SPF/DKIM values there, then finish Cloudflare Email Routing for Flap delivery.",
+    intro: "If DNS is on Squarespace Domains, add Flap’s MX/SPF/DKIM values there — no Cloudflare Email Routing step.",
     definition:
-      "Squarespace Domains + Flap means mail records in Squarespace DNS point at Cloudflare Email Routing while Flap hosts the inbox.",
+      "Squarespace Domains + Flap means mail records in Squarespace DNS point at Amazon SES while Flap hosts the inbox.",
     updated: UPDATED,
     steps: [
       "Add domain + mailbox in Flap.",
       "Squarespace Domains → DNS settings for the domain.",
       "Add MX records exactly as Flap lists.",
-      "Add SPF and DKIM TXT records (merge SPF if one already exists).",
-      "Configure Cloudflare Email Routing Worker rule → verify in Flap.",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "Squarespace email forwarding still owning MX.",
       "Not waiting for DNS TTL.",
       "Editing the site builder DNS when nameservers are not on Squarespace.",
     ],
-    records_note: "Follow Squarespace’s host field conventions for apex vs subdomain. Prefer values copied from Flap over screenshots from other providers.",
-    verification: "After TTL, run Flap Check DNS and send a test from Gmail or another external provider.",
+    records_note: "Follow Squarespace’s host field conventions for apex vs subdomain. Prefer values copied from Flap.",
+    verification: "After TTL, run Flap Check setup and send a test from Gmail or another external provider.",
     faqs: [
       {
         q: "Can the website stay on Squarespace?",
@@ -252,7 +243,7 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       { href: "/guides/godaddy-custom-domain-email", label: "GoDaddy guide" },
       ...SHARED_RELATED,
     ],
@@ -260,39 +251,37 @@ export const GUIDE_CONTENT: Record<string, GuideBody> = {
 
   route53: {
     heading: "Route 53 DNS for Flap email",
-    intro: "Create MX and TXT records in your Amazon Route 53 hosted zone for Cloudflare Email Routing so Flap can host your domain inbox.",
+    intro: "Create MX and TXT/CNAME records in your Amazon Route 53 hosted zone for Flap (Amazon SES), then use the inbox at useflap.online.",
     definition:
-      "Route 53 + Flap means the Route 53 hosted zone publishes Cloudflare Email Routing MX/SPF/DKIM; Cloudflare routes to the Flap Worker; you use the inbox at useflap.online.",
+      "Route 53 + Flap means the hosted zone publishes SES MX/SPF/DKIM; Flap stores mail in D1/R2. Customer mail uses SES inbound; this guide is only about publishing the DNS records Flap shows.",
     updated: UPDATED,
     steps: [
       "Add domain + mailbox in Flap.",
       "Route 53 → Hosted zone for the domain → Create records.",
-      "MX: three records with Flap priorities/values (route1/2/3.mx.cloudflare.net).",
-      "TXT SPF including include:_spf.mx.cloudflare.net; separate TXT for DKIM selector.",
-      "Optional DMARC TXT at _dmarc.example.com.",
-      "Cloudflare Email Routing Worker rule → Check DNS in Flap.",
+      "MX: records Flap lists (inbound-smtp.<region>.amazonaws.com).",
+      ...SHARED_STEPS_TAIL,
     ],
     mistakes: [
       "Wrong hosted zone (especially with multiple accounts).",
       "SPF character escaping / quoting quirks in the console.",
-      "Leaving legacy SES or Google MX sets active.",
+      "Leaving Google Workspace or other provider MX sets active.",
     ],
     records_note:
-      "Record name is usually the apex (blank / zone name) for MX and SPF. DKIM uses the selector hostname Cloudflare shows (e.g. cf2024-1._domainkey).",
+      "Record name is usually the apex (blank / zone name) for MX and SPF. DKIM uses the selector hostname Flap shows (e.g. smtp._domainkey).",
     verification:
       "dig MX / TXT from your laptop or use Flap’s checkers. Route 53 is authoritative quickly once records save — client caches may lag.",
     faqs: [
       {
         q: "Does Flap use SES?",
-        a: "Inbound for Flap goes through Cloudflare Email Routing to a Worker. Do not point MX at SES unless you are running a different architecture.",
+        a: "Yes for customer domains. Point MX at the inbound-smtp host Flap shows for your region, plus SES verification and DKIM records from Settings.",
       },
       {
         q: "Subdomain mail only?",
-        a: "You can publish MX on a subdomain if Flap shows subdomain setup — otherwise use apex records for the domain you added in Flap.",
+        a: "You can publish MX on a subdomain if that is the domain you added in Flap — otherwise use apex records for that domain name.",
       },
     ],
     related: [
-      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare guide" },
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide" },
       { href: "/guides/vercel-custom-domain-email", label: "Vercel guide" },
       ...SHARED_RELATED,
     ],

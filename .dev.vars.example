@@ -10,10 +10,37 @@ APP_URL=http://127.0.0.1:5173
 # true = open signup; false = first-boot setup only after users exist
 SAAS_MODE=true
 
-# From address for verification + magic-link emails (SEB send_email binding).
-# Must be on a domain onboarded for Cloudflare Email Sending / Email Routing send.
-# Until the domain is onboarded for sending, SEB only delivers to verified destination addresses.
+# From address for verification + magic-link emails.
+# Prefer SEB (Cloudflare Email Sending) for useflap.online when bound.
 SYSTEM_FROM_EMAIL=noreply@useflap.online
+
+# ─── Amazon SES (customer-domain send + receive; all plans) ─────────────────
+# IAM user/role with SES + (optional) receipt-rule manage. Never expose to browsers.
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+# Must support SES inbound receiving (e.g. us-east-1, us-west-2, eu-west-1)
+AWS_SES_REGION=us-east-1
+# Optional: configuration set name wired to bounce/complaint → /api/inbound/ses/events
+# SES_CONFIGURATION_SET=flap-outbound
+# Receipt rule set + S3 bucket from infra/ses-inbound CloudFormation
+# SES_RECEIPT_RULE_SET=flap-inbound
+# SES_INBOUND_BUCKET=flap-ses-inbound-…
+# Shared HMAC secret between Lambda and Worker
+SES_INBOUND_WEBHOOK_SECRET=
+# Local only: allow unsigned SES inbound POSTs when secret unset
+# SES_INBOUND_ALLOW_UNSIGNED=true
+# Inbound webhook (production): https://useflap.online/api/inbound/ses
+
+# ─── Mailgun (legacy customer domains during migration only) ────────────────
+# Dashboard → API Security → API keys (Private API key)
+MAILGUN_API_KEY=
+# Sending → Webhooks → HTTP webhook signing key (preferred for inbound verify)
+MAILGUN_WEBHOOK_SIGNING_KEY=
+# Optional EU: https://api.eu.mailgun.net
+# MAILGUN_API_BASE=https://api.mailgun.net
+# Local only: allow unsigned inbound POSTs when signing key unset
+# MAILGUN_WEBHOOK_ALLOW_UNSIGNED=true
+# Legacy inbound: https://useflap.online/api/inbound/mailgun
 
 # Google OAuth via Better Auth social provider
 # Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web)
@@ -61,10 +88,14 @@ DODO_PRODUCT_BUSINESS=
 # Production secrets (wrangler secret put …):
 # BETTER_AUTH_SECRET, APP_URL=https://useflap.online
 # SYSTEM_FROM_EMAIL=noreply@useflap.online
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SES_REGION
+# SES_INBOUND_WEBHOOK_SECRET, SES_RECEIPT_RULE_SET, SES_INBOUND_BUCKET
+# MAILGUN_API_KEY, MAILGUN_WEBHOOK_SIGNING_KEY (legacy only)
 # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 # GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (optional)
 # DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
 # DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
 # Webhook URL: https://useflap.online/api/billing/webhook
+# SES inbound: https://useflap.online/api/inbound/ses
 # OAuth callbacks: https://useflap.online/api/auth/callback/google
 #                  https://useflap.online/api/auth/callback/github

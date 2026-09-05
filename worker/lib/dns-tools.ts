@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { requireUser } from "./auth";
 import { nowMs, randomId } from "./ids";
+import { flapMxSummary, isFlapMx, isFlapSpf } from "./mail-provider";
+import { checkDomainSetup, classifyMx, loadDomain } from "./domain-readiness";
+import { afterDnsVerified } from "./activation";
+import { trackServerEvent } from "./analytics";
 
 type App = { Bindings: Env };
 
@@ -12,7 +16,6 @@ async function dohQuery(name: string, type: string): Promise<{ Status: number; A
   const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`;
   const res = await fetch(url, {
     headers: { Accept: "application/dns-json" },
-    // Cloudflare Workers support AbortSignal.timeout; fall back for older runtimes.
     signal: typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
       ? AbortSignal.timeout(8_000)
       : undefined,
@@ -53,6 +56,18 @@ function txtValues(answers: DnsAnswer[] | undefined): string[] {
     .map((a) => a.data.replace(/^"|"$/g, "").replace(/" "/g, ""));
 }
 
+function parseMxRecords(answers: DnsAnswer[] | undefined) {
+  return (answers ?? [])
+    .filter((a) => a.type === 15)
+    .map((a) => {
+      const parts = a.data.trim().split(/\s+/);
+      const priority = Number(parts[0]);
+      const exchange = (parts.slice(1).join(" ") || "").replace(/\.$/, "");
+      return { priority: Number.isFinite(priority) ? priority : 0, exchange };
+    })
+    .sort((a, b) => a.priority - b.priority);
+}
+
 export function registerDnsToolRoutes(app: Hono<App>) {
   app.post("/api/tools/dns-check", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { domain?: string; tool?: string; selector?: string };
@@ -70,26 +85,25 @@ export function registerDnsToolRoutes(app: Hono<App>) {
     try {
       if (tool === "mx") {
         const data = await dohQuery(domain, "MX");
-        const records = (data.Answer ?? [])
-          .filter((a) => a.type === 15)
-          .map((a) => {
-            const parts = a.data.trim().split(/\s+/);
-            const priority = Number(parts[0]);
-            const exchange = (parts.slice(1).join(" ") || "").replace(/\.$/, "");
-            return { priority: Number.isFinite(priority) ? priority : 0, exchange };
-          })
-          .sort((a, b) => a.priority - b.priority);
-        const hasCf = records.some((r) => /mx\.cloudflare\.net$/i.test(r.exchange));
+        const records = parseMxRecords(data.Answer);
+        let hasSes = false;
+        let hasMailgun = false;
+        let hasCf = false;
+        for (const r of records) {
+          const c = classifyMx(r.exchange);
+          hasSes ||= c.ses;
+          hasMailgun ||= c.mailgun;
+          hasCf ||= c.cf;
+        }
+        const flapReady = records.some((r) => isFlapMx(r.exchange));
         const ok = records.length > 0;
         return c.json({
           tool,
           domain,
           ok,
-          status: ok ? (hasCf ? "valid_flap_ready" : "valid") : "invalid",
+          status: ok ? (flapReady ? "valid_flap_ready" : "valid") : "invalid",
           summary: ok
-            ? hasCf
-              ? "MX records found and point at Cloudflare Email Routing (what Flap uses)."
-              : "MX records found. They do not yet point at Cloudflare Email Routing."
+            ? flapMxSummary(hasSes, hasMailgun, hasCf)
             : "No MX records found. Mail cannot be delivered to this domain yet.",
           records,
           raw: data.Answer ?? [],
@@ -100,7 +114,7 @@ export function registerDnsToolRoutes(app: Hono<App>) {
         const data = await dohQuery(domain, "TXT");
         const texts = txtValues(data.Answer);
         const spf = texts.filter((t) => /^v=spf1\b/i.test(t));
-        const includesFlap = spf.some((t) => /include:_spf\.mx\.cloudflare\.net/i.test(t));
+        const includesFlap = spf.some((t) => isFlapSpf(t));
         const ok = spf.length > 0;
         return c.json({
           tool,
@@ -110,8 +124,8 @@ export function registerDnsToolRoutes(app: Hono<App>) {
           summary: !ok
             ? "No SPF TXT record found. Add an SPF record so receivers know who may send as this domain."
             : includesFlap
-              ? "SPF includes Cloudflare Email Routing (_spf.mx.cloudflare.net)."
-              : "We found your SPF record, but it does not yet include Flap (include:_spf.mx.cloudflare.net).",
+              ? "SPF includes Flap’s mail provider (Amazon SES include:amazonses.com, or legacy Mailgun/Cloudflare)."
+              : "We found your SPF record, but it does not yet include Flap (include:amazonses.com).",
           records: spf,
           raw: texts,
         });
@@ -136,22 +150,34 @@ export function registerDnsToolRoutes(app: Hono<App>) {
       }
 
       if (tool === "dkim") {
-        const selector = (body.selector || "cf2024-1").trim().replace(/[^a-z0-9._-]/gi, "") || "cf2024-1";
-        const name = `${selector}._domainkey.${domain}`;
-        const data = await dohQuery(name, "TXT");
-        const texts = txtValues(data.Answer);
-        const ok = texts.some((t) => /v=DKIM1|p=/i.test(t));
+        const selector = (body.selector || "").trim().replace(/[^a-z0-9._-]/gi, "");
+        // SES Easy DKIM uses token CNAMEs; Mailgun often used smtp.
+        const candidates = selector
+          ? [`${selector}._domainkey.${domain}`]
+          : [`smtp._domainkey.${domain}`, `_amazonses.${domain}`];
+        const results: string[] = [];
+        for (const name of candidates) {
+          const [txt, cname] = await Promise.all([dohQuery(name, "TXT"), dohQuery(name, "CNAME")]);
+          const texts = txtValues(txt.Answer);
+          const cnames = (cname.Answer ?? [])
+            .filter((a) => a.type === 5)
+            .map((a) => a.data.replace(/\.$/, ""));
+          if (texts.some((t) => /v=DKIM1|p=/i.test(t)) || cnames.length > 0 || texts.length > 0) {
+            results.push(...(texts.length ? texts : cnames));
+          }
+        }
+        const ok = results.length > 0;
         return c.json({
           tool,
           domain,
-          selector,
+          selector: selector || "auto",
           ok,
           status: ok ? "valid" : "invalid",
           summary: ok
-            ? `DKIM public key found at ${name}.`
-            : `No DKIM TXT at ${name}. For Cloudflare Email Routing, copy the value from Email Routing → Settings (selector often cf2024-1).`,
-          records: texts,
-          raw: data.Answer ?? [],
+            ? "DKIM / SES verification records found."
+            : "No DKIM CNAME or SES verification TXT found. Copy exact values from Flap Settings → Setup.",
+          records: results,
+          raw: results,
         });
       }
 
@@ -162,18 +188,17 @@ export function registerDnsToolRoutes(app: Hono<App>) {
         dohQuery(`_dmarc.${domain}`, "TXT"),
         dohQuery(domain, "NS"),
       ]);
-      const mxRecords = (mx.Answer ?? [])
-        .filter((a) => a.type === 15)
-        .map((a) => a.data);
+      const mxParsed = parseMxRecords(mx.Answer);
+      const mxRecords = mxParsed.map((r) => `${r.priority} ${r.exchange}`);
       const spfRecords = txtValues(spf.Answer).filter((t) => /^v=spf1\b/i.test(t));
       const dmarcRecords = txtValues(dmarc.Answer).filter((t) => /^v=DMARC1\b/i.test(t));
       const nameservers = (ns.Answer ?? [])
         .filter((a) => a.type === 2)
         .map((a) => a.data.replace(/\.$/, "").toLowerCase());
       const provider = detectDnsProvider(nameservers);
-      const mxOk = mxRecords.length > 0;
-      const mxFlap = mxRecords.some((r) => /mx\.cloudflare\.net/i.test(r));
-      const spfOk = spfRecords.some((t) => /include:_spf\.mx\.cloudflare\.net/i.test(t));
+      const mxOk = mxParsed.length > 0;
+      const mxFlap = mxParsed.some((r) => isFlapMx(r.exchange));
+      const spfOk = spfRecords.some((t) => isFlapSpf(t));
       return c.json({
         tool: "setup",
         domain,
@@ -188,8 +213,8 @@ export function registerDnsToolRoutes(app: Hono<App>) {
         },
         summary:
           mxOk && mxFlap && spfOk
-            ? "DNS looks ready for Flap (Cloudflare Email Routing MX + SPF)."
-            : "Some required records are missing or not yet pointing at Cloudflare Email Routing.",
+            ? "DNS looks ready for Flap (Amazon SES MX + SPF, or legacy Mailgun/Cloudflare)."
+            : "Some required records are missing or not yet pointing at Flap (Amazon SES).",
         guide_path:
           provider === "cloudflare"
             ? "/guides/cloudflare-custom-domain-email"
@@ -205,16 +230,13 @@ export function registerDnsToolRoutes(app: Hono<App>) {
     }
   });
 
-  /** Authenticated domain DNS status for onboarding. */
+  /** Authenticated domain setup check — SES identity + DNS + receipt readiness. */
   app.get("/api/domains/:id/dns-status", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const domain = await c.env.DB.prepare("SELECT id, name, user_id FROM domains WHERE id = ?")
-      .bind(c.req.param("id"))
-      .first<{ id: string; name: string; user_id: string }>();
+    const domain = await loadDomain(c.env.DB, c.req.param("id"));
     if (!domain) return c.json({ error: "Domain not found." }, 404);
 
-    // Domain owner is workspace id; session user must own or manage that workspace.
     const member = await c.env.DB.prepare(
       "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?",
     )
@@ -225,41 +247,36 @@ export function registerDnsToolRoutes(app: Hono<App>) {
     }
 
     try {
-      const [mx, spf, ns] = await Promise.all([
-        dohQuery(domain.name, "MX"),
-        dohQuery(domain.name, "TXT"),
-        dohQuery(domain.name, "NS"),
-      ]);
-      const mxRecords = (mx.Answer ?? []).filter((a) => a.type === 15).map((a) => a.data);
-      const spfRecords = txtValues(spf.Answer).filter((t) => /^v=spf1\b/i.test(t));
-      const nameservers = (ns.Answer ?? [])
-        .filter((a) => a.type === 2)
-        .map((a) => a.data.replace(/\.$/, "").toLowerCase());
-      const provider = detectDnsProvider(nameservers);
-      const mxOk = mxRecords.some((r) => /mx\.cloudflare\.net/i.test(r));
-      const spfOk = spfRecords.some((t) => /include:_spf\.mx\.cloudflare\.net/i.test(t));
-      const issues: string[] = [];
-      if (!mxRecords.length) issues.push("MX record is missing");
-      else if (!mxOk) issues.push("MX records do not point at Cloudflare Email Routing (route*.mx.cloudflare.net)");
-      if (!spfRecords.length) issues.push("SPF record is missing");
-      else if (!spfOk) issues.push("We found your SPF record, but it does not yet include Flap (_spf.mx.cloudflare.net)");
+      await trackServerEvent(c.env.DB, "domain_check_started", {
+        userId: domain.user_id,
+        props: { domain: domain.name },
+      });
+      const report = await checkDomainSetup(c.env, domain, {
+        dnsProviderDetect: detectDnsProvider,
+        guidePath: (p) => (p === "cloudflare" ? "/guides/cloudflare-custom-domain-email" : providerGuide(p)),
+      });
 
-      const verified = mxOk && spfOk;
-      if (verified) {
-        const { afterDnsVerified } = await import("./activation");
+      if (report.verified) {
         await afterDnsVerified(c.env.DB, domain.user_id, domain.name).catch(() => undefined);
       }
 
       return c.json({
-        domain: domain.name,
-        provider,
-        nameservers,
-        mx_ok: mxOk,
-        spf_ok: spfOk,
-        verified,
-        issues,
-        guide_path: provider === "cloudflare" ? "/guides/cloudflare-custom-domain-email" : providerGuide(provider),
-        records: { mx: mxRecords, spf: spfRecords },
+        domain: report.domain,
+        provider: report.dns_provider,
+        mail_provider: report.provider,
+        region: report.region,
+        lifecycle: report.lifecycle,
+        receiving: report.receiving,
+        sending: report.sending,
+        mx_ok: report.receiving.mx_configured,
+        spf_ok: report.records.spf.some((t) => isFlapSpf(t, report.provider)),
+        verified: report.verified,
+        issues: report.issues,
+        guide_path: report.guide_path,
+        nameservers: report.nameservers,
+        records: report.records,
+        identity_status: report.identity_status,
+        dkim_status: report.dkim_status,
       });
     } catch (err) {
       return c.json({

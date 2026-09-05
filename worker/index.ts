@@ -9,6 +9,14 @@ import { dispatchStoredMessage, flushScheduled, normalizeMessageId, registerWork
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
+import { registerInboundWebhookRoutes } from "./lib/inbound-webhook";
+import {
+  canSendMail,
+  defaultCustomerDnsRecords,
+  deleteCustomerDomain,
+  parseStoredDnsJson,
+  provisionCustomerDomain,
+} from "./lib/mail-provider";
 import { ensureReferralCode, markEmailVerified } from "./lib/referrals";
 import { afterDomainAdded, markFirstEmailSent } from "./lib/activation";
 import { ensureFlapUser } from "./lib/flap-user";
@@ -21,6 +29,9 @@ import {
   setMailboxShared,
   type WorkspaceCtx,
 } from "./lib/team";
+import { isAddressSuppressed } from "./lib/inbound-webhook";
+import { domainIsSendingReady, loadDomain } from "./lib/domain-readiness";
+import { trackServerEvent } from "./lib/analytics";
 
 function applySetCookies(c: { header: (name: string, value: string, opts?: { append?: boolean }) => void }, headers: Headers) {
   const cookies =
@@ -213,7 +224,11 @@ app.get("/api/domains", async (c) => {
     return c.json({ domains: [], read_only: true });
   }
   const rows = await c.env.DB.prepare(
-    "SELECT id, name, catch_all_mailbox_id, created_at FROM domains WHERE user_id = ? ORDER BY created_at ASC",
+    `SELECT id, name, catch_all_mailbox_id, mail_provider, provider_state, provider_region,
+            identity_verified_at, mx_verified_at, inbound_rule_ready_at, receiving_ready_at,
+            sending_ready_at, last_provider_check_at, last_provider_error, migration_from,
+            migration_state, created_at
+     FROM domains WHERE user_id = ? ORDER BY created_at ASC`,
   )
     .bind(ctx.workspaceId)
     .all();
@@ -225,24 +240,79 @@ app.post("/api/domains", async (c) => {
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can add domains." }, 403);
+
+  const flapUser = await c.env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?")
+    .bind(ctx.workspaceId)
+    .first<{ email_verified_at: number | null }>();
+  if (!flapUser?.email_verified_at) {
+    return c.json({ error: "Verify your Flap account email before adding a domain." }, 403);
+  }
+
   const body = await c.req.json().catch(() => ({})) as { name?: string };
   const name = normalizeDomain(body.name ?? "");
-  if (!name) return c.json({ error: "Enter a domain, for example mail.example.com." }, 400);
+  if (!name) return c.json({ error: "Enter a domain, for example example.com." }, 400);
+
+  // Reserved / system domains
+  if (name === "useflap.online" || name.endsWith(".useflap.online") || name === "localhost") {
+    return c.json({ error: "That domain is reserved." }, 400);
+  }
+
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM domains WHERE user_id = ?")
     .bind(ctx.workspaceId)
     .first<{ n: number }>();
   const limit = await assertWithinLimit(c.env.DB, ctx.workspaceId, "domains", Number(count?.n ?? 0));
-  if (!limit.ok) return c.json({ error: limit.error }, limit.status);
+  if (!limit.ok) {
+    await trackServerEvent(c.env.DB, "plan_limit_reached", {
+      userId: ctx.workspaceId,
+      props: { limit: "domains" },
+    });
+    return c.json({ error: limit.error }, limit.status);
+  }
+
+  await trackServerEvent(c.env.DB, "domain_add_started", { userId: ctx.workspaceId, props: { domain: name } });
+
+  const provisioned = await provisionCustomerDomain(c.env, name);
+  if (!provisioned.ok) return c.json({ error: provisioned.error }, 502);
+
   const id = randomId("dom");
   try {
-    await c.env.DB.prepare("INSERT INTO domains (id, user_id, name, created_at) VALUES (?, ?, ?, ?)")
-      .bind(id, ctx.workspaceId, name, nowMs())
+    await c.env.DB.prepare(
+      `INSERT INTO domains (
+         id, user_id, name, created_at, mail_provider, provider_state, provider_dns_json,
+         provider_region, ses_identity_arn
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        id,
+        ctx.workspaceId,
+        name,
+        nowMs(),
+        provisioned.provider,
+        provisioned.state,
+        JSON.stringify(provisioned.dns),
+        provisioned.region,
+        provisioned.identityArn || null,
+      )
       .run();
   } catch {
     return c.json({ error: "That domain is already on this account." }, 409);
   }
   await afterDomainAdded(c.env.DB, ctx.workspaceId);
-  return c.json({ domain: { id, name } }, 201);
+  return c.json(
+    {
+      domain: {
+        id,
+        name,
+        mail_provider: provisioned.provider,
+        provider_state: provisioned.state,
+        provider_region: provisioned.region,
+        receiving_ready_at: null,
+        sending_ready_at: null,
+      },
+      records: provisioned.dns,
+    },
+    201,
+  );
 });
 
 app.delete("/api/domains/:id", async (c) => {
@@ -250,10 +320,16 @@ app.delete("/api/domains/:id", async (c) => {
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   if (!ctx.canManageSettings) return c.json({ error: "Only workspace owners and admins can remove domains." }, 403);
-  const res = await c.env.DB.prepare("DELETE FROM domains WHERE id = ? AND user_id = ?")
+  const existing = await c.env.DB.prepare(
+    "SELECT id, name, mail_provider FROM domains WHERE id = ? AND user_id = ?",
+  )
     .bind(c.req.param("id"), ctx.workspaceId)
+    .first<{ id: string; name: string; mail_provider: string | null }>();
+  if (!existing) return c.json({ error: "Domain not found." }, 404);
+  await deleteCustomerDomain(c.env, existing.name, existing.mail_provider).catch(() => undefined);
+  await c.env.DB.prepare("DELETE FROM domains WHERE id = ? AND user_id = ?")
+    .bind(existing.id, ctx.workspaceId)
     .run();
-  if (!res.meta.changes) return c.json({ error: "Domain not found." }, 404);
   return c.json({ ok: true });
 });
 
@@ -366,7 +442,77 @@ app.get("/api/dns", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   const domain = (c.req.query("domain") ?? "").trim().toLowerCase();
-  return c.json({ records: dnsRecords(domain || "your-domain.com") });
+  const name = domain || "your-domain.com";
+  if (domain) {
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const row = await c.env.DB.prepare(
+      "SELECT provider_dns_json, mail_provider, provider_region FROM domains WHERE user_id = ? AND lower(name) = ?",
+    )
+      .bind(ctx.workspaceId, name)
+      .first<{ provider_dns_json: string | null; mail_provider: string | null; provider_region: string | null }>();
+    if (row) {
+      await trackServerEvent(c.env.DB, "domain_dns_records_viewed", {
+        userId: ctx.workspaceId,
+        props: { domain: name, provider: row.mail_provider || "ses" },
+      });
+      return c.json({
+        records: toClientDnsRecords(
+          parseStoredDnsJson(row.provider_dns_json, name, {
+            provider: row.mail_provider,
+            region: row.provider_region,
+          }),
+        ),
+      });
+    }
+  }
+  return c.json({ records: toClientDnsRecords(defaultCustomerDnsRecords(name, c.env)) });
+});
+
+/** Start SES migration for a legacy Mailgun/CF domain (checklist only until MX cutover). */
+app.post("/api/domains/:id/migrate-ses", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+  const row = await loadDomain(c.env.DB, c.req.param("id"));
+  if (!row || row.user_id !== ctx.workspaceId) return c.json({ error: "Domain not found." }, 404);
+  const from = (row.mail_provider || "mailgun").toLowerCase();
+  if (from === "ses" && row.migration_state !== "rollback") {
+    return c.json({ ok: true, already: true, domain: row });
+  }
+  const provisioned = await provisionCustomerDomain(c.env, row.name);
+  if (!provisioned.ok) return c.json({ error: provisioned.error }, 502);
+  await c.env.DB.prepare(
+    `UPDATE domains SET
+       mail_provider = 'ses',
+       provider_state = ?,
+       provider_dns_json = ?,
+       provider_region = ?,
+       ses_identity_arn = ?,
+       migration_from = ?,
+       migration_state = 'pending_mx_cutover',
+       identity_verified_at = NULL,
+       mx_verified_at = NULL,
+       inbound_rule_ready_at = NULL,
+       receiving_ready_at = NULL,
+       sending_ready_at = NULL,
+       last_provider_error = NULL
+     WHERE id = ?`,
+  )
+    .bind(
+      provisioned.state,
+      JSON.stringify(provisioned.dns),
+      provisioned.region,
+      provisioned.identityArn || null,
+      from,
+      row.id,
+    )
+    .run();
+  return c.json({
+    ok: true,
+    records: provisioned.dns,
+    note: "Publish SES DNS, verify with Check setup, then replace legacy MX. Rollback window: keep old MX until SES receiving test passes.",
+  });
 });
 
 const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, created_at`;
@@ -620,11 +766,11 @@ app.post("/api/mail/send", async (c) => {
   if (cc && !parseRecipients(cc).length) return c.json({ error: "Cc contains an invalid address." }, 400);
   if (bcc && !parseRecipients(bcc).length) return c.json({ error: "Bcc contains an invalid address." }, 400);
 
-  if (!draft && !scheduledAt && !c.env.SEB) {
+  if (!draft && !scheduledAt && !canSendMail(c.env)) {
     return c.json(
       {
         error:
-          "The send_email binding (SEB) is not configured. Add it in wrangler.jsonc and enable Email Routing. Sending requires a paid Workers plan.",
+          "Mail sending is not configured. Set AWS SES credentials for customer domains (and optionally SEB for useflap.online system mail).",
       },
       501,
     );
@@ -633,6 +779,39 @@ app.post("/api/mail/send", async (c) => {
   const fromMailbox = await pickFromMailbox(c.env.DB, ctx, body.from);
   if (!fromMailbox) {
     return c.json({ error: "Create a mailbox before sending, or pick an address you can send from." }, 400);
+  }
+
+  // Resolve domain sending readiness for compose From.
+  const mailboxDomain = await c.env.DB.prepare(
+    `SELECT d.id, d.name, d.mail_provider, d.provider_state, d.provider_region, d.provider_dns_json,
+            d.ses_identity_arn, d.identity_verified_at, d.mx_verified_at, d.inbound_rule_ready_at,
+            d.receiving_ready_at, d.sending_ready_at, d.last_provider_check_at, d.last_provider_error,
+            d.migration_from, d.migration_state, d.user_id
+     FROM mailboxes m JOIN domains d ON d.id = m.domain_id WHERE m.id = ?`,
+  )
+    .bind(fromMailbox.id)
+    .first<import("./lib/domain-readiness").DomainProviderRow>();
+
+  if (!draft && !scheduledAt && mailboxDomain) {
+    const sendingOk = domainIsSendingReady(mailboxDomain);
+    if (!sendingOk) {
+      return c.json(
+        {
+          error: `Finish sending setup for ${mailboxDomain.name} before composing from this address.`,
+          code: "sending_not_ready",
+          domain_id: mailboxDomain.id,
+        },
+        400,
+      );
+    }
+  }
+
+  if (!draft && !scheduledAt) {
+    for (const addr of uniqueRecipients) {
+      if (await isAddressSuppressed(c.env.DB, addr)) {
+        return c.json({ error: `${addr} is on the suppression list (bounce or complaint).` }, 400);
+      }
+    }
   }
 
   const now = nowMs();
@@ -781,6 +960,27 @@ async function saveOutboundAttachments(env: Env, messageId: string, attachments:
   }
 }
 
+function toClientDnsRecords(bundle: ReturnType<typeof defaultCustomerDnsRecords>) {
+  const primaryDkim = bundle.dkim[0] ?? {
+    type: "TXT",
+    name: `one._domainkey.${bundle.spf.name}`,
+    value: "Provision the domain in Flap to load exact DKIM values.",
+  };
+  return {
+    provider: bundle.provider,
+    note: bundle.note,
+    mx: bundle.mx,
+    spf: bundle.spf,
+    dkim: primaryDkim,
+    dkim_records: bundle.dkim,
+    verification: bundle.verification ?? [],
+    dmarc: bundle.dmarc,
+    worker_rule: bundle.worker_rule,
+    send_note: bundle.send_note,
+    region: bundle.region,
+  };
+}
+
 function normalizeDomain(raw: string): string {
   const domain = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
   return DOMAIN_RE.test(domain) ? domain : "";
@@ -794,33 +994,6 @@ function safeContentType(value: string): string {
   return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+(?:;[^\r\n]*)?$/i.test(value)
     ? value
     : "application/octet-stream";
-}
-
-function dnsRecords(domain: string) {
-  return {
-    note:
-      "These are the records Cloudflare Email Routing documents. Create them at your DNS host. Flap does not write DNS for you. After MX is live, add an Email Routing rule that sends mail for your mailbox to this Worker.",
-    mx: [
-      { type: "MX", name: domain, priority: 13, value: "route1.mx.cloudflare.net" },
-      { type: "MX", name: domain, priority: 27, value: "route2.mx.cloudflare.net" },
-      { type: "MX", name: domain, priority: 40, value: "route3.mx.cloudflare.net" },
-    ],
-    spf: {
-      type: "TXT",
-      name: domain,
-      value: "v=spf1 include:_spf.mx.cloudflare.net ~all",
-    },
-    dkim: {
-      type: "TXT",
-      name: `cf2024-1._domainkey.${domain}`,
-      value:
-        "Copy the DKIM TXT value from Cloudflare Dashboard > Email Routing > Settings. Flap does not generate DKIM keys.",
-    },
-    worker_rule:
-      "Email Routing > Routing rules: match the mailbox address (or a catch-all) and set the action to Send to a Worker, selecting this Flap Worker.",
-    send_note:
-      "Outbound mail uses the SEB send_email binding. Workers Paid + Email Sending domain onboarding are required to reach arbitrary recipients; otherwise only verified Email Routing destinations work.",
-  };
 }
 
 async function pickFromMailbox(db: D1Database, ctx: WorkspaceCtx, from?: string) {
@@ -852,6 +1025,7 @@ registerWorkspaceRoutes(app);
 registerBillingRoutes(app);
 registerDnsToolRoutes(app);
 registerGrowthRoutes(app);
+registerInboundWebhookRoutes(app);
 
 export default {
   fetch: app.fetch,

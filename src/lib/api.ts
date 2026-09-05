@@ -10,7 +10,23 @@ export type Mailbox = {
   is_shared?: number;
   access_role?: string;
 };
-export type Domain = { id: string; name: string; catch_all_mailbox_id?: string | null; created_at: number };
+export type Domain = {
+  id: string;
+  name: string;
+  catch_all_mailbox_id?: string | null;
+  created_at: number;
+  mail_provider?: string | null;
+  provider_state?: string | null;
+  provider_region?: string | null;
+  identity_verified_at?: number | null;
+  mx_verified_at?: number | null;
+  inbound_rule_ready_at?: number | null;
+  receiving_ready_at?: number | null;
+  sending_ready_at?: number | null;
+  last_provider_error?: string | null;
+  migration_from?: string | null;
+  migration_state?: string | null;
+};
 export type FolderCounts = Record<string, { total: number; unread: number }>;
 export type MailSummary = {
   id: string;
@@ -216,7 +232,12 @@ export const api = {
   counts: (signal?: AbortSignal) => req<{ counts: FolderCounts; server_time: number }>("/api/counts", { signal }),
   domains: () => req<{ domains: Domain[] }>("/api/domains"),
   createDomain: (name: string) =>
-    req<{ domain: Domain }>("/api/domains", { method: "POST", body: JSON.stringify({ name }) }),
+    req<{ domain: Domain; records?: DnsRecords }>("/api/domains", { method: "POST", body: JSON.stringify({ name }) }),
+  migrateDomainSes: (id: string) =>
+    req<{ ok: boolean; records?: DnsRecords; note?: string; already?: boolean }>(`/api/domains/${id}/migrate-ses`, {
+      method: "POST",
+      body: "{}",
+    }),
   updateDomain: (id: string, catch_all_mailbox_id: string | null) =>
     req<{ ok: boolean }>(`/api/domains/${id}`, { method: "PATCH", body: JSON.stringify({ catch_all_mailbox_id }) }),
   deleteDomain: (id: string) => req<{ ok: boolean }>(`/api/domains/${id}`, { method: "DELETE" }),
@@ -365,21 +386,41 @@ export const api = {
     req<{
       domain: string;
       provider: string;
+      mail_provider?: string;
+      region?: string;
+      lifecycle?: string;
+      receiving?: {
+        identity_verified: boolean;
+        mx_configured: boolean;
+        inbound_rule_active: boolean;
+        receiving_ready: boolean;
+      };
+      sending?: {
+        ses_sending: boolean;
+        sending_ready: boolean;
+      };
       mx_ok: boolean;
       spf_ok: boolean;
       verified: boolean;
       issues: string[];
       guide_path: string | null;
       records: { mx: string[]; spf: string[] };
+      identity_status?: string;
+      dkim_status?: string;
       error?: string;
     }>(`/api/domains/${domainId}/dns-status`),
 };
 
 export type DnsRecords = {
+  provider?: string;
   note: string;
   mx: { type: string; name: string; priority: number; value: string }[];
   spf: { type: string; name: string; value: string };
   dkim: { type: string; name: string; value: string };
+  dkim_records?: { type: string; name: string; value: string }[];
+  verification?: { type: string; name: string; value: string }[];
+  dmarc?: { type: string; name: string; value: string };
   worker_rule: string;
   send_note: string;
+  region?: string;
 };

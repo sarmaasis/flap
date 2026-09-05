@@ -40,7 +40,7 @@ export const ICP_LINES = [
 /** Qualitative credibility until real testimonials exist — do not invent stats. */
 export const CREDIBILITY = [
   { title: "Secure domain verification", body: "Guided MX/SPF checks with precise errors — not a vague “verification failed.”" },
-  { title: "Proper DNS authentication", body: "SPF and DKIM records you control, documented for Cloudflare Email Routing." },
+  { title: "Proper DNS authentication", body: "SPF and DKIM records you control — published at any DNS host for Flap’s mail provider." },
   { title: "Founder-built", body: "Shipped for indie hackers and studios — not enterprise procurement theater." },
   { title: "Transparent pricing", body: "Domain-first plans. No surprise seat tax for every side project." },
   { title: "Fast setup", body: "Add domain → point DNS → create hello@ → inbox." },
@@ -115,24 +115,24 @@ export const SEO_PAGES = [
 
 export const TOOL_PAGES = [
   { path: "/tools/google-workspace-cost-calculator", title: "Google Workspace cost calculator | Flap", description: "Estimate Workspace spend across projects vs Flap — interactive savings calculator." },
-  { path: "/tools/spf-checker", title: "SPF checker | Flap", description: "Check your domain’s SPF TXT record and whether it includes Cloudflare Email Routing for Flap." },
+  { path: "/tools/spf-checker", title: "SPF checker | Flap", description: "Check your domain’s SPF TXT record and whether it includes Flap’s mail provider (Amazon SES / include:amazonses.com)." },
   { path: "/tools/dmarc-checker", title: "DMARC checker | Flap", description: "Look up _dmarc TXT for your domain and read a plain-English summary." },
-  { path: "/tools/dkim-checker", title: "DKIM checker | Flap", description: "Verify a DKIM selector TXT record exists for your domain." },
-  { path: "/tools/mx-checker", title: "MX record checker | Flap", description: "Check MX records and whether they point at Cloudflare Email Routing." },
+  { path: "/tools/dkim-checker", title: "DKIM checker | Flap", description: "Verify a DKIM selector TXT or CNAME record exists for your domain." },
+  { path: "/tools/mx-checker", title: "MX record checker | Flap", description: "Check MX records and whether they point at Flap (Amazon SES)." },
   { path: "/tools/email-setup-checker", title: "Email setup checker | Flap", description: "Combined MX, SPF, and DMARC check for custom-domain email readiness." },
 ] as const;
 
 export const GUIDE_PAGES = [
   {
     path: "/guides/cloudflare-custom-domain-email",
-    title: "Cloudflare custom domain email with Flap",
-    description: "Exact DNS records, proxy settings, and common mistakes when wiring Flap via Cloudflare Email Routing.",
+    title: "Cloudflare DNS for Flap email",
+    description: "Exact MX/SPF/DKIM records and proxy settings when DNS is on Cloudflare — no Email Routing required.",
     provider: "cloudflare",
   },
   {
     path: "/guides/vercel-custom-domain-email",
     title: "Vercel DNS for Flap email",
-    description: "Add MX and SPF in Vercel Domains when nameservers are on vercel-dns.com, then finish Cloudflare Email Routing for Flap.",
+    description: "Add Flap MX/SPF/DKIM in Vercel Domains when nameservers are on vercel-dns.com.",
     provider: "vercel",
   },
   {
@@ -144,7 +144,7 @@ export const GUIDE_PAGES = [
   {
     path: "/guides/porkbun-custom-domain-email",
     title: "Porkbun DNS for Flap email",
-    description: "Point Porkbun DNS at Cloudflare Email Routing for Flap.",
+    description: "Point Porkbun DNS at Flap’s Amazon SES MX/SPF/DKIM records.",
     provider: "porkbun",
   },
   {
@@ -162,7 +162,7 @@ export const GUIDE_PAGES = [
   {
     path: "/guides/route53-custom-domain-email",
     title: "Route 53 DNS for Flap email",
-    description: "Create MX and TXT records in Amazon Route 53 for Flap.",
+    description: "Publish Flap Amazon SES MX/SPF/DKIM in an Amazon Route 53 hosted zone.",
     provider: "route53",
   },
 ] as const;

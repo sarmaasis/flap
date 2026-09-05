@@ -1,5 +1,5 @@
-import { EmailMessage } from "cloudflare:email";
 import { buildRawMime } from "./mime";
+import { canSendMail, mailgunConfigured, sendRawEmail } from "./mail-provider";
 
 export function systemFrom(env: Env): string {
   const raw = (env.SYSTEM_FROM_EMAIL || "noreply@useflap.online").trim();
@@ -56,15 +56,19 @@ export function clientSebFailureMessage(code?: string): string {
   }
 }
 
+/**
+ * Auth / magic-link / verify mail.
+ * Prefer SEB for useflap.online when bound; otherwise Mailgun.
+ */
 export async function sendSystemEmail(
   env: Env,
   opts: { to: string; subject: string; text: string; html?: string; messageId?: string },
   // Kept for call-site compatibility; auth mail is awaited so failures surface to Better Auth.
   _execCtx?: { waitUntil?: (promise: Promise<unknown>) => void },
 ): Promise<{ ok: true; sent: boolean; reason?: string }> {
-  if (!env.SEB) {
-    console.warn("SEB missing — auth email not sent", opts.subject, opts.to.slice(0, 2) + "***");
-    return { ok: true, sent: false, reason: "seb_unavailable" };
+  if (!canSendMail(env)) {
+    console.warn("No mail transport — auth email not sent", opts.subject, opts.to.slice(0, 2) + "***");
+    return { ok: true, sent: false, reason: "transport_unavailable" };
   }
 
   const from = systemFrom(env);
@@ -79,9 +83,12 @@ export async function sendSystemEmail(
   });
 
   try {
-    // Await always — do not fire-and-forget via waitUntil. Magic-link / verify failures
-    // must reach Better Auth; background send previously returned success then logged alone.
-    await env.SEB.send(new EmailMessage(from, opts.to, raw));
+    await sendRawEmail(env, {
+      envelopeFrom: from,
+      recipients: [opts.to],
+      rawMime: raw,
+      preferSeb: Boolean(env.SEB),
+    });
     return { ok: true, sent: true };
   } catch (err) {
     const formatted = formatSebError(err);
@@ -91,7 +98,8 @@ export async function sendSystemEmail(
         subject: opts.subject,
         from,
         toDomain: opts.to.includes("@") ? opts.to.split("@")[1] : "?",
-        seb: formatted.detail,
+        transport: env.SEB ? "seb_or_mailgun" : mailgunConfigured(env) ? "mailgun" : "none",
+        detail: formatted.detail,
       }),
     );
     throw new Error(clientSebFailureMessage(formatted.code));

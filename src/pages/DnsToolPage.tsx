@@ -14,16 +14,16 @@ const META: Record<string, { tool: Tool; title: string; description: string; hea
   "/tools/mx-checker": {
     tool: "mx",
     title: "MX record checker | Flap",
-    description: "Check MX records and whether they point at Cloudflare Email Routing.",
+    description: "Check MX records and whether they point at Flap (Amazon SES).",
     heading: "MX record checker",
-    blurb: "See whether mail can be delivered to your domain, and if MX points at Cloudflare Email Routing (what Flap uses).",
+    blurb: "See whether mail can be delivered to your domain, and if MX points at Flap (inbound-smtp.<region>.amazonaws.com).",
   },
   "/tools/spf-checker": {
     tool: "spf",
     title: "SPF checker | Flap",
     description: "Check your domain’s SPF TXT record.",
     heading: "SPF checker",
-    blurb: "Lookup the SPF TXT on your apex domain and check for include:_spf.mx.cloudflare.net.",
+    blurb: "Lookup the SPF TXT on your apex domain and check for include:amazonses.com.",
   },
   "/tools/dmarc-checker": {
     tool: "dmarc",
@@ -35,9 +35,9 @@ const META: Record<string, { tool: Tool; title: string; description: string; hea
   "/tools/dkim-checker": {
     tool: "dkim",
     title: "DKIM checker | Flap",
-    description: "Verify a DKIM selector TXT record exists.",
+    description: "Verify a DKIM selector TXT or CNAME record exists.",
     heading: "DKIM checker",
-    blurb: "Check a DKIM selector (default cf2024-1 for Cloudflare Email Routing).",
+    blurb: "Check SES Easy DKIM CNAMEs or a legacy selector from Flap Settings.",
   },
   "/tools/email-setup-checker": {
     tool: "setup",
@@ -63,7 +63,7 @@ type Result = {
 export default function DnsToolPage({ path }: { path: string }) {
   const meta = META[path] || META["/tools/mx-checker"]!;
   const [domain, setDomain] = useState("");
-  const [selector, setSelector] = useState("cf2024-1");
+  const [selector, setSelector] = useState("smtp");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 

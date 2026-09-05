@@ -31,8 +31,10 @@ npm run db:migrate:remote
 | `0009_analytics_verify_abuse.sql` | First-party `analytics_events`, email verify tokens, payment identity columns for referral abuse |
 | `0010_better_auth.sql` | Better Auth `user`/`session`/`account`/`verification` tables + id-preserving backfill from Flap `users` |
 | `0011_auth_email_rate_limit.sql` | D1 counters for magic-link / verification email rate limits |
+| `0012_mailgun_provider.sql` | `mail_provider`, `provider_state`, `provider_dns_json` on domains |
+| `0013_ses_provider.sql` | SES readiness timestamps, inbound idempotency, suppressions, `provider_message_id` |
 
-**Launch note:** Apply through `0011_auth_email_rate_limit` on remote D1 before relying on Better Auth sessions + auth mail throttling. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
+**Launch note:** Apply through `0013_ses_provider` on remote D1 before relying on SES customer-domain mail. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
 
 ### Better Auth coexistence
 

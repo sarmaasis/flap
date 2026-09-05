@@ -18,7 +18,7 @@
     "dev": "vite",
     "build": "vite build && npm run prerender",
     "prerender": "npx --yes tsx scripts/prerender.ts",
-    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && npx --yes tsx shared/calculator.test.ts",
+    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && npx --yes tsx shared/calculator.test.ts && npx --yes tsx shared/ses-dns.test.ts",
     "preview": "vite preview",
     "deploy": "npm run build && npm run db:migrate:remote && wrangler deploy",
     "types": "wrangler types",

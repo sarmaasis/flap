@@ -79,6 +79,7 @@ export default function Settings() {
   const [onboardingBanner, setOnboardingBanner] = useState(
     () => new URLSearchParams(window.location.search).get("onboarding") === "1",
   );
+  const [setupLoading, setSetupLoading] = useState(true);
   const [dnsStatus, setDnsStatus] = useState<{
     verified: boolean;
     issues: string[];
@@ -86,6 +87,15 @@ export default function Settings() {
     guide_path: string | null;
     mx_ok: boolean;
     spf_ok: boolean;
+    receiving?: {
+      identity_verified: boolean;
+      mx_configured: boolean;
+      inbound_rule_active: boolean;
+      receiving_ready: boolean;
+    };
+    sending?: { ses_sending: boolean; sending_ready: boolean };
+    lifecycle?: string;
+    mail_provider?: string;
   } | null>(null);
   const [dnsChecking, setDnsChecking] = useState(false);
   const [dnsPolling, setDnsPolling] = useState(false);
@@ -101,25 +111,30 @@ export default function Settings() {
   const loadedTabs = useRef(new Set<Tab>());
 
   async function refreshCore() {
-    const me = await api.me();
-    setEmail(me.user.email);
-    setEmailVerified(me.user.email_verified !== false);
-    const [d, m, p, act] = await Promise.all([
-      api.domains(),
-      api.mailboxes(),
-      api.prefs(),
-      api.activation().catch(() => null),
-    ]);
-    setDomains(d.domains);
-    if (!domainId && d.domains[0]) setDomainId(d.domains[0].id);
-    setMailboxes(m.mailboxes);
-    setPrefs(p.settings);
-    if (act) {
-      setActivation(act);
-      if (act.steps?.email_verified != null) setEmailVerified(Boolean(act.steps.email_verified));
+    setSetupLoading(true);
+    try {
+      const me = await api.me();
+      setEmail(me.user.email);
+      setEmailVerified(me.user.email_verified !== false);
+      const [d, m, p, act] = await Promise.all([
+        api.domains(),
+        api.mailboxes(),
+        api.prefs(),
+        api.activation().catch(() => null),
+      ]);
+      setDomains(d.domains);
+      if (!domainId && d.domains[0]) setDomainId(d.domains[0].id);
+      setMailboxes(m.mailboxes);
+      setPrefs(p.settings);
+      if (act) {
+        setActivation(act);
+        if (act.steps?.email_verified != null) setEmailVerified(Boolean(act.steps.email_verified));
+      }
+      const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
+      if (focus) setDns((await api.dns(focus.name)).records);
+    } finally {
+      setSetupLoading(false);
     }
-    const focus = d.domains.find((x) => x.id === domainId) ?? d.domains[0];
-    if (focus) setDns((await api.dns(focus.name)).records);
   }
 
   async function loadTabData(next: Tab, force = false) {
@@ -127,6 +142,7 @@ export default function Settings() {
     try {
       switch (next) {
         case "setup":
+          await api.billingSubscription().then(setBilling).catch(() => undefined);
           break;
         case "compose": {
           const [s, t] = await Promise.all([api.signatures(), api.templates()]);
@@ -286,13 +302,14 @@ export default function Settings() {
       setDnsStatus(status);
       if (status.verified) {
         track("dns_verified");
-        setNotice("Looking good — MX and SPF are ready for Flap.");
+        setNotice("Receiving checks look good. Finish sending verification if needed, then send a test.");
         setDnsPollNote("");
+        void refresh();
       } else if (status.issues.length) {
         setDnsPollNote(
           status.issues.length === 1
             ? `Still waiting: ${status.issues[0]}`
-            : `Still waiting on ${status.issues.length} DNS items`,
+            : `Still waiting on ${status.issues.length} items`,
         );
       }
       return status;
@@ -371,7 +388,7 @@ export default function Settings() {
       setLocalPart("");
       setDisplayName("");
       await refresh();
-      setNotice("Mailbox added. Create a matching Email Routing rule in Cloudflare to begin receiving mail.");
+      setNotice("Mailbox added. Publish the DNS records below, then send a test from an external inbox.");
       if (domainId) startDnsAutoPoll(domainId);
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not add mailbox.");
@@ -469,12 +486,16 @@ export default function Settings() {
               <strong>Your Flap setup</strong>
               <ul className="setup-checklist mt-2 text-sm">
                 <li className="complete">Create account</li>
-                <li className={emailVerified ? "complete" : ""}>Verify email</li>
-                <li className={hasDomain ? "complete" : ""}>Add your first domain</li>
-                <li className={dnsStatus?.verified ? "complete" : ""}>Verify DNS</li>
+                <li className={emailVerified ? "complete" : ""}>Verify account email</li>
+                <li className={hasDomain ? "complete" : ""}>Add first domain</li>
+                <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : ""}>
+                  Publish SES DNS records
+                </li>
+                <li className={dnsStatus?.receiving?.receiving_ready ? "complete" : ""}>Verify receiving</li>
                 <li className={hasMailbox ? "complete" : ""}>Create an address</li>
+                <li className={dnsStatus?.sending?.sending_ready ? "complete" : ""}>Verify sending</li>
                 <li className={activation?.steps.first_email_sent || activation?.steps.first_email_received ? "complete" : ""}>
-                  Send or receive your first email
+                  Send and receive a test email
                 </li>
               </ul>
             </div>
@@ -514,29 +535,85 @@ export default function Settings() {
             ) : null}
             <ol className="setup-steps" aria-label="Setup progress">
               <li className={hasDomain ? "complete" : "current"}>
-                <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "The domain you receive mail on"}</small></div>
+                <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "Any DNS host — Namecheap, GoDaddy, Route 53, Cloudflare DNS-only…"}</small></div>
+              </li>
+              <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : hasDomain ? "current" : ""}>
+                <span>2</span><div><strong>Publish SES DNS</strong><small>Verification + DKIM + MX to Amazon SES</small></div>
               </li>
               <li className={hasMailbox ? "complete" : hasDomain ? "current" : ""}>
-                <span>2</span><div><strong>Create an address</strong><small>{hasMailbox ? `${mailboxes.length} mailbox${mailboxes.length === 1 ? "" : "es"} ready` : "For example, hello@your-domain.com"}</small></div>
+                <span>3</span><div><strong>Create an address</strong><small>{hasMailbox ? `${mailboxes.length} mailbox${mailboxes.length === 1 ? "" : "es"}` : "hello@your-domain.com — no extra DNS"}</small></div>
               </li>
-              <li className={hasMailbox ? "current" : ""}>
-                <span>3</span><div><strong>Route email in Cloudflare</strong><small>MX + Worker routing rule for each address</small></div>
-              </li>
-              <li className={hasMailbox ? "current" : ""}>
-                <span>4</span><div><strong>Send a test &amp; pick a plan</strong><small>Compose from Inbox · upgrade in Billing if you need more room</small></div>
+              <li className={activation?.steps.first_email_received || activation?.steps.first_email_sent ? "complete" : hasMailbox ? "current" : ""}>
+                <span>4</span><div><strong>Send &amp; receive a test</strong><small>Prove end-to-end, then upgrade only for more capacity</small></div>
               </li>
             </ol>
+            {setupLoading ? (
+              <div className="skeleton-stack" aria-busy="true" aria-label="Loading setup">
+                <div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" />
+              </div>
+            ) : null}
             <section className="settings-card" aria-labelledby="domains-title">
-              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>Add the domain managed in your Cloudflare account.</p></div></div>
+              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>Add any domain you control. DNS can live at Namecheap, GoDaddy, Cloudflare, Route 53, or elsewhere — Flap does not require a Cloudflare zone. All plans use the same Amazon SES path; upgrades unlock quotas only.</p></div></div>
               <form className="row-form" onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
                 <button className="btn" type="submit">Add domain</button>
               </form>
-              {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-                {domains.map((d) => (
+              {billing ? (
+                <p className="muted" style={{ marginTop: 8 }}>
+                  {billing.plan.name} · {billing.usage.domains} / {billing.limits.domains} domains used
+                  {billing.plan_id === "free" && billing.usage.domains >= billing.limits.domains ? (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => {
+                          void import("../lib/analytics").then(({ track }) => {
+                            track("upgrade_prompt_seen");
+                            track("upgrade_started");
+                          });
+                          selectTab("billing");
+                        }}
+                      >
+                        Need another domain? Upgrade to Solo
+                      </button>
+                    </>
+                  ) : null}
+                  {" · "}Upgrades unlock capacity only — no DNS migration.
+                </p>
+              ) : (
+                <p className="muted" style={{ marginTop: 8 }}>
+                  All plans use the same SES setup. Upgrades unlock more domains/mailboxes/sends — never a DNS cutover.
+                </p>
+              )}
+              {domains.length ? <table className="table"><thead><tr><th>Name</th><th>Receiving</th><th>Sending</th><th>Catch-all</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+                {domains.map((d) => {
+                  const receivingReady = Boolean(d.receiving_ready_at);
+                  const sendingReady = Boolean(d.sending_ready_at);
+                  const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
+                  return (
                   <tr key={d.id}>
-                    <td><button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button></td>
+                    <td>
+                      <button className={`text-button${domainId === d.id ? " selected" : ""}`} type="button" onClick={() => setDomainId(d.id)}>{d.name}</button>
+                      {legacy ? (
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          Legacy {d.mail_provider}
+                          {" · "}
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed."));
+                            }}
+                          >
+                            Migrate to SES
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>{receivingReady ? "✓ Ready" : "⚠ Setup required"}</td>
+                    <td>{sendingReady ? "✓ Ready" : "⚠ Setup required"}</td>
                     <td>
                       <select
                         value={d.catch_all_mailbox_id ?? ""}
@@ -554,8 +631,9 @@ export default function Settings() {
                     </td>
                     <td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) void api.deleteDomain(d.id).then(refresh); }}>Remove</button></td>
                   </tr>
-                ))}
-              </tbody></table> : <p className="empty-state">No domains yet. Add the domain you plan to receive mail on.</p>}
+                  );
+                })}
+              </tbody></table> : setupLoading ? null : <p className="empty-state">No domains yet. Add the domain you plan to receive mail on.</p>}
             </section>
             <section className="settings-card" aria-labelledby="mailboxes-title">
               <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Flap accepts mail for addresses listed here, plus aliases and catch-all when enabled.</p></div></div>
@@ -569,15 +647,28 @@ export default function Settings() {
                 </select>
                 <button className="btn" type="submit" disabled={!domainId}>Add mailbox</button>
               </form>
-              {mailboxes.length ? <table className="table"><thead><tr><th>Address</th><th>From name</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-                {mailboxes.map((m) => <tr key={m.id}><td>{m.address}</td><td><input defaultValue={m.display_name ?? ""} aria-label={`Display name for ${m.address}`} onBlur={(e) => { const value = e.target.value.trim(); if (value !== (m.display_name ?? "")) void api.updateMailbox(m.id, value).then(refresh); }} /></td><td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${m.address}?`)) void api.deleteMailbox(m.id).then(refresh); }}>Remove</button></td></tr>)}
-              </tbody></table> : <p className="empty-state">{hasDomain ? "Create your first address above." : "Add a domain before creating an address."}</p>}
+              {mailboxes.length ? <table className="table"><thead><tr><th>Address</th><th>Receiving</th><th>Sending</th><th>From name</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
+                {mailboxes.map((m) => {
+                  const d = domains.find((x) => x.id === m.domain_id);
+                  const recv = d?.receiving_ready_at ? "✓ Ready" : "⚠ Setup required";
+                  const send = d?.sending_ready_at ? "✓ Ready" : "⚠ Setup required";
+                  return (
+                    <tr key={m.id}>
+                      <td>{m.address}</td>
+                      <td>{recv}</td>
+                      <td>{send}</td>
+                      <td><input defaultValue={m.display_name ?? ""} aria-label={`Display name for ${m.address}`} onBlur={(e) => { const value = e.target.value.trim(); if (value !== (m.display_name ?? "")) void api.updateMailbox(m.id, value).then(refresh); }} /></td>
+                      <td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${m.address}?`)) void api.deleteMailbox(m.id).then(refresh); }}>Remove</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody></table> : setupLoading ? null : <p className="empty-state">{hasDomain ? "Create your first address above." : "Add a domain before creating an address."}</p>}
             </section>
             <section className="settings-card" aria-labelledby="routing-title">
               <div className="section-heading">
                 <div>
-                  <h2 id="routing-title">DNS & Cloudflare routing</h2>
-                  <p>Copy records to your DNS host for {selectedName}. Prefer precise fixes over guessing.</p>
+                  <h2 id="routing-title">DNS records</h2>
+                  <p>Copy these records into your DNS host for {selectedName}. Exact values matter — prefer copy/paste over typing.</p>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {dnsPolling ? (
@@ -586,7 +677,7 @@ export default function Settings() {
                     </button>
                   ) : null}
                   <button type="button" className="btn" disabled={!domainId || dnsChecking} onClick={() => void checkDns()}>
-                    {dnsChecking ? "Checking…" : dnsPolling ? "Check now" : "Check DNS"}
+                    {dnsChecking ? "Checking…" : dnsPolling ? "Check now" : "Check setup"}
                   </button>
                 </div>
               </div>
@@ -598,8 +689,20 @@ export default function Settings() {
               ) : null}
               {dnsStatus ? (
                 <div className={`notice ${dnsStatus.verified ? "" : "dns-issues"}`} role="status">
+                  <p style={{ marginBottom: 8 }}>
+                    <strong>{selectedName}</strong>
+                    {dnsStatus.lifecycle ? ` · ${dnsStatus.lifecycle}` : ""}
+                  </p>
+                  {dnsStatus.receiving ? (
+                    <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+                      <li>SES identity {dnsStatus.receiving.identity_verified ? "✓ Verified" : "⚠ Pending"}</li>
+                      <li>MX record {dnsStatus.receiving.mx_configured ? "✓ Configured" : "⚠ Missing"}</li>
+                      <li>Inbound route {dnsStatus.receiving.inbound_rule_active ? "✓ Active" : "⚠ Pending"}</li>
+                      <li>Sending {dnsStatus.sending?.sending_ready ? "✓ Ready" : "⚠ Verification pending"}</li>
+                    </ul>
+                  ) : null}
                   {dnsStatus.verified ? (
-                    <p>Looking good — MX + SPF include Cloudflare Email Routing.</p>
+                    <p>Receiving checks look good. Create an address and send a real test email to finish onboarding.</p>
                   ) : (
                     <>
                       <p>Remaining issues:</p>
@@ -616,7 +719,7 @@ export default function Settings() {
                   {dnsStatus.guide_path ? (
                     <p style={{ marginTop: 8 }}>
                       <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
-                        Open {dnsStatus.provider === "vercel" ? "Vercel" : dnsStatus.provider === "cloudflare" ? "Cloudflare" : "DNS"} setup guide
+                        Open {dnsStatus.provider === "vercel" ? "Vercel" : dnsStatus.provider === "cloudflare" ? "Cloudflare DNS" : "DNS"} setup guide
                       </a>
                     </p>
                   ) : null}
@@ -625,28 +728,60 @@ export default function Settings() {
               {dns ? (
                 <div className="dns">
                   <p>{dns.note}</p>
-                  <p style={{ marginTop: 12 }}><strong>MX</strong> — add at your DNS host (DNS only / grey cloud, never proxied)</p>
+                  {dns.verification?.length ? (
+                    <>
+                      <p style={{ marginTop: 12 }}><strong>1. Domain verification</strong> — TXT at your DNS host</p>
+                      {dns.verification.map((r) => (
+                        <div key={r.name} className="dns-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                            <code>{r.type} {r.name}</code>
+                            <button type="button" className="text-button" onClick={() => copyText(r.name)}>Copy name</button>
+                            <button type="button" className="text-button" onClick={() => copyText(r.value)}>Copy value</button>
+                          </div>
+                          <p className="muted" style={{ margin: 0, wordBreak: "break-all" }}>{r.value}</p>
+                        </div>
+                      ))}
+                    </>
+                  ) : null}
+                  <p style={{ marginTop: 12 }}><strong>2. DKIM</strong> — CNAME records for signing</p>
+                  {(dns.dkim_records?.length ? dns.dkim_records : [dns.dkim]).map((r) => (
+                    <div key={r.name} className="dns-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        <code>{r.type} {r.name}</code>
+                        <button type="button" className="text-button" onClick={() => copyText(r.name)}>Copy name</button>
+                        {r.value && !/replace this|provision|copy the|appears here/i.test(r.value) ? (
+                          <button type="button" className="text-button" onClick={() => copyText(r.value)}>Copy value</button>
+                        ) : null}
+                      </div>
+                      <p className="muted" style={{ margin: 0, wordBreak: "break-all" }}>{r.value}</p>
+                    </div>
+                  ))}
+                  <p style={{ marginTop: 12 }}><strong>3. MX</strong> — point receiving at Amazon SES (do not proxy MX)</p>
                   {dns.mx.map((r) => (
-                    <div key={r.value} className="dns-row">
+                    <div key={`${r.priority}-${r.value}`} className="dns-row">
                       <code>{r.type} {r.name} {r.priority} {r.value}</code>
                       <button type="button" className="text-button" onClick={() => copyText(`${r.priority} ${r.value}`)}>Copy</button>
                     </div>
                   ))}
-                  <p style={{ marginTop: 12 }}><strong>SPF</strong></p>
+                  <p style={{ marginTop: 12 }}><strong>SPF</strong> — merge into an existing SPF TXT if you already have one (only one SPF per name)</p>
                   <div className="dns-row">
                     <code>{dns.spf.type} {dns.spf.name} {dns.spf.value}</code>
                     <button type="button" className="text-button" onClick={() => copyText(dns.spf.value)}>Copy</button>
                   </div>
-                  <p style={{ marginTop: 12 }}><strong>DKIM</strong></p>
-                  <div className="dns-row">
-                    <code>{dns.dkim.type} {dns.dkim.name}</code>
-                    <button type="button" className="text-button" onClick={() => copyText(dns.dkim.name)}>Copy name</button>
-                  </div>
-                  <p>{dns.dkim.value}</p>
-                  <p style={{ marginTop: 12 }}><strong>Worker rule</strong></p>
-                  <p>{dns.worker_rule}</p>
+                  {dns.dmarc ? (
+                    <>
+                      <p style={{ marginTop: 12 }}><strong>DMARC</strong> (recommended)</p>
+                      <div className="dns-row">
+                        <code>{dns.dmarc.type} {dns.dmarc.name} {dns.dmarc.value}</code>
+                        <button type="button" className="text-button" onClick={() => copyText(dns.dmarc!.value)}>Copy</button>
+                      </div>
+                    </>
+                  ) : null}
                   <p style={{ marginTop: 12 }}><strong>Sending</strong></p>
                   <p>{dns.send_note}</p>
+                  <p style={{ marginTop: 12 }} className="muted">
+                    Adding more addresses (support@, hello@) never requires new DNS or a new SES receipt rule — create them in Flap only.
+                  </p>
                 </div>
               ) : null}
             </section>
@@ -724,7 +859,7 @@ export default function Settings() {
               onSave={async (body) => {
                 await api.createAlias(body);
                 await refresh();
-                setNotice("Alias created. Point Cloudflare Email Routing at this Worker for that address (or use catch-all).");
+                setNotice("Alias created. Mail for this address is accepted once DNS for the domain points at Flap (or catch-all is enabled).");
               }}
             />
             {aliases.length ? <table className="table"><thead><tr><th>Address</th><th>Delivers to</th><th>Type</th><th /></tr></thead><tbody>
