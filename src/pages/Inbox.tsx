@@ -164,7 +164,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => ac.abort();
   }, [loadList]);
 
-  /** Event-based badge refresh (focus/visibility + mail actions + SSE). */
+  /** Badge refresh (focus/visibility + mail actions + WebSocket events). */
   const refreshCounts = useCallback(async (opts?: { reloadListOnNew?: boolean; skipToast?: boolean }) => {
     if (countsBusyRef.current) return;
     countsBusyRef.current = true;
@@ -275,7 +275,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setShowCompose(true);
   }, [composeOpen]);
 
-  // Counts: refetch on tab focus / visibility. Realtime updates via SSE (/api/events).
+  // Counts: refetch on tab focus / visibility (light safety net). Primary path is WebSocket events.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") void refreshCounts();
@@ -291,21 +291,23 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     };
   }, [refreshCounts]);
 
-  // Durable Object–backed SSE: immediate list + counts + toast on mail.received.
+  // Durable Object WebSocket hibernation: immediate toast + list/counts on mail.received.
   useEffect(() => {
-    let es: EventSource | null = null;
+    let ws: WebSocket | null = null;
     let closed = false;
     let retryMs = 1_000;
     let retryTimer: number | undefined;
 
-    const onMailReceived = (raw: MessageEvent) => {
+    const onMailReceived = (raw: unknown) => {
       retryMs = 1_000;
       let title = "New email";
       let body = "Your inbox was updated.";
       try {
-        const data = JSON.parse(String(raw.data || "{}")) as {
+        const data = (typeof raw === "string" ? JSON.parse(raw) : raw) as {
+          type?: string;
           message?: { subject?: string; from?: string; folder?: string };
         };
+        if (data.type && data.type !== "mail.received") return;
         const subject = (data.message?.subject || "").trim();
         const from = (data.message?.from || "").trim();
         if (subject) body = subject;
@@ -335,14 +337,32 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
 
     const connect = () => {
       if (closed) return;
-      es = new EventSource("/api/events");
-      es.addEventListener("mail.received", onMailReceived as EventListener);
-      es.addEventListener("ping", () => {
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${proto}//${window.location.host}/api/events/ws`);
+      ws.onopen = () => {
         retryMs = 1_000;
-      });
-      es.onerror = () => {
-        es?.close();
-        es = null;
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(String(ev.data || "{}")) as { type?: string };
+          if (data.type === "pong") {
+            retryMs = 1_000;
+            return;
+          }
+          if (data.type === "mail.received") onMailReceived(data);
+        } catch {
+          /* ignore malformed */
+        }
+      };
+      ws.onerror = () => {
+        try {
+          ws?.close();
+        } catch {
+          /* ignore */
+        }
+      };
+      ws.onclose = () => {
+        ws = null;
         if (closed) return;
         retryTimer = window.setTimeout(() => {
           retryMs = Math.min(retryMs * 2, 30_000);
@@ -355,7 +375,11 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => {
       closed = true;
       if (retryTimer) window.clearTimeout(retryTimer);
-      es?.close();
+      try {
+        ws?.close(1000, "unmount");
+      } catch {
+        /* ignore */
+      }
     };
   }, []);
 

@@ -1,9 +1,9 @@
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
-  /** Per-workspace SSE fan-out for inbox realtime. */
-  INBOX_HUB?: DurableObjectNamespace;
   ATTACHMENTS?: R2Bucket;
+  /** Per-workspace inbox realtime (WebSocket hibernation Durable Object). */
+  INBOX_HUB: DurableObjectNamespace;
   /** Optional: Cloudflare Email Sending for useflap.online system mail (legacy + dual-path). */
   SEB?: SendEmail;
   /** @deprecated Prefer BETTER_AUTH_SECRET — kept as fallback for local/dev. */

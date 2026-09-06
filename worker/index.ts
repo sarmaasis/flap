@@ -124,21 +124,18 @@ app.get("/api/health", (c) =>
   }),
 );
 
-/** Authenticated SSE stream — Durable Object fan-out per workspace. */
-app.get("/api/events", async (c) => {
+/** Authenticated WebSocket upgrade → workspace InboxHub (hibernation fan-out). */
+app.get("/api/events/ws", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   if (!c.env.INBOX_HUB) return c.json({ error: "Realtime unavailable." }, 503);
+  if (c.req.header("Upgrade")?.toLowerCase() !== "websocket") {
+    return c.json({ error: "Expected WebSocket upgrade." }, 426);
+  }
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   const id = c.env.INBOX_HUB.idFromName(ctx.workspaceId);
   const stub = c.env.INBOX_HUB.get(id);
-  return stub.fetch("https://inbox-hub/subscribe", {
-    headers: {
-      Accept: "text/event-stream",
-      Cookie: c.req.header("cookie") || "",
-    },
-    signal: c.req.raw.signal,
-  });
+  return stub.fetch(c.req.raw);
 });
 
 app.get("/api/setup/status", async (c) => {

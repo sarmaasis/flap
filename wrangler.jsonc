@@ -30,6 +30,8 @@
 			"/settings/referrals"
 		]
 	},
+	// InboxHub: WebSocket hibernation fan-out (idle connections do not accrue DO duration).
+	// Historical tags must remain; v2 deleted the SSE-era class; v3 recreates for WS hibernation.
 	"durable_objects": {
 		"bindings": [
 			{
@@ -41,6 +43,14 @@
 	"migrations": [
 		{
 			"tag": "v1-inbox-hub",
+			"new_sqlite_classes": ["InboxHub"]
+		},
+		{
+			"tag": "v2-remove-inbox-hub",
+			"deleted_classes": ["InboxHub"]
+		},
+		{
+			"tag": "v3-inbox-hub-ws",
 			"new_sqlite_classes": ["InboxHub"]
 		}
 	],

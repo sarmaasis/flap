@@ -70,6 +70,7 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
     const result = await ingestRawEmail(c.env, rawBuf, envelope, {
       provider: "mailgun",
       providerMessageId: providerMessageId || undefined,
+      waitUntil: (p) => c.executionCtx.waitUntil(p),
     });
     if (!result.ok) {
       if (result.reason === "duplicate") return c.json({ ok: true, duplicate: true });
@@ -174,6 +175,7 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
     const result = await ingestRawEmail(c.env, rawBuf, envelope, {
       provider: "ses",
       providerMessageId,
+      waitUntil: (p) => c.executionCtx.waitUntil(p),
     });
 
     if (!result.ok) {

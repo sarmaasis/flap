@@ -62,10 +62,12 @@ DODO_PRODUCT_STUDIO=pdt_…
    - OAuth optional: Google / GitHub client IDs + secrets
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
-4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets. First deploy after realtime work also applies Wrangler DO migration tag **`v1-inbox-hub`** (`InboxHub` Durable Object for inbox SSE).
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets. Deploy also applies Wrangler DO migration tag **`v3-inbox-hub-ws`** (recreates `InboxHub` for WebSocket hibernation after `v2-remove-inbox-hub` deleted the SSE-era class).
 5. Complete **Outbound auth mail** below so magic-link / verify emails deliver
 
 **SPA note:** `/app` and other app shells are served by the Worker (`serveSpaShell` → `/spa-shell` asset). Do not fetch `/index.html` for those routes — Assets `html_handling` redirects `/index.html` → `/`, which used to bounce hard-refresh of `/app` to the marketing homepage.
+
+**Inbox updates:** authenticated clients open `wss://…/api/events/ws` to a per-workspace `InboxHub` Durable Object. Inbound mail broadcasts `mail.received`; the DO uses **WebSocket hibernation** (`ctx.acceptWebSocket`) so idle connections stay open without GB-sec duration charges. Focus/visibility still refetch counts as a light safety net — there is no interval `/api/counts` polling.
 
 To apply remote migrations without deploying: `npm run db:migrate:remote`. Local Miniflare D1 stays separate: `npm run db:migrate:local`.
 

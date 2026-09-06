@@ -40,6 +40,8 @@ export type IngestResult =
 export type IngestOptions = {
   provider?: "ses" | "mailgun" | "cloudflare";
   providerMessageId?: string;
+  /** Prefer waitUntil so broadcast does not delay the ingest response. */
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 
 /**
@@ -281,8 +283,8 @@ export async function ingestRawEmail(
     label: policy.label,
   }).catch((error) => console.warn("webhook", error));
 
-  // Fan-out to open inbox SSE sessions (Durable Object). Failures must not block ingest.
-  await broadcastInboxEvent(env, userId, {
+  // Fan-out to open inbox WebSocket sessions (Durable Object hibernation). Failures must not block ingest.
+  const hubNotify = broadcastInboxEvent(env, userId, {
     type: "mail.received",
     at: now,
     message: {
@@ -294,6 +296,8 @@ export async function ingestRawEmail(
       label: policy.label,
     },
   }).catch((error) => console.warn("inbox hub", error));
+  if (opts.waitUntil) opts.waitUntil(hubNotify);
+  else await hubNotify;
 
   await markFirstEmailReceived(env.DB, userId).catch(() => undefined);
 
