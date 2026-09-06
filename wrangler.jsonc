@@ -31,7 +31,8 @@
 		]
 	},
 	// InboxHub: WebSocket hibernation fan-out (idle connections do not accrue DO duration).
-	// Historical tags must remain; v2 deleted the SSE-era class; v3 recreates for WS hibernation.
+	// Only v1 is applied / needed. A pending v2 deleted_classes + binding caused CF error 10061;
+	// v2/v3 (delete then re-add) never applied in production — class from v1 still serves WS.
 	"durable_objects": {
 		"bindings": [
 			{
@@ -43,14 +44,6 @@
 	"migrations": [
 		{
 			"tag": "v1-inbox-hub",
-			"new_sqlite_classes": ["InboxHub"]
-		},
-		{
-			"tag": "v2-remove-inbox-hub",
-			"deleted_classes": ["InboxHub"]
-		},
-		{
-			"tag": "v3-inbox-hub-ws",
 			"new_sqlite_classes": ["InboxHub"]
 		}
 	],

@@ -62,7 +62,7 @@ DODO_PRODUCT_STUDIO=pdt_…
    - OAuth optional: Google / GitHub client IDs + secrets
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
-4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets. Deploy also applies Wrangler DO migration tag **`v3-inbox-hub-ws`** (recreates `InboxHub` for WebSocket hibernation after `v2-remove-inbox-hub` deleted the SSE-era class).
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
 5. Complete **Outbound auth mail** below so magic-link / verify emails deliver
 
 **SPA note:** `/app` and other app shells are served by the Worker (`serveSpaShell` → `/spa-shell` asset). Do not fetch `/index.html` for those routes — Assets `html_handling` redirects `/index.html` → `/`, which used to bounce hard-refresh of `/app` to the marketing homepage.
