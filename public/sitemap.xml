@@ -13,70 +13,76 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://useflap.online/google-workspace-alternative</loc>
+    <loc>https://useflap.online/docs/api</loc>
     <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://useflap.online/google-workspace-alternative</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/email-hosting-for-multiple-domains</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/custom-domain-email</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/email-for-indie-hackers</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/email-for-side-projects</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/flap-vs-google-workspace</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://useflap.online/flap-vs-zoho</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://useflap.online/multiple-domains-one-inbox</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://useflap.online/cloudflare-email-routing-alternative</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.85</priority>
   </url>
   <url>
     <loc>https://useflap.online/hydra-alternative</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.85</priority>
   </url>
   <url>
     <loc>https://useflap.online/folio-alternative</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.85</priority>
   </url>
   <url>
     <loc>https://useflap.online/guides/cloudflare-custom-domain-email</loc>
@@ -130,7 +136,7 @@
     <loc>https://useflap.online/tools/flap-vs-workspace-share</loc>
     <lastmod>2026-09-06</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/tools/spf-checker</loc>
@@ -272,49 +278,49 @@
   </url>
   <url>
     <loc>https://useflap.online/blog/custom-domain-email-without-google-workspace</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/blog/cost-of-google-workspace-multiple-domains</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/blog/mx-spf-dmarc-setup-checklist</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/blog/self-host-vs-hosted-email-startups</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/blog/catchall-aliases-indie-founders</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://useflap.online/terms</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://useflap.online/privacy</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://useflap.online/billing-terms</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

@@ -61,6 +61,13 @@ export function buildSitemapEntries(): SitemapEntry[] {
     priority: "0.8",
   });
 
+  entries.push({
+    path: "/docs/api",
+    lastmod: SITE_UPDATED,
+    changefreq: "monthly",
+    priority: "0.75",
+  });
+
   for (const page of Object.values(SEO_PAGE_DEFS)) {
     entries.push({
       path: page.path,

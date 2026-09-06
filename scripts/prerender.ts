@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLANS, PLAN_ORDER } from "../shared/plans.ts";
 import { BLOG_POSTS } from "../src/content/blog.ts";
+import { API_DOCS, API_SEND, WEBHOOK_DOCS } from "../src/content/api-docs.ts";
 import { GUIDE_CONTENT } from "../src/content/guides.ts";
 import {
   BLOG_INDEX,
@@ -359,6 +360,46 @@ function buildPages(): Page[] {
       },
     });
   }
+
+  pages.push({
+    path: API_DOCS.path,
+    title: API_DOCS.title,
+    description: API_DOCS.description,
+    bodyHtml: articleShell({
+      eyebrow: "Docs · Developers",
+      h1: API_DOCS.h1,
+      lede: API_DOCS.lede,
+      definition:
+        "Flap send API and inbound webhooks for Solo and above. Create keys in Settings → Developers.",
+      sections: [
+        {
+          heading: "POST /api/v1/send",
+          body: `Authorize with Authorization: Bearer flap_…. Body fields: ${Object.keys(API_SEND.body).join(", ")}. Success: ${API_SEND.success}`,
+          bullets: API_SEND.notes,
+        },
+        {
+          heading: "Inbound webhooks",
+          body: WEBHOOK_DOCS.verifyNote,
+          bullets: [
+            ...WEBHOOK_DOCS.events.map((e) => `${e.name}: ${e.description}`),
+            ...WEBHOOK_DOCS.headers.map((h) => `${h.name}: ${h.value}`),
+            ...WEBHOOK_DOCS.notes,
+            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.builder.limits.api_keys}/${PLANS.builder.limits.webhooks}; Studio ${PLANS.studio.limits.api_keys}/${PLANS.studio.limits.webhooks}.`,
+          ],
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      headline: API_DOCS.h1,
+      description: API_DOCS.description,
+      url: `${SITE_URL}${API_DOCS.path}`,
+      dateModified: API_DOCS.updated,
+      author: { "@type": "Organization", name: "Flap", url: SITE_URL },
+      publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
+    },
+  });
 
   return pages;
 }

@@ -32,6 +32,7 @@ Exact limits may change; prefer the live pricing section for current numbers. Re
 
 - Home: https://useflap.online/
 - Pricing anchor: https://useflap.online/#pricing
+- API & webhooks docs: https://useflap.online/docs/api
 - Tools index: https://useflap.online/tools
 - Signup: https://useflap.online/signup (account creation; not for SEO indexing)
 - Login: https://useflap.online/login (private; not for SEO indexing)
@@ -42,7 +43,7 @@ Exact limits may change; prefer the live pricing section for current numbers. Re
 - Bounce & complaint monitoring: SES events → suppression list; blocked addresses cannot be sent to
 - Filters / rule packs, blocked senders, templates, signatures, aliases, catch-all (plan allowing)
 - Export: JSON backup + classic .mbox; restore merges contacts/templates/signatures/rules (messages export-only)
-- Teams / API / webhooks on higher plans
+- Teams / API / webhooks on Solo+ (see /docs/api)
 
 ## SEO landings (definitions)
 
@@ -93,6 +94,15 @@ All guides explain publishing Flap’s Amazon SES MX/SPF/DKIM at the DNS host (n
 - Squarespace: https://useflap.online/guides/squarespace-custom-domain-email
 - Amazon Route 53: https://useflap.online/guides/route53-custom-domain-email
 
+## Developers (API & webhooks)
+
+Docs: https://useflap.online/docs/api
+
+- Send: POST https://useflap.online/api/v1/send with Authorization: Bearer flap_… (keys from Settings → Developers)
+- Body: to, subject required; text, html, from, cc, bcc optional
+- Webhooks: HTTPS POST on mail.received; headers x-flap-event and x-flap-signature (SHA-256 hex of `${secret}.${rawBody}`)
+- Limits: Solo 5 keys / 3 webhooks; Builder 25 / 15; Studio 100 / 50 (Free: 0)
+
 ## Free tools
 
 Index: https://useflap.online/tools
@@ -142,7 +152,7 @@ Index: https://useflap.online/blog
 
 ## Crawl / discovery
 
-- robots.txt: https://useflap.online/robots.txt — allows public marketing (/tools, /guides, /blog); disallows /app, /api, auth, settings, verify-email
+- robots.txt: https://useflap.online/robots.txt — allows public marketing (/tools, /guides, /blog, /docs); disallows /app, /api, auth, settings, verify-email
 - sitemap.xml: https://useflap.online/sitemap.xml — complete public indexable URL list
 - llms.txt: https://useflap.online/llms.txt — shorter link index for agents
 

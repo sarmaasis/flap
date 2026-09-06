@@ -1260,7 +1260,7 @@ export default function Settings() {
         {tab === "developers" ? (
           <>
             <section className="settings-card">
-              <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token.</p></div></div>
+              <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p></div></div>
               <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("keyname") as HTMLInputElement; void api.createKey(input.value || "Transactional").then((res) => { setNewToken(res.key.token ?? ""); input.value = ""; return refresh(); }); }}>
                 <input name="keyname" placeholder="Key name" />
                 <Button type="submit">Create key</Button>
@@ -1271,7 +1271,7 @@ export default function Settings() {
               </tbody></table> : <p className="empty-state">No API keys yet.</p>}
             </section>
             <section className="settings-card">
-              <div className="section-heading"><div><h2>Webhooks</h2><p>HTTPS POST on <code>mail.received</code>. Signature header: <code>x-flap-signature</code> = SHA-256 of <code>secret.body</code>.</p></div></div>
+              <div className="section-heading"><div><h2>Webhooks</h2><p>HTTPS POST on <code>mail.received</code>. Signature: <code>x-flap-signature</code> = SHA-256 hex of <code>secret</code> + <code>.</code> + raw JSON body. See <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>docs</a>.</p></div></div>
               <form className="stack-form" onSubmit={(e) => {
                 e.preventDefault();
                 const form = e.currentTarget;

@@ -5,6 +5,7 @@ Allow: /
 Allow: /tools
 Allow: /guides
 Allow: /blog
+Allow: /docs
 Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /sitemap.xml

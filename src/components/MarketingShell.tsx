@@ -40,6 +40,7 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </a>
         <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
           <a href="/#pricing" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
+          <a href="/docs/api" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>Docs</a>
           <a href="/tools" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
           <a href="/guides/cloudflare-custom-domain-email" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides/cloudflare-custom-domain-email"); }}>Guides</a>
           <a href="/blog" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
@@ -87,6 +88,7 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Learn</span>
           <a href="/blog" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
+          <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>
           <a href="/guides/cloudflare-custom-domain-email" onClick={(e) => { e.preventDefault(); go("/guides/cloudflare-custom-domain-email"); }}>Cloudflare guide</a>
           <a href="/google-workspace-alternative" onClick={(e) => { e.preventDefault(); go("/google-workspace-alternative"); }}>Workspace alternative</a>
           <a href="/email-for-indie-hackers" onClick={(e) => { e.preventDefault(); go("/email-for-indie-hackers"); }}>Indie hackers</a>

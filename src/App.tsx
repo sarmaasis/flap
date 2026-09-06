@@ -20,6 +20,7 @@ const ToolsIndex = lazy(() => import("./pages/ToolsIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const BlogIndex = lazy(() => import("./pages/BlogIndex"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
+const DocsApiPage = lazy(() => import("./pages/DocsApiPage"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -85,6 +86,9 @@ export default function App() {
     );
   }
 
+  if (path === "/docs/api") {
+    return <Screen><DocsApiPage /></Screen>;
+  }
   if (path === "/tools") {
     return <Screen><ToolsIndex /></Screen>;
   }
