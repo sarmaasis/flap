@@ -11,16 +11,16 @@ Source of truth: `shared/plans.ts`.
 | Plan | Price | Domains | Seats | Notes |
 |------|-------|---------|-------|-------|
 | Free | $0 | 2 | 1 | Trial + “Sent with Flap” footer |
-| Solo | $5 | 5 | 1 | Catch-all |
+| Solo | $5 | 5 | 1 | Catch-all; no Flap footer |
 | Pro | $12 | 15 | 5 | Highlighted; API + seats |
 | Team | $29 | 40 | unlimited | Shared inboxes |
-| Scale | $2.50/mailbox | 50 | unlimited | 13-300 mailboxes |
+| Scale | $2.50/mailbox | 50 | unlimited | 13–300 mailboxes |
 
-Annual billing is **20% off** monthly. Referrals: invite a founder → both get **+1 domain permanently** after the invitee connects a domain.
+Annual billing is **10× monthly** (2 months free). Referrals: invite a founder → both get **+1 domain permanently** after the invitee connects a domain.
 
 ## Product surface
 
-- Marketing: `/`, `/pricing`, SEO pages, `/guides`, `/tools`, `/docs`, `/blog`, `/status`, `/support`
+- Marketing: `/`, `/pricing`, SEO pages, `/guides`, `/tools`, `/docs`, `/blog`, `/for`, `/vs`, `/research`, `/security`, `/status`, `/support`
 - Auth: `/signup`, `/login`, first-boot `/setup`
 - App: `/app` (inbox), `/app/settings` (setup, billing, referrals, team)
 - Health: `GET /api/health`
@@ -46,9 +46,10 @@ Checkout is enabled when `DODO_PAYMENTS_API_KEY` and at least one paid product I
 DODO_PAYMENTS_API_KEY=your_test_api_key
 DODO_PAYMENTS_ENVIRONMENT=test_mode
 DODO_PRODUCT_SOLO=pdt_…
-DODO_PRODUCT_BUILDER=pdt_…
-DODO_PRODUCT_STUDIO=pdt_…
-# Legacy aliases still work: DODO_PRODUCT_PRO→Builder, DODO_PRODUCT_TEAM→Studio, DODO_PRODUCT_STARTER→Solo
+DODO_PRODUCT_PRO=pdt_…
+DODO_PRODUCT_TEAM=pdt_…
+DODO_PRODUCT_SCALE=pdt_…
+# Legacy aliases still work: DODO_PRODUCT_BUILDER→Pro, DODO_PRODUCT_STUDIO→Team, DODO_PRODUCT_STARTER→Solo
 ```
 
 ## Production deploy checklist
@@ -59,11 +60,11 @@ DODO_PRODUCT_STUDIO=pdt_…
    - **Amazon SES (required for customer domains):** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_REGION`, `SES_INBOUND_WEBHOOK_SECRET` (plus `SES_RECEIPT_RULE_SET` / `SES_INBOUND_BUCKET` after deploying `infra/ses-inbound`)
    - Mailgun secrets optional (legacy domains only during migration)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
-   - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
+   - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_PRO`, `DODO_PRODUCT_TEAM`, `DODO_PRODUCT_SCALE` (optional `*_ANNUAL`)
    - OAuth / magic link: enable Email link + Google/GitHub in the Clerk Dashboard (allowed origins + redirect URLs `/sso-callback`, `/auth/verify`)
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
-4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider** and **0022_clerk**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**, **0022_clerk**, and **0023_booking_newsletters**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
 5. Confirm Clerk auth mail delivers (Clerk sends magic-link / verification email; Flap SEB is for product/system mail)
 
 **SPA note:** `/app` and other app shells are served by the Worker (`serveSpaShell` → `/spa-shell` asset). Do not fetch `/index.html` for those routes - Assets `html_handling` redirects `/index.html` → `/`, which used to bounce hard-refresh of `/app` to the marketing homepage.
@@ -114,7 +115,7 @@ This is a Vite SPA on Cloudflare Assets - not full React SSR. Build-time prerend
 
 ## Notes
 
-- Sign-in is magic link and optional Google/GitHub OAuth (no password auth). Auth mail for `useflap.online` uses Cloudflare SEB via `SYSTEM_FROM_EMAIL`.
+- Sign-in is magic link and optional Google/GitHub OAuth via **Clerk** (no password auth). Clerk sends account auth email; Flap SEB is for product/system mail via `SYSTEM_FROM_EMAIL`.
 - Customer domains send/receive on **Amazon SES**; the Flap app runs on Cloudflare Workers (D1/R2). DNS stays at any registrar.
 - Referral rewards require verified email + a connected domain; self/disposable emails and shared Dodo customer / payment fingerprints are blocked.
 
@@ -125,6 +126,6 @@ Older Cloudflare resources may still be named `inlet`. Current Wrangler names ar
 
 ## Dodo billing product IDs
 
-See `docs/dodo-billing.md`. Annual products use `DODO_PRODUCT_*_ANNUAL` (−20% vs monthly).
+See `docs/dodo-billing.md`. Annual products use `DODO_PRODUCT_*_ANNUAL` (10× monthly).
 Customer mail is **Amazon SES**. Cloudflare runs the app (Workers / D1 / R2), not customer mailbox transport.
 IMAP is deferred to **2026-10-15** (`docs/imap-decision.md`).
