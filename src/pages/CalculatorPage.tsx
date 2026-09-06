@@ -20,7 +20,7 @@ const TITLE = "Google Workspace cost calculator | Flap";
 const DESC =
   "Estimate Workspace spend across projects vs Flap — interactive savings calculator for multi-domain founders.";
 
-export default function CalculatorPage() {
+export default function CalculatorPage({ share = false }: { share?: boolean }) {
   useEffect(() => {
     setPageMeta({ title: TITLE, description: DESC, path: PATH });
     trackOnce("calc_page", "seo_page_view", { path: PATH });
@@ -54,7 +54,7 @@ export default function CalculatorPage() {
           See what a seat per project domain adds up to — versus Flap&apos;s domain-first plans.
         </p>
         <div className="mt-10">
-          <WorkspaceCalculator />
+          <WorkspaceCalculator shareMode={share} />
         </div>
         <RelatedLinks
           links={[

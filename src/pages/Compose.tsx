@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { api, type Contact, type Domain, type Mailbox, type Signature, type Template } from "../lib/api";
 import { htmlToText } from "../lib/format";
 import type { EditorHandle } from "../components/RichTextEditor";
+import { Button } from "../components/ui/button";
 
 const RichTextEditor = lazy(() => import("../components/RichTextEditor"));
 
@@ -247,7 +248,11 @@ export default function Compose({
           <span className="eyebrow">{status || (draftId ? "Autosaving drafts" : "New message")}</span>
           <h2>{title}</h2>
         </div>
-        {onClose ? <button type="button" className="icon-btn" onClick={onClose} aria-label="Close composer">×</button> : null}
+        {onClose ? (
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close composer">
+            ×
+          </Button>
+        ) : null}
       </div>
       {err ? <div className="err">{err}</div> : null}
       {mailboxes.length === 0 ? (
@@ -272,9 +277,9 @@ export default function Compose({
                   style={{ background: fromDomain?.color || "var(--muted)" }}
                 />
                 <span id="from">{from}</span>
-                <button type="button" className="text-button" onClick={() => setUnlockFrom(true)}>
+                <Button type="button" variant="link" className="h-auto p-0" onClick={() => setUnlockFrom(true)}>
                   Change
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="compose-from-pill">
@@ -370,17 +375,24 @@ export default function Compose({
         </div>
         <div className="compose-action-buttons">
           {onDiscard && draftId ? (
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void onDiscard()}>
+            <Button type="button" variant="danger" disabled={busy} onClick={() => void onDiscard()}>
               Delete
-            </button>
+            </Button>
           ) : null}
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void submit("draft")}>Save draft</button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => showSchedule ? void submit("schedule") : setShowSchedule(true)}>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void submit("draft")}>
+            Save draft
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => (showSchedule ? void submit("schedule") : setShowSchedule(true))}
+          >
             {showSchedule ? "Schedule" : "Later"}
-          </button>
-          <button type="submit" className="btn" disabled={busy || mailboxes.length === 0}>
+          </Button>
+          <Button type="submit" disabled={busy || mailboxes.length === 0}>
             {busy ? "Sending…" : "Send"}
-          </button>
+          </Button>
         </div>
       </div>
     </form>

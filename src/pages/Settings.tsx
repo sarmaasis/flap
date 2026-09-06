@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from "react";
+import { createPortal } from "react-dom";
 import {
   api,
   type Alias,
@@ -22,10 +23,12 @@ import {
   type Webhook,
   type WebhookDelivery,
 } from "../lib/api";
+import { ThemeToggle } from "../components/ThemeProvider";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "delivery" | "developers" | "privacy" | "billing" | "team" | "referrals";
 
@@ -153,6 +156,7 @@ function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const [email, setEmail] = useState("");
   const [domains, setDomains] = useState<Domain[]>([]);
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -163,6 +167,12 @@ export default function Settings() {
   const [dns, setDns] = useState<DnsRecords | null>(null);
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
+  const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
+  const [privacyBusy, setPrivacyBusy] = useState<string | null>(null);
+  const [aiOptIn, setAiOptIn] = useState(false);
+  const [exportPolicy, setExportPolicy] = useState<string | null>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const restoreFileRef = useRef<HTMLInputElement>(null);
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -296,9 +306,14 @@ export default function Settings() {
           break;
         }
         case "privacy": {
-          const [b, p] = await Promise.all([api.blocked(), api.prefs()]);
+          const [b, p, extra] = await Promise.all([
+            api.blocked(),
+            api.prefs(),
+            api.prefsExtra().catch(() => null),
+          ]);
           setBlocked(b.blocked);
           setPrefs(p.settings);
+          setAiOptIn(Boolean(extra?.prefs?.ai_opt_in));
           break;
         }
         case "billing": {
@@ -350,6 +365,37 @@ export default function Settings() {
     loadedTabs.current.clear();
     await loadTabData(tab, true);
   }
+
+  function flash(message: string, kind: "ok" | "err" = "ok") {
+    if (kind === "err") {
+      setErr(message);
+      setNotice("");
+      setToast({ title: "Something went wrong", body: message });
+    } else {
+      setNotice(message);
+      setErr("");
+      setToast({ title: "Done", body: message });
+    }
+    requestAnimationFrame(() => {
+      bannerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
+  /** Catch sync throws (missing api method) and async failures the same way. */
+  function runPrivacy(key: string, work: () => Promise<void>) {
+    setPrivacyBusy(key);
+    setErr("");
+    void Promise.resolve()
+      .then(work)
+      .catch((ex) => flash(ex instanceof Error ? ex.message : "Request failed.", "err"))
+      .finally(() => setPrivacyBusy(null));
+  }
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     refreshCore()
@@ -606,7 +652,7 @@ export default function Settings() {
     try {
       const { track } = await import("../lib/analytics");
       track("checkout_started", { plan: planId });
-      const session = await api.billingCheckout(planId);
+      const session = await api.billingCheckout(planId, billingInterval);
       window.location.href = session.checkout_url;
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not start checkout.");
@@ -629,10 +675,15 @@ export default function Settings() {
   return (
     <AppShell email={email} current="settings" onLogout={() => void logout()}>
       <main className="settings">
-        <div className="settings-intro">
-          <p className="eyebrow">Workspace</p>
-          <h1>Settings</h1>
-          <p className="lede">Wire your domain, route mail, automate delivery, and keep developer hooks under one roof.</p>
+        <div className="settings-intro flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow">Workspace</p>
+            <h1>Settings</h1>
+            <p className="lede">Wire your domain, route mail, automate delivery, and keep developer hooks under one roof.</p>
+          </div>
+          <div className="md:hidden">
+            <ThemeToggle />
+          </div>
         </div>
         {onboardingBanner || (activation && !activation.onboarding_dismissed && !activation.activated) ? (
           <div className="onboarding-banner" role="status">
@@ -653,25 +704,30 @@ export default function Settings() {
                 </li>
               </ul>
             </div>
-            <button
+            <Button
               type="button"
-              className="btn"
               onClick={() => {
                 setOnboardingBanner(false);
                 void api.dismissOnboarding().catch(() => undefined);
               }}
             >
               Dismiss
-            </button>
+            </Button>
           </div>
         ) : null}
-        <div className="settings-tabs" role="tablist">
-          {tabs.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} className={`tab${tab === id ? " active" : ""}`} onClick={() => selectTab(id)}>{label}</button>
-          ))}
+        <Tabs value={tab} onValueChange={(v) => selectTab(v as Tab)} className="mb-5">
+          <TabsList className="h-auto w-full justify-start bg-[var(--surface-2)]">
+            {tabs.map(([id, label]) => (
+              <TabsTrigger key={id} value={id} className="text-xs uppercase tracking-wide">
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div ref={bannerRef} className="sticky top-0 z-20 -mx-1 space-y-2 bg-[var(--bg)]/95 px-1 py-1 backdrop-blur-sm">
+          {err ? <div className="err">{err}</div> : null}
+          {notice ? <div className="notice" role="status">{notice}</div> : null}
         </div>
-        {err ? <div className="err">{err}</div> : null}
-        {notice ? <div className="notice" role="status">{notice}</div> : null}
 
         {tab === "setup" ? (
           <>
@@ -681,9 +737,9 @@ export default function Settings() {
                   Confirm <strong>{email}</strong> via the verification link we sent. Referral rewards and some activation steps wait on this.
                 </p>
                 <p style={{ marginTop: 8 }}>
-                  <button type="button" className="btn" disabled={verifyBusy} onClick={() => void resendVerify()}>
+                  <Button type="button" disabled={verifyBusy} onClick={() => void resendVerify()}>
                     {verifyBusy ? "Sending…" : "Resend verification email"}
-                  </button>
+                  </Button>
                 </p>
               </div>
             ) : null}
@@ -711,7 +767,7 @@ export default function Settings() {
               <form className="row-form" onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
-                <button className="btn" type="submit">Add domain</button>
+                <Button type="submit">Add domain</Button>
               </form>
               {billing ? (
                 <p className="muted" style={{ marginTop: 8 }}>
@@ -781,9 +837,8 @@ export default function Settings() {
                       />
                     </td>
                     <td>
-                      <button
+                      <Button size="sm" variant="ghost"
                         type="button"
-                        className="btn btn-ghost"
                         onClick={() => {
                           void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
                             setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days — new mail goes to Archive.`);
@@ -792,7 +847,7 @@ export default function Settings() {
                         }}
                       >
                         {muted ? "Unmute" : "Mute 7d"}
-                      </button>
+                      </Button>
                     </td>
                     <td>{receivingReady ? "✓ Ready" : "⚠ Setup required"}</td>
                     <td>{sendingReady ? "✓ Ready" : "⚠ Setup required"}</td>
@@ -811,7 +866,7 @@ export default function Settings() {
                         ))}
                       </select>
                     </td>
-                    <td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) void api.deleteDomain(d.id).then(refresh); }}>Remove</button></td>
+                    <td><Button variant="danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) void api.deleteDomain(d.id).then(refresh); }}>Remove</Button></td>
                   </tr>
                   );
                 })}
@@ -830,7 +885,7 @@ export default function Settings() {
                 <select id="mailbox-domain" value={domainId} onChange={(e) => setDomainId(e.target.value)} style={{ maxWidth: 220 }} disabled={!hasDomain}>
                   {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
-                <button className="btn" type="submit" disabled={!domainId}>Add mailbox</button>
+                <Button type="submit" disabled={!domainId}>Add mailbox</Button>
               </form>
               {mailboxes.length ? <table className="table"><thead><tr><th>Address</th><th>Receiving</th><th>Sending</th><th>From name</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
                 {mailboxes.map((m) => {
@@ -843,7 +898,7 @@ export default function Settings() {
                       <td>{recv}</td>
                       <td>{send}</td>
                       <td><input defaultValue={m.display_name ?? ""} aria-label={`Display name for ${m.address}`} onBlur={(e) => { const value = e.target.value.trim(); if (value !== (m.display_name ?? "")) void api.updateMailbox(m.id, value).then(refresh); }} /></td>
-                      <td><button className="btn btn-danger" type="button" onClick={() => { if (window.confirm(`Remove ${m.address}?`)) void api.deleteMailbox(m.id).then(refresh); }}>Remove</button></td>
+                      <td><Button variant="danger" type="button" onClick={() => { if (window.confirm(`Remove ${m.address}?`)) void api.deleteMailbox(m.id).then(refresh); }}>Remove</Button></td>
                     </tr>
                   );
                 })}
@@ -861,13 +916,13 @@ export default function Settings() {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   {dnsPolling ? (
-                    <button type="button" className="btn" onClick={() => stopDnsPoll()}>
+                    <Button type="button" onClick={() => stopDnsPoll()}>
                       Stop watching
-                    </button>
+                    </Button>
                   ) : null}
-                  <button type="button" className="btn" disabled={!domainId || dnsChecking} onClick={() => void checkDns()}>
+                  <Button type="button" disabled={!domainId || dnsChecking} onClick={() => void checkDns()}>
                     {dnsChecking ? "Checking…" : dnsPolling ? "Check now" : "Check setup"}
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="notice" style={{ marginBottom: 12, fontSize: 13 }} role="note">
@@ -890,20 +945,19 @@ export default function Settings() {
                   </p>
                   <div className="row-form" style={{ marginTop: 10, flexWrap: "wrap" }}>
                     {domainMailboxes.length === 0 ? (
-                      <button
+                      <Button
                         type="button"
-                        className="btn"
                         onClick={() => {
                           document.getElementById("local-part")?.focus();
                           setNotice("Pick a local-part (e.g. hello) and add a mailbox.");
                         }}
                       >
                         Create first mailbox/alias
-                      </button>
+                      </Button>
                     ) : (
-                      <button type="button" className="btn" onClick={() => openSendTest()}>
+                      <Button type="button" onClick={() => openSendTest()}>
                         Send yourself a test
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -977,16 +1031,15 @@ export default function Settings() {
                         ) : null}
                         <div className="row-form" style={{ marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
                           <p className="dns-step-title" style={{ margin: 0, flex: 1 }}>Records to add</p>
-                          <button
+                          <Button size="sm" variant="ghost"
                             type="button"
-                            className="btn btn-ghost"
                             onClick={() => {
                               copyText(formatDnsRecordsBlock(rows, domain));
                               setNotice("All DNS records copied.");
                             }}
                           >
                             Copy all records
-                          </button>
+                          </Button>
                         </div>
                         <p className="dns-step-help">
                           In your DNS UI: set Type, set Host/Name to the Host column, paste Value. TTL can stay default.
@@ -1054,7 +1107,7 @@ export default function Settings() {
                   <tr key={s.id}>
                     <td>{s.name}</td>
                     <td>{s.is_default ? "Yes" : <button type="button" className="text-button" onClick={() => void api.updateSignature(s.id, { name: s.name, html_body: s.html_body, text_body: s.text_body, is_default: true }).then(refresh)}>Make default</button>}</td>
-                    <td><button type="button" className="btn btn-danger" onClick={() => void api.deleteSignature(s.id).then(refresh)}>Remove</button></td>
+                    <td><Button variant="danger" type="button" onClick={() => void api.deleteSignature(s.id).then(refresh)}>Remove</Button></td>
                   </tr>
                 ))}
               </tbody></table> : <p className="empty-state">No signatures yet.</p>}
@@ -1067,7 +1120,7 @@ export default function Settings() {
                   <tr key={t.id}>
                     <td>{t.name}</td>
                     <td>{t.subject || "—"}</td>
-                    <td><button type="button" className="btn btn-danger" onClick={() => void api.deleteTemplate(t.id).then(refresh)}>Remove</button></td>
+                    <td><Button variant="danger" type="button" onClick={() => void api.deleteTemplate(t.id).then(refresh)}>Remove</Button></td>
                   </tr>
                 ))}
               </tbody></table> : <p className="empty-state">Save a reply you send often.</p>}
@@ -1081,7 +1134,7 @@ export default function Settings() {
             <ContactForm onSave={async (emailValue, name) => { await api.createContact(emailValue, name); await refresh(); }} />
             {contacts.length ? <table className="table"><thead><tr><th>Name</th><th>Email</th><th /></tr></thead><tbody>
               {contacts.map((c) => (
-                <tr key={c.id}><td>{c.name || "—"}</td><td>{c.email}</td><td><button type="button" className="btn btn-danger" onClick={() => void api.deleteContact(c.id).then(refresh)}>Remove</button></td></tr>
+                <tr key={c.id}><td>{c.name || "—"}</td><td>{c.email}</td><td><Button variant="danger" type="button" onClick={() => void api.deleteContact(c.id).then(refresh)}>Remove</Button></td></tr>
               ))}
             </tbody></table> : <p className="empty-state">Your address book fills in as you write.</p>}
           </section>
@@ -1099,7 +1152,7 @@ export default function Settings() {
                   <td>{f.action}{f.label ? `:${f.label}` : ""}{f.forward_to ? ` → ${f.forward_to}` : ""}{f.enabled ? "" : " (off)"}</td>
                   <td className="row-actions">
                     <button type="button" className="text-button" onClick={() => void api.toggleFilter(f.id).then(refresh)}>{f.enabled ? "Disable" : "Enable"}</button>
-                    <button type="button" className="btn btn-danger" onClick={() => void api.deleteFilter(f.id).then(refresh)}>Remove</button>
+                    <Button variant="danger" type="button" onClick={() => void api.deleteFilter(f.id).then(refresh)}>Remove</Button>
                   </td>
                 </tr>
               ))}
@@ -1124,7 +1177,7 @@ export default function Settings() {
                   <td>{a.address}</td>
                   <td className="muted">{mailboxes.find((m) => m.id === a.mailbox_id)?.address ?? a.mailbox_id}</td>
                   <td>{a.disposable ? `Disposable${a.expires_at ? ` · ends ${new Date(a.expires_at).toLocaleDateString()}` : ""}` : a.label || "Alias"}</td>
-                  <td><button type="button" className="btn btn-danger" onClick={() => void api.deleteAlias(a.id).then(refresh)}>Remove</button></td>
+                  <td><Button variant="danger" type="button" onClick={() => void api.deleteAlias(a.id).then(refresh)}>Remove</Button></td>
                 </tr>
               ))}
             </tbody></table> : <p className="empty-state">No aliases yet. Handy for newsletters and one-off signups.</p>}
@@ -1158,13 +1211,6 @@ export default function Settings() {
                       ))}
                     </tbody>
                   </table>
-                  <div className="notice" style={{ marginTop: 16 }}>
-                    <strong>IMAP / SMTP</strong>
-                    <p style={{ margin: "6px 0 0" }}>
-                      {deliveryInfo.imap?.note ||
-                        "IMAP/SMTP is not available yet. Use the web app and PWA. We'll announce when client access ships."}
-                    </p>
-                  </div>
                 </>
               ) : <p className="muted">Loading…</p>}
             </section>
@@ -1175,7 +1221,7 @@ export default function Settings() {
                 void api.createLabel(labelName).then(() => { setLabelName(""); return api.labels(); }).then((r) => setLabels(r.labels)).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not create label."));
               }}>
                 <input placeholder="Label name" value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
-                <button className="btn" type="submit">Add label</button>
+                <Button type="submit">Add label</Button>
               </form>
               {labels.length ? (
                 <ul className="mt-2" style={{ listStyle: "none", padding: 0 }}>
@@ -1183,7 +1229,7 @@ export default function Settings() {
                     <li key={l.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
                       <span className="domain-swatch" style={{ background: l.color }} aria-hidden />
                       <span>{l.name}</span>
-                      <button type="button" className="btn btn-danger" style={{ marginLeft: "auto" }} onClick={() => void api.deleteLabel(l.id).then(() => api.labels()).then((r) => setLabels(r.labels))}>Remove</button>
+                      <Button variant="danger" type="button" style={{ marginLeft: "auto" }} onClick={() => void api.deleteLabel(l.id).then(() => api.labels()).then((r) => setLabels(r.labels))}>Remove</Button>
                     </li>
                   ))}
                 </ul>
@@ -1201,7 +1247,7 @@ export default function Settings() {
                         <td>{s.reason}</td>
                         <td>{s.source}</td>
                         <td className="muted">{new Date(s.created_at).toLocaleString()}</td>
-                        <td><button type="button" className="btn btn-ghost" onClick={() => void api.deleteSuppression(s.id).then(() => api.suppressions()).then((r) => setSuppressions(r.suppressions))}>Remove</button></td>
+                        <td><Button size="sm" variant="ghost" type="button" onClick={() => void api.deleteSuppression(s.id).then(() => api.suppressions()).then((r) => setSuppressions(r.suppressions))}>Remove</Button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1217,11 +1263,11 @@ export default function Settings() {
               <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token.</p></div></div>
               <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("keyname") as HTMLInputElement; void api.createKey(input.value || "Transactional").then((res) => { setNewToken(res.key.token ?? ""); input.value = ""; return refresh(); }); }}>
                 <input name="keyname" placeholder="Key name" />
-                <button className="btn" type="submit">Create key</button>
+                <Button type="submit">Create key</Button>
               </form>
               {newToken ? <div className="notice">Copy this key now. It will not be shown again: <code>{newToken}</code></div> : null}
               {keys.length ? <table className="table"><thead><tr><th>Name</th><th>Prefix</th><th /></tr></thead><tbody>
-                {keys.map((k) => <tr key={k.id}><td>{k.name}</td><td><code>{k.key_prefix}…</code></td><td><button type="button" className="btn btn-danger" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</button></td></tr>)}
+                {keys.map((k) => <tr key={k.id}><td>{k.name}</td><td><code>{k.key_prefix}…</code></td><td><Button variant="danger" type="button" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</Button></td></tr>)}
               </tbody></table> : <p className="empty-state">No API keys yet.</p>}
             </section>
             <section className="settings-card">
@@ -1241,7 +1287,7 @@ export default function Settings() {
                   <input name="whname" placeholder="Hook name" />
                   <input name="whurl" placeholder="https://example.com/hooks/flap" required />
                 </div>
-                <button className="btn" type="submit">Add webhook</button>
+                <Button type="submit">Add webhook</Button>
               </form>
               {newWebhookSecret ? <div className="notice">Copy this signing secret now: <code>{newWebhookSecret}</code></div> : null}
               {webhooks.length ? <table className="table"><thead><tr><th>Name</th><th>URL</th><th>Last trigger</th><th>Status</th><th /></tr></thead><tbody>
@@ -1257,7 +1303,7 @@ export default function Settings() {
                           {webhookExpanded === w.id ? "Hide deliveries" : "Deliveries"}
                         </button>
                         <button type="button" className="text-button" onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
-                        <button type="button" className="btn btn-danger" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</button>
+                        <Button variant="danger" type="button" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</Button>
                       </td>
                     </tr>
                     {webhookExpanded === w.id ? (
@@ -1341,7 +1387,7 @@ export default function Settings() {
                   />
                 </label>
                 <p className="muted" style={{ fontSize: 12 }}>0 disables undo. Default 10 — message sits in Scheduled until the timer fires.</p>
-                <button className="btn" type="submit">Save notifications</button>
+                <Button type="submit">Save notifications</Button>
               </form>
             </section>
             <section className="settings-card">
@@ -1349,56 +1395,235 @@ export default function Settings() {
               <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void api.savePrefs({ vacation_enabled: Boolean(prefs.vacation_enabled), vacation_body: prefs.vacation_body, notify_browser: Boolean(prefs.notify_browser) }).then(() => setNotice("Automatic replies updated.")); }}>
                 <label className="check-row"><input type="checkbox" checked={Boolean(prefs.vacation_enabled)} onChange={(e) => setPrefs((p) => ({ ...p, vacation_enabled: e.target.checked ? 1 : 0 }))} /> Enable automatic replies</label>
                 <textarea value={prefs.vacation_body} onChange={(e) => setPrefs((p) => ({ ...p, vacation_body: e.target.value }))} placeholder="Thanks for writing — I’ll get back to you soon." />
-                <button className="btn" type="submit">Save replies</button>
+                <Button type="submit">Save replies</Button>
               </form>
             </section>
             <section className="settings-card">
               <div className="section-heading"><div><h2>Blocked senders</h2><p>Future mail from these addresses is filed to Spam.</p></div></div>
               <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("block") as HTMLInputElement; void api.block(input.value).then(() => { input.value = ""; return refresh(); }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not block sender.")); }}>
                 <input name="block" placeholder="sender@example.com" required />
-                <button className="btn" type="submit">Block</button>
+                <Button type="submit">Block</Button>
               </form>
               {blocked.length ? <table className="table"><thead><tr><th>Address</th><th /></tr></thead><tbody>
-                {blocked.map((b) => <tr key={b.id}><td>{b.address}</td><td><button type="button" className="btn btn-danger" onClick={() => void api.unblock(b.id).then(refresh)}>Unblock</button></td></tr>)}
+                {blocked.map((b) => <tr key={b.id}><td>{b.address}</td><td><Button variant="danger" type="button" onClick={() => void api.unblock(b.id).then(refresh)}>Unblock</Button></td></tr>)}
               </tbody></table> : <p className="empty-state">Nobody is blocked.</p>}
             </section>
             <section className="settings-card">
               <div className="section-heading"><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON, or download a classic .mbox mailbox file. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
-              <div className="row-form" style={{ flexWrap: "wrap" }}>
-                <button type="button" className="btn" onClick={() => void api.exportBackup().catch((ex) => setErr(ex instanceof Error ? ex.message : "Export failed."))}>Download backup</button>
-                <button type="button" className="btn btn-ghost" onClick={() => void api.exportMbox().catch((ex) => setErr(ex instanceof Error ? ex.message : "Mbox export failed."))}>Download mailbox (.mbox)</button>
-                <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
-                  Restore JSON
-                  <input
-                    type="file"
-                    accept="application/json,.json"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        try {
-                          const payload = JSON.parse(String(reader.result));
-                          void api.restoreBackup(payload).then((res) => {
-                            setNotice(`Restored ${res.restored} items.`);
-                            return refresh();
-                          }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Restore failed."));
-                        } catch {
-                          setErr("That file is not valid JSON.");
-                        }
-                      };
-                      reader.readAsText(file);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
+              <div className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  className="h-10 w-full whitespace-nowrap"
+                  disabled={Boolean(privacyBusy)}
+                  onClick={() =>
+                    runPrivacy("backup", async () => {
+                      await api.exportBackup();
+                      flash("Backup download started.");
+                    })
+                  }
+                >
+                  {privacyBusy === "backup" ? "Preparing…" : "Download backup"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full whitespace-nowrap"
+                  disabled={Boolean(privacyBusy)}
+                  onClick={() =>
+                    runPrivacy("mbox", async () => {
+                      await api.exportMbox();
+                      flash("Mailbox (.mbox) download started.");
+                    })
+                  }
+                >
+                  {privacyBusy === "mbox" ? "Preparing…" : "Download .mbox"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full whitespace-nowrap"
+                  disabled={Boolean(privacyBusy)}
+                  onClick={() => restoreFileRef.current?.click()}
+                >
+                  {privacyBusy === "restore" ? "Restoring…" : "Restore JSON"}
+                </Button>
+                <input
+                  ref={restoreFileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  tabIndex={-1}
+                  aria-hidden
+                  onChange={(e) => {
+                    const input = e.currentTarget;
+                    const file = input.files?.[0];
+                    input.value = "";
+                    if (!file) return;
+                    runPrivacy("restore", async () => {
+                      const text = await file.text();
+                      let payload: unknown;
+                      try {
+                        payload = JSON.parse(text);
+                      } catch {
+                        throw new Error("That file is not valid JSON.");
+                      }
+                      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+                        throw new Error("Upload a Flap backup JSON object (not an array).");
+                      }
+                      const res = await api.restoreBackup(payload);
+                      flash(`Restored ${res.restored} items.`);
+                      try {
+                        await refresh();
+                      } catch {
+                        /* restore already succeeded */
+                      }
+                    });
+                  }}
+                />
               </div>
+            </section>
+
+            <section className="settings-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Appearance</h2>
+                  <p>Theme follows your preference. Dark mode keeps Flap teal.</p>
+                </div>
+              </div>
+              <ThemeToggle />
+            </section>
+
+            <section className="settings-card">
+              <div className="section-heading">
+                <div>
+                  <h2>AI assist (confirm only)</h2>
+                  <p>Optional summaries and draft replies from the reader. Never auto-send. {aiOptIn ? "Currently on." : "Currently off."}</p>
+                </div>
+                {aiOptIn ? <Badge>Enabled</Badge> : <Badge variant="secondary">Off</Badge>}
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:max-w-md">
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={Boolean(privacyBusy) || aiOptIn}
+                  onClick={() =>
+                    runPrivacy("ai-on", async () => {
+                      await api.setAiOptIn(true);
+                      setAiOptIn(true);
+                      flash("AI opt-in enabled. Summaries still require confirm before use.");
+                    })
+                  }
+                >
+                  {privacyBusy === "ai-on" ? "Enabling…" : "Enable AI"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={Boolean(privacyBusy) || !aiOptIn}
+                  onClick={() =>
+                    runPrivacy("ai-off", async () => {
+                      await api.setAiOptIn(false);
+                      setAiOptIn(false);
+                      flash("AI disabled.");
+                    })
+                  }
+                >
+                  {privacyBusy === "ai-off" ? "Disabling…" : "Disable"}
+                </Button>
+              </div>
+            </section>
+
+            <section className="settings-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Rule packs</h2>
+                  <p>Install a starter filter pack (newsletters, receipts, and similar).</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                disabled={Boolean(privacyBusy)}
+                onClick={() =>
+                  runPrivacy("rules", async () => {
+                    const r = await api.ruleTemplates();
+                    const first = r.templates[0];
+                    if (!first) throw new Error("No rule packs available yet.");
+                    await api.installRuleTemplate(first.id);
+                    flash(`Installed “${first.name}”. Check Rules.`);
+                  })
+                }
+              >
+                {privacyBusy === "rules" ? "Installing…" : "Install starter pack"}
+              </Button>
+            </section>
+
+            <section className="settings-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Compose starters</h2>
+                  <p>Add Thanks, Pricing, Bug ack, and Waitlist templates to Compose.</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                disabled={Boolean(privacyBusy)}
+                onClick={() =>
+                  runPrivacy("seed", async () => {
+                    await api.seedTemplates("en");
+                    flash("Added Thanks / Pricing / Bug ack / Waitlist templates. Open Compose to use them.");
+                  })
+                }
+              >
+                {privacyBusy === "seed" ? "Seeding…" : "Seed domain templates"}
+              </Button>
+            </section>
+
+            <section className="settings-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Cancel / export policy</h2>
+                  <p>30-day export window on cancel. Download .mbox anytime from Backup &amp; restore above.</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={Boolean(privacyBusy)}
+                onClick={() =>
+                  runPrivacy("policy", async () => {
+                    const p = await api.trustExportPolicy();
+                    const text = [
+                      typeof p.retention === "string" ? p.retention : "",
+                      typeof p.ownership === "string" ? p.ownership : "",
+                      Array.isArray(p.formats) ? `Formats: ${(p.formats as string[]).join(", ")}.` : "",
+                      typeof p.cancel_export_window_days === "number"
+                        ? `Cancel export window: ${p.cancel_export_window_days} days.`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const msg = text || "You can export anytime from Settings.";
+                    setExportPolicy(msg);
+                    flash(msg);
+                  })
+                }
+              >
+                {privacyBusy === "policy" ? "Loading…" : "View policy"}
+              </Button>
+              {exportPolicy ? (
+                <p className="notice mt-3" role="status" style={{ marginBottom: 0 }}>
+                  {exportPolicy}
+                </p>
+              ) : null}
             </section>
           </>
         ) : null}
 
+        
+
         {tab === "billing" ? (
+          <>
           <section className="settings-card">
             <div className="section-heading">
               <div>
@@ -1406,6 +1631,26 @@ export default function Settings() {
                 <p>Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
               </div>
               {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : null}
+            </div>
+            <div className="mb-5 inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={billingInterval === "month" ? "default" : "ghost"}
+                className="min-w-[7rem]"
+                onClick={() => setBillingInterval("month")}
+              >
+                Monthly
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={billingInterval === "year" ? "default" : "ghost"}
+                className="min-w-[7rem]"
+                onClick={() => setBillingInterval("year")}
+              >
+                Annual (−20%)
+              </Button>
             </div>
             {!checkoutConfigured ? (
               <div className="deferred-banner" style={{ marginBottom: 16 }}>
@@ -1497,11 +1742,25 @@ export default function Settings() {
               {plans.filter((p) => p.id !== "free").map((plan) => {
                 const available = plan.checkout_available !== false && checkoutConfigured;
                 const isCurrent = billing?.plan_id === plan.id;
+                const yearly = plan.price_yearly ?? Math.round(plan.price_monthly * 12 * 0.8);
+                const priceLabel =
+                  billingInterval === "year"
+                    ? `$${yearly}/yr`
+                    : `$${plan.price_monthly}/mo`;
+                const priceHint =
+                  billingInterval === "year" && plan.price_monthly > 0
+                    ? `≈ $${Math.round((yearly / 12) * 100) / 100}/mo billed annually`
+                    : billingInterval === "month" && plan.price_monthly > 0
+                      ? `or $${yearly}/yr (−20%)`
+                      : null;
                 return (
                   <div key={plan.id} className="settings-card" style={{ margin: 0, padding: 16 }}>
-                    <div className="row-form" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                    <div className="mb-2 flex items-start justify-between gap-3">
                       <strong>{plan.name}</strong>
-                      <span>${plan.price_monthly}/mo</span>
+                      <div className="text-right">
+                        <span className="font-semibold tabular-nums">{priceLabel}</span>
+                        {priceHint ? <div className="muted mt-0.5 text-[11px]">{priceHint}</div> : null}
+                      </div>
                     </div>
                     <p className="muted" style={{ marginTop: 0 }}>{plan.blurb}</p>
                     <ul className="muted" style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 13 }}>
@@ -1532,6 +1791,7 @@ export default function Settings() {
               See <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a> for renewals and cancellation.
             </p>
           </section>
+          </>
         ) : null}
 
         {tab === "team" ? (
@@ -1585,7 +1845,7 @@ export default function Settings() {
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                   </select>
-                  <button className="btn" type="submit" disabled={!teamInfo?.teams_unlocked}>Invite</button>
+                  <Button type="submit" disabled={!teamInfo?.teams_unlocked}>Invite</Button>
                 </div>
                 {mailboxes.length ? (
                   <div className="mailbox-grant-list">
@@ -1623,8 +1883,8 @@ export default function Settings() {
                       <td>{m.role}</td>
                       <td>
                         {teamInfo?.workspace?.can_manage_team && m.role !== "owner" ? (
-                          <button
-                            className="btn ghost"
+                          <Button
+                            className="ghost"
                             type="button"
                             onClick={() => {
                               void api.removeMember(m.user_id).then(refresh).catch((ex) =>
@@ -1633,7 +1893,7 @@ export default function Settings() {
                             }}
                           >
                             Remove
-                          </button>
+                          </Button>
                         ) : null}
                       </td>
                     </tr>
@@ -1655,22 +1915,22 @@ export default function Settings() {
                       <td>{i.role}</td>
                       <td style={{ fontSize: 12 }}>
                         {i.accept_path ? (
-                          <button
+                          <Button
                             type="button"
-                            className="btn ghost"
+                            className="ghost"
                             onClick={() => {
                               void navigator.clipboard.writeText(`${window.location.origin}${i.accept_path}`);
                               setNotice("Invite link copied.");
                             }}
                           >
                             Copy link
-                          </button>
+                          </Button>
                         ) : "—"}
                       </td>
                       <td>
                         {teamInfo?.workspace?.can_manage_team ? (
-                          <button
-                            className="btn ghost"
+                          <Button
+                            className="ghost"
                             type="button"
                             onClick={() => {
                               void api.revokeInvite(i.id).then(refresh).catch((ex) =>
@@ -1679,7 +1939,7 @@ export default function Settings() {
                             }}
                           >
                             Revoke
-                          </button>
+                          </Button>
                         ) : null}
                       </td>
                     </tr>
@@ -1704,8 +1964,8 @@ export default function Settings() {
                       <td>{mb.is_shared ? "Yes" : "No"}</td>
                       <td>
                         {teamInfo?.workspace?.can_manage_team ? (
-                          <button
-                            className="btn ghost"
+                          <Button
+                            className="ghost"
                             type="button"
                             disabled={!teamInfo.teams_unlocked && !mb.is_shared}
                             onClick={() => {
@@ -1716,7 +1976,7 @@ export default function Settings() {
                             }}
                           >
                             {mb.is_shared ? "Unshare" : "Make shared"}
-                          </button>
+                          </Button>
                         ) : null}
                       </td>
                     </tr>
@@ -1743,9 +2003,8 @@ export default function Settings() {
                   <span className="muted text-sm">Your referral link</span>
                   <div className="row-form">
                     <input readOnly value={referralInfo.link} aria-label="Referral link" />
-                    <button
+                    <Button
                       type="button"
-                      className="btn"
                       onClick={() => {
                         void navigator.clipboard.writeText(referralInfo.link).then(() => {
                           setNotice("Referral link copied.");
@@ -1754,7 +2013,7 @@ export default function Settings() {
                       }}
                     >
                       Copy
-                    </button>
+                    </Button>
                   </div>
                 </label>
                 <div className="row-form" style={{ marginTop: 16, gap: 24 }}>
@@ -1800,6 +2059,20 @@ export default function Settings() {
           </section>
         ) : null}
       </main>
+      {toast
+        ? createPortal(
+            <div className="mail-toast" role="status" style={{ zIndex: 9999 }}>
+              <div>
+                <strong>{toast.title}</strong>
+                <span>{toast.body}</span>
+              </div>
+              <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setToast(null)}>
+                ×
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </AppShell>
   );
 }
@@ -1813,7 +2086,7 @@ function SignatureForm({ onSave }: { onSave: (body: { name: string; html_body: s
       <input placeholder="Signature name" value={name} onChange={(e) => setName(e.target.value)} required />
       <textarea placeholder="Best,\nAda" value={body} onChange={(e) => setBody(e.target.value)} required />
       <label className="check-row"><input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} /> Default signature</label>
-      <button className="btn" type="submit">Add signature</button>
+      <Button type="submit">Add signature</Button>
     </form>
   );
 }
@@ -1829,7 +2102,7 @@ function TemplateForm({ onSave }: { onSave: (body: { name: string; subject: stri
         <input placeholder="Subject (optional)" value={subject} onChange={(e) => setSubject(e.target.value)} />
       </div>
       <textarea placeholder="Message body" value={body} onChange={(e) => setBody(e.target.value)} required />
-      <button className="btn" type="submit">Add template</button>
+      <Button type="submit">Add template</Button>
     </form>
   );
 }
@@ -1841,7 +2114,7 @@ function ContactForm({ onSave }: { onSave: (email: string, name: string) => Prom
     <form className="row-form" onSubmit={(e) => { e.preventDefault(); void onSave(email, name).then(() => { setEmail(""); setName(""); }); }}>
       <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
       <input type="email" placeholder="email@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <button className="btn" type="submit">Add contact</button>
+      <Button type="submit">Add contact</Button>
     </form>
   );
 }
@@ -1945,11 +2218,11 @@ function FilterForm({ onSave }: { onSave: (body: {
           <input aria-label="Sample subject" placeholder="Sample subject" value={sampleSubject} onChange={(e) => setSampleSubject(e.target.value)} />
         </div>
         <div className="row-form" style={{ marginTop: 8 }}>
-          <button type="button" className="btn btn-ghost" onClick={() => previewMatch()}>Test rule</button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => previewMatch()}>Test rule</Button>
           {testResult ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>{testResult}</p> : null}
         </div>
       </div>
-      <button className="btn" type="submit">Add rule</button>
+      <Button type="submit">Add rule</Button>
     </form>
   );
 }
@@ -1993,7 +2266,7 @@ function AliasForm({
         <input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <label className="check-row"><input type="checkbox" checked={disposable} onChange={(e) => setDisposable(e.target.checked)} /> Disposable (7 days)</label>
       </div>
-      <button className="btn" type="submit" disabled={!mailboxId}>Add alias</button>
+      <Button type="submit" disabled={!mailboxId}>Add alias</Button>
     </form>
   );
 }

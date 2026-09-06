@@ -7,6 +7,7 @@ export type AnalyticsEvent =
   | "comparison_page_view"
   | "calculator_started"
   | "calculator_completed"
+  | "calculator_share_copied"
   | "seo_tool_used"
   | "signup_started"
   | "signup_completed"

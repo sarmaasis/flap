@@ -76,12 +76,12 @@ export default function InviteAccept() {
               >
                 Continue with Google
               </Button>
-              <a className="btn oauth-btn oauth-btn-secondary" href={`/login`}>
-                Sign in first
-              </a>
-              <a className="btn oauth-btn oauth-btn-secondary" href={`/signup`}>
-                Create account
-              </a>
+              <Button asChild variant="outline" className="w-full">
+                <a href={`/login`}>Sign in first</a>
+              </Button>
+              <Button asChild variant="secondary" className="w-full">
+                <a href={`/signup`}>Create account</a>
+              </Button>
             </div>
           )
         ) : null}

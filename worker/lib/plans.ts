@@ -10,6 +10,8 @@ export {
   flapPlanForDomains,
   googleWorkspaceMonthlyCost,
   savingsVsGoogle,
+  yearlyPriceFromMonthly,
+  monthlyEquivalentFromYearly,
   type PlanId,
   type PlanLimits,
   type PlanDef,

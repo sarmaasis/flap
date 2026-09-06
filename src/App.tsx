@@ -16,6 +16,7 @@ const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 const SeoLanding = lazy(() => import("./pages/SeoLanding"));
 const DnsToolPage = lazy(() => import("./pages/DnsToolPage"));
 const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
+const ToolsIndex = lazy(() => import("./pages/ToolsIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const BlogIndex = lazy(() => import("./pages/BlogIndex"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
@@ -27,7 +28,11 @@ function Screen({ children }: { children: ReactNode }) {
 const SEO_PATH_SET = new Set<string>(SEO_PATHS);
 
 const DNS_TOOL_PATHS = new Set<string>(
-  TOOL_PAGES.filter((t) => t.path !== "/tools/google-workspace-cost-calculator").map((t) => t.path),
+  TOOL_PAGES.filter(
+    (t) =>
+      t.path !== "/tools/google-workspace-cost-calculator" &&
+      t.path !== "/tools/flap-vs-workspace-share",
+  ).map((t) => t.path),
 );
 
 const GUIDE_PATHS = new Set<string>(GUIDE_PAGES.map((g) => g.path));
@@ -80,8 +85,14 @@ export default function App() {
     );
   }
 
+  if (path === "/tools") {
+    return <Screen><ToolsIndex /></Screen>;
+  }
   if (path === "/tools/google-workspace-cost-calculator") {
     return <Screen><CalculatorPage /></Screen>;
+  }
+  if (path === "/tools/flap-vs-workspace-share") {
+    return <Screen><CalculatorPage share /></Screen>;
   }
   if (DNS_TOOL_PATHS.has(path)) {
     return <Screen><DnsToolPage path={path} /></Screen>;

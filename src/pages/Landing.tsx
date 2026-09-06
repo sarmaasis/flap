@@ -99,6 +99,7 @@ const FAQS = [
 
 export default function Landing() {
   const [auth, setAuth] = useState<"loading" | "setup" | "guest" | "user">("loading");
+  const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const plans = planCards();
 
   useEffect(() => {
@@ -179,6 +180,19 @@ export default function Landing() {
           <p className="mt-5 text-xs text-[var(--muted)]">
             {MARKETING.microcopy.replace("Multiple domains", `Up to ${PLANS.builder.limits.domains} domains on Builder`)}
           </p>
+          <div className="demo-domain-chips mt-8 flex flex-wrap gap-2" aria-hidden>
+            {[
+              { name: "shopfront.io", color: "#1c6e5c" },
+              { name: "launchkit.dev", color: "#2d5a8c" },
+              { name: "studio.agency", color: "#b47828" },
+            ].map((d) => (
+              <span key={d.name} className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
+                {d.name}
+              </span>
+            ))}
+          </div>
+
         </div>
 
         <div className="landing-stage relative" aria-label="Multiple domains into one inbox">
@@ -338,6 +352,10 @@ export default function Landing() {
             Scale by how many projects you run — not by how many Workspace seats you fake.
           </p>
         </div>
+        <div className="mb-6 inline-flex rounded-lg border border-[var(--line)] p-1 text-sm">
+          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "month" ? "bg-[var(--cta)] text-white" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("month")}>Monthly</button>
+          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "year" ? "bg-[var(--cta)] text-white" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("year")}>Annual (-20%)</button>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => (
             <div
@@ -354,9 +372,12 @@ export default function Landing() {
                 {plan.badge ? <Badge>{plan.badge}</Badge> : null}
               </div>
               <p className="mt-4 font-[family-name:var(--font-display)] text-3xl font-bold">
-                {plan.price}
-                <span className="text-sm font-normal text-[var(--muted)]">/mo</span>
+                {plan.price_monthly === 0 ? "$0" : billingInterval === "year" ? `$${plan.price_yearly}` : `$${plan.price_monthly}`}
+                <span className="text-sm font-normal text-[var(--muted)]">{plan.price_monthly === 0 ? "/mo" : billingInterval === "year" ? "/yr" : "/mo"}</span>
               </p>
+              {plan.price_monthly > 0 && billingInterval === "year" ? (
+                <p className="text-xs text-[var(--muted)]">${Math.round((plan.price_yearly / 12) * 100) / 100}/mo effective</p>
+              ) : null}
               <p className="mt-2 text-sm text-[var(--muted)]">{plan.blurb}</p>
               <ul className="mt-5 flex flex-1 flex-col gap-2 text-sm">
                 {plan.features.slice(0, 6).map((item) => (

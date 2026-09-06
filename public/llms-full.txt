@@ -4,9 +4,9 @@
 
 ## What Flap is
 
-Flap is email infrastructure: multi-domain inboxes, sender identities, aliases/catch-all (paid), guided DNS, and (on paid/Studio) API keys, webhooks, and team seats. It is not Google Workspace, Microsoft 365, Zoho Workplace, Docs, Drive, Meet, or Calendar.
+Flap is email infrastructure: multi-domain inboxes, sender identities, aliases/catch-all (paid), guided DNS, JSON/.mbox export, filters/rules, templates, and (on paid/Studio) API keys, webhooks, and team seats. It is not Google Workspace, Microsoft 365, Zoho Workplace, Docs, Drive, Meet, or Calendar.
 
-Inbound mail uses Cloudflare Email Routing. Users add MX/SPF (and DKIM) at their DNS host, finish the Worker routing rule Flap documents, then create addresses. Flap can check DNS and offers free public checkers under /tools/.
+Inbound mail path: publish MX/SPF/DKIM at your DNS host → Amazon SES inbound → Flap ingest. Users copy live records from Settings → Setup, then use Check DNS. Flap also offers free public checkers under /tools/. Cloudflare Email Routing is not required for the current SES path (legacy only).
 
 Canonical brand URL: https://useflap.online  
 Support: support@useflap.online
@@ -30,6 +30,7 @@ Exact mailbox/alias/storage/send limits are published on the pricing section and
 
 - Home: https://useflap.online/
 - Pricing anchor: https://useflap.online/#pricing
+- Tools index: https://useflap.online/tools
 - Signup: https://useflap.online/signup (account creation; not for SEO indexing)
 - Login: https://useflap.online/login (private; not for SEO indexing)
 
@@ -61,7 +62,7 @@ Compare Flap to managing separate Zoho setups per domain for multi-domain founde
 
 ## DNS provider guides
 
-All guides explain publishing Cloudflare Email Routing records at the DNS host, then finishing Flap setup:
+All guides explain publishing Flap’s Amazon SES MX/SPF/DKIM at the DNS host (not Cloudflare Email Routing):
 
 - Cloudflare: https://useflap.online/guides/cloudflare-custom-domain-email
 - Vercel: https://useflap.online/guides/vercel-custom-domain-email
@@ -73,12 +74,32 @@ All guides explain publishing Cloudflare Email Routing records at the DNS host, 
 
 ## Free tools
 
+Index: https://useflap.online/tools
+
 - Google Workspace cost calculator: https://useflap.online/tools/google-workspace-cost-calculator
+- Flap vs Workspace share card: https://useflap.online/tools/flap-vs-workspace-share
 - MX checker: https://useflap.online/tools/mx-checker
 - SPF checker: https://useflap.online/tools/spf-checker
 - DMARC checker: https://useflap.online/tools/dmarc-checker
 - DKIM checker: https://useflap.online/tools/dkim-checker
 - Email setup checker: https://useflap.online/tools/email-setup-checker
+- Header analyzer: https://useflap.online/tools/header-analyzer
+- Blacklist / RBL checker: https://useflap.online/tools/blacklist-checker
+- DMARC generator: https://useflap.online/tools/dmarc-generator
+- SPF flattener: https://useflap.online/tools/spf-flattener
+- Deliverability scorecard: https://useflap.online/tools/deliverability-scorecard
+- BIMI checker: https://useflap.online/tools/bimi-checker
+- MTA-STS / TLS-RPT checker: https://useflap.online/tools/mta-sts-checker
+- Catch-all detector: https://useflap.online/tools/catchall-detector
+- DNS propagation: https://useflap.online/tools/dns-propagation
+- DKIM generator assist: https://useflap.online/tools/dkim-generator
+- Plus-address tester: https://useflap.online/tools/plus-address-tester
+- From-domain mismatch educator: https://useflap.online/tools/from-mismatch
+- PTR checker: https://useflap.online/tools/ptr-checker
+- SMTP banner probe: https://useflap.online/tools/smtp-banner
+- WHOIS / nameserver view: https://useflap.online/tools/whois-ns
+- ARC / forward DMARC explainer: https://useflap.online/tools/arc-explainer
+- Registrar DNS copy-block: https://useflap.online/tools/registrar-copy
 
 Calculator estimates are illustrative (list-price style Workspace figures) and may vary by region, taxes, and plan.
 

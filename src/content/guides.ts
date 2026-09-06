@@ -14,9 +14,10 @@ export type GuideBody = {
   related: Array<{ href: string; label: string }>;
 };
 
-const UPDATED = "2026-09-05";
+const UPDATED = "2026-09-06";
 
 const SHARED_RELATED = [
+  { href: "/tools", label: "All Flap tools" },
   { href: "/tools/email-setup-checker", label: "Email setup checker" },
   { href: "/tools/mx-checker", label: "MX checker" },
   { href: "/blog/mx-spf-dmarc-setup-checklist", label: "MX/SPF/DMARC checklist" },

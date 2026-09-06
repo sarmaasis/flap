@@ -17,8 +17,14 @@ import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/f
 import { go } from "../lib/nav";
 import AppShell, { FOLDERS } from "../components/AppShell";
 import CommandPalette from "../components/CommandPalette";
+import PwaInstallPrompt from "../components/PwaInstallPrompt";
+import ProjectWizard from "../components/ProjectWizard";
 import MessageReader from "../components/MessageReader";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import type { ComposeDraft } from "./Compose";
+import { Search } from "lucide-react";
 
 const Compose = lazy(() => import("./Compose"));
 
@@ -55,6 +61,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [domainUnread, setDomainUnread] = useState<Record<string, number>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [undoToast, setUndoToast] = useState<{ id: string; seconds: number } | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [showCompose, setShowCompose] = useState(Boolean(composeOpen));
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | null>(null);
   const [email, setEmail] = useState("");
@@ -584,9 +591,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <strong>Finish setup to receive mail</strong>
               <p>Add your domain and create a mailbox in Settings, then publish the SES DNS records Flap shows at your DNS host.</p>
             </div>
-            <button type="button" className="btn" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+            <Button type="button" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
               Open setup checklist
-            </button>
+            </Button>
           </div>
         ) : null}
         {domainSetupPending && !needsSetup && folder === "inbox" && !qDebounced ? (
@@ -595,28 +602,40 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <strong>Your mailboxes are ready. Finish domain verification to receive mail.</strong>
               <p>Publish SES verification, DKIM, and MX records, then click Check setup.</p>
             </div>
-            <button type="button" className="btn" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+            <Button type="button" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
               Finish setup
-            </button>
+            </Button>
           </div>
         ) : null}
       <div className="workspace">
         <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
-          <div className="list-head">
+          <div className="list-head space-y-3">
             <div className="list-title-row">
               <div>
                 <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
                 <h2>{qDebounced ? `Results for “${qDebounced}”` : title}</h2>
               </div>
-              <span className="mail-count">{loadingList ? "…" : headerCount}</span>
+              <Badge variant="secondary" className="mail-count border-[var(--line-strong)] font-mono text-xs">
+                {loadingList ? "…" : headerCount}
+              </Badge>
             </div>
-            <div className="search-field">
-              <span aria-hidden>⌕</span>
-              <input id="mail-search" placeholder="Search mail" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mail" />
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                aria-hidden
+              />
+              <Input
+                id="mail-search"
+                className="h-10 !pl-10"
+                placeholder="Search mail"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label="Search mail"
+              />
             </div>
             {mailboxes.length > 1 ? (
               <select
-                className="mailbox-filter"
+                className="mailbox-filter h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm"
                 value={mailbox}
                 onChange={(e) => {
                   setMailbox(e.target.value);
@@ -631,17 +650,18 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               </select>
             ) : null}
             {!qDebounced ? (
-              <div className="list-toolbar">
-                <button
+              <div className="list-toolbar flex flex-wrap items-center gap-2">
+                <Button
                   type="button"
-                  className={`btn${unreadOnly ? " active" : ""}`}
+                  size="sm"
+                  variant={unreadOnly ? "default" : "outline"}
                   onClick={() => setUnreadOnly((v) => !v)}
                 >
                   {unreadOnly ? "Showing unread" : "Unread only"}
-                </button>
-                <button type="button" className="btn" onClick={() => void markFolderRead()}>
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => void markFolderRead()}>
                   Mark all read
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
@@ -680,9 +700,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                             : EMPTY[folder]}
                 </p>
                 {(filteredDomain || needsSetup || domainSetupPending) && !qDebounced && !unreadOnly ? (
-                  <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+                  <Button type="button" className="mt-3" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
                     {filteredDomain ? "Send a test →" : domainSetupPending ? "Finish setup" : "Start setup"}
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ) : (
@@ -947,6 +967,8 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </div>
       ) : null}
+      <PwaInstallPrompt ready={domains.length > 0} />
+      <ProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

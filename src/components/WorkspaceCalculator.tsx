@@ -9,9 +9,10 @@ type Props = {
   compact?: boolean;
   className?: string;
   ctaHref?: string;
+  shareMode?: boolean;
 };
 
-export default function WorkspaceCalculator({ compact, className, ctaHref = "/signup" }: Props) {
+export default function WorkspaceCalculator({ compact, className, ctaHref = "/signup", shareMode }: Props) {
   const [domains, setDomains] = useState(5);
   const [users, setUsers] = useState(1);
   const [started, setStarted] = useState(false);
@@ -89,6 +90,33 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
           <strong>${result.savings_monthly}/mo · ${result.savings_annual}/yr</strong>
         </div>
       </div>
+
+      {shareMode ? (
+        <div className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--cta-dim)] p-4 text-sm">
+          <p className="font-semibold">Share card</p>
+          <p className="mt-2">
+            {result.domains} domains on Google Workspace ≈ ${result.google_monthly}/mo.
+            Flap {result.flap_plan_name} is ${result.flap_monthly}/mo
+            {result.flap_yearly ? ` (or $${result.flap_yearly}/yr billed annually)` : ""}.
+            Save about ${result.savings_monthly}/mo.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onClick={async () => {
+              const text = `Flap vs Workspace: ${result.domains} domains → save ~$${result.savings_monthly}/mo with Flap ${result.flap_plan_name}. https://useflap.online/tools/flap-vs-workspace-share`;
+              try {
+                await navigator.clipboard.writeText(text);
+              } catch {
+                /* ignore */
+              }
+              track("calculator_share_copied", { domains: result.domains });
+            }}
+          >
+            Copy share text
+          </Button>
+        </div>
+      ) : null}
 
       <p className="calc-disclaimer">
         Assumes Google Workspace at ${GOOGLE_WORKSPACE_USD_PER_USER}/user/domain/month. Estimates are illustrative and may

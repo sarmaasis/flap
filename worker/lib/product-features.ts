@@ -324,8 +324,8 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
       suppressions_active: Number(suppressions?.n) || 0,
       suppressions_by_reason: byReason,
       imap: {
-        status: "unavailable",
-        note: "IMAP/SMTP is not available yet. Use the web app and PWA. We'll announce when client access ships.",
+        status: "deferred",
+        note: "IMAP credentials path is scheduled for 2026-10-15. Use the web app and PWA until then.",
       },
     });
   });

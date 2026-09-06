@@ -11,6 +11,7 @@ import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
 import { registerInboundWebhookRoutes } from "./lib/inbound-webhook";
 import { registerProductFeatureRoutes } from "./lib/product-features";
+import { registerFeatureRoutes } from "./lib/feature-routes";
 import {
   canSendMail,
   defaultCustomerDnsRecords,
@@ -1139,6 +1140,7 @@ registerDnsToolRoutes(app);
 registerGrowthRoutes(app);
 registerInboundWebhookRoutes(app);
 registerProductFeatureRoutes(app);
+registerFeatureRoutes(app);
 
 export default {
   fetch: app.fetch,
