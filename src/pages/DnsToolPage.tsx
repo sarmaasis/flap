@@ -365,16 +365,27 @@ export default function DnsToolPage({ path }: { path: string }) {
               : "Add the domain in Flap, copy MX/SPF/DKIM, and finish with a green receiving check."}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button
-              onClick={() => {
-                track("signup_clicked", { source: path });
-                go("/signup");
-              }}
-            >
-              Start free
+            <Button asChild>
+              <a
+                href="/signup"
+                onClick={(e) => {
+                  e.preventDefault();
+                  track("signup_clicked", { source: path });
+                  go("/signup");
+                }}
+              >
+                Start free
+              </a>
             </Button>
-            <Button variant="outline" onClick={() => go("/guides/cloudflare-custom-domain-email")}>
-              DNS guides
+            <Button asChild variant="outline">
+              <a href="/guides" onClick={(e) => { e.preventDefault(); go("/guides"); }}>
+                DNS guides
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="/app/settings?tab=setup" onClick={(e) => { e.preventDefault(); go("/app/settings?tab=setup"); }}>
+                DNS wizard
+              </a>
             </Button>
           </div>
           <ul className="mt-8 flex flex-col gap-2 text-sm">

@@ -60,11 +60,30 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "DENY");
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   c.header(
     "Content-Security-Policy",
     "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: cid:; frame-src 'self'",
   );
 });
+
+/** SPA shells for app/auth paths (Assets uses 404-page for unknown marketing URLs). */
+async function serveSpaShell(c: { env: Env; req: { raw: Request; url: string } }) {
+  const url = new URL(c.req.url);
+  return c.env.ASSETS.fetch(new Request(new URL("/index.html", url.origin), c.req.raw));
+}
+
+app.get("/app", (c) => serveSpaShell(c));
+app.get("/app/*", (c) => serveSpaShell(c));
+app.get("/signup", (c) => serveSpaShell(c));
+app.get("/login", (c) => serveSpaShell(c));
+app.get("/setup", (c) => serveSpaShell(c));
+app.get("/verify-email", (c) => serveSpaShell(c));
+app.get("/forgot-password", (c) => serveSpaShell(c));
+app.get("/reset-password", (c) => serveSpaShell(c));
+app.get("/invite", (c) => serveSpaShell(c));
+app.get("/invite/*", (c) => serveSpaShell(c));
+app.get("/settings/referrals", (c) => serveSpaShell(c));
 
 app.get("/api/health", (c) =>
   c.json({

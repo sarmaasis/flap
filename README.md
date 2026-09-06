@@ -6,18 +6,20 @@ Flap targets indie hackers and serial founders who own multiple domains and do n
 
 ## Plans (domain-first)
 
+Source of truth: `shared/plans.ts`.
+
 | Plan | Price | Domains | Seats | Notes |
 |------|-------|---------|-------|-------|
-| Free | $0 | 1 | 1 | Trial + “Sent with Flap” footer |
-| Solo | $9 | 3 | 1 | Entry paid |
-| Builder | $19 | 10 | 1 | Highlighted |
+| Free | $0 | 2 | 1 | Trial + “Sent with Flap” footer |
+| Solo | $7 | 5 | 1 | Catch-all; no Flap footer |
+| Builder | $19 | 20 | 1 | Highlighted; API + webhooks |
 | Studio | $39 | 40 | up to 10 | Shared inboxes |
 
-Referrals: invite a founder → both get **+1 domain permanently** after the invitee connects a domain.
+Annual billing is **20% off** monthly. Referrals: invite a founder → both get **+1 domain permanently** after the invitee connects a domain.
 
 ## Product surface
 
-- Marketing: `/` plus SEO pages, guides, DNS tools, Workspace cost calculator
+- Marketing: `/`, `/pricing`, SEO pages, `/guides`, `/tools`, `/docs`, `/blog`, `/status`, `/support`
 - Auth: `/signup`, `/login`, first-boot `/setup`
 - App: `/app` (inbox), `/app/settings` (setup, billing, referrals, team)
 - Health: `GET /api/health`

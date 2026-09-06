@@ -6,9 +6,15 @@ Allow: /tools
 Allow: /guides
 Allow: /blog
 Allow: /docs
+Allow: /pricing
+Allow: /support
+Allow: /status
 Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /sitemap.xml
+Allow: /og.png
+Allow: /og.svg
+Allow: /*.txt
 
 # Private app, API, and auth — not for indexing
 Disallow: /app

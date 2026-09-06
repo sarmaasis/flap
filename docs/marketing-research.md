@@ -37,28 +37,30 @@ Flap is **not behind on product depth** (folders, labels, filters, aliases, Stud
 
 ## 2. Current Flap baseline plans
 
-Source of truth: `shared/plans.ts` (Worker quotas + marketing UI). Domain-first catalog. Storage = D1 message bodies + R2 attachments. Send quota = successful outbound sends per UTC calendar month.
+> **Shipped (2026-09-06):** pricing redesign is live in `shared/plans.ts`. Section 4 below was the research proposal; this table is the **current** catalog.
+
+Source of truth: `shared/plans.ts` (Worker quotas + marketing UI). Domain-first catalog. Storage = D1 message bodies + R2 attachments. Send quota = successful outbound sends per UTC calendar month. Annual = 20% off monthly.
 
 | Plan | Price / mo | Domains | Mailboxes | Aliases | Storage | Sends / mo | API keys | Webhooks | Seats | Notes |
 |------|------------|---------|-----------|---------|---------|------------|----------|----------|-------|-------|
-| **Free** | $0 | 1 | 2 | 5 | 25 MB | 100 | 0 | 0 | 1 | Sent with Flap footer; rules, contacts, signatures, export & restore |
-| **Solo** | $9 | 3 | 10 | Unlimited (cap 10k) | 2 GB | 500 | 5 | 3 | 1 | Catch-all; no Flap footer |
-| **Builder** | $19 (highlighted) | 10 | 30 | Unlimited (cap 50k) | 15 GB | 2,000 | 25 | 15 | 1 | Catch-all & filters; API + webhooks; priority support marketed |
-| **Studio** | $39 | 40 | 100 | Unlimited (cap 100k) | 50 GB | 10,000 | 100 | 50 | up to 10 | Shared inboxes; mailbox delegation & roles |
+| **Free** | $0 | 2 | 4 | 10 | 500 MB | 400 | 0 | 0 | 1 | Sent with Flap footer; rules, contacts, signatures, export & restore |
+| **Solo** | $7 | 5 | 15 | Unlimited (cap 10k) | 2 GB | 1,000 | 5 | 3 | 1 | Catch-all; no Flap footer |
+| **Builder** | $19 (highlighted) | 20 | 40 | Unlimited (cap 50k) | 15 GB | 3,000 | 25 | 15 | 1 | Catch-all & filters; API + webhooks |
+| **Studio** | $39 | 40 | 100 | Unlimited (cap 100k) | 50 GB | 10,000 | 100 | 50 | up to 10 | Shared inboxes; mailbox delegation & roles; priority support |
 
 **Marketing features currently advertised (from plan cards):**
 
-- Free: 1 custom domain, 2 mailboxes, 5 aliases, 25 MB, 100 sends/mo, rules/contacts/signatures, export & restore, 1 seat, Flap footer.
-- Solo: 3 domains, 10 mailboxes, unlimited aliases, 2 GB, 500 sends/mo, catch-all, no footer, 1 seat.
-- Builder: 10 domains, 30 mailboxes, unlimited aliases & disposables, 15 GB, 2,000 sends/mo, catch-all & filters, API keys + webhooks, priority support, 1 seat.
+- Free: 2 custom domains, 4 mailboxes, 10 aliases, 500 MB, 400 sends/mo, rules/contacts/signatures, export & restore, 1 seat, Flap footer.
+- Solo: 5 domains, 15 mailboxes, unlimited aliases, 2 GB, 1,000 sends/mo, catch-all, no footer, 1 seat.
+- Builder: 20 domains, 40 mailboxes, unlimited aliases & disposables, 15 GB, 3,000 sends/mo, catch-all & filters, API keys + webhooks, 1 seat.
 - Studio: 40 domains, 100 mailboxes, unlimited aliases, 50 GB, 10,000 sends/mo, up to 10 team seats, shared inboxes (support@, hello@), delegation & roles, priority support.
 
-**Baseline gaps vs direct comps (optics):**
+**Baseline gaps vs direct comps (optics) — historical notes from pre-redesign research:**
 
-- Free is tight (1 domain, 25 MB, 100 sends) vs Hydra Free (3 domains, 1 GB, reply-only outbound) and Folio Preview (1 domain, 100 sends).
-- Builder at $19 offers **10 domains**; Hydra Builder at $19 offers **20 domains**. Same sticker, half the domain story.
-- Solo at $9 is above Folio Solo (~$2.99-$3.50) and near Hydra Starter ($10 / 5 domains). Need clearer value (API/webhooks start earlier, or lower Solo, or raise Free so Solo feels like an upgrade not a tax).
-- Studio seats are a real differentiator Folio does not sell; Hydra Pro is unlimited domains / single-operator leaning. Lead with seats + shared inboxes.
+- ~~Free was tight (1 domain)~~ → Free is now 2 domains / 500 MB / 400 sends.
+- ~~Builder at $19 offered 10 domains~~ → Builder is now **20 domains** (Hydra Builder parity on the domain row).
+- ~~Solo at $9~~ → Solo is now **$7 / 5 domains**.
+- Studio seats remain a differentiator vs Folio; lead with seats + shared inboxes.
 
 **Referrals (growth loop already shipped):** invitee connects a domain → referrer gains +1 domain permanently. Keep prominent after verify.
 

@@ -24,7 +24,7 @@ export type SeoPageDef = {
   comparison?: boolean;
 };
 
-const UPDATED = "2026-09-04";
+const UPDATED = "2026-09-06";
 
 export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
   "/google-workspace-alternative": {
@@ -654,7 +654,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Flap’s bet",
-        body: "Domain count is the main scaling axis (Solo 3, Builder 10, Studio 40). Features like catch-all, filters, API keys, inbound webhooks, and Studio seats show up where plans unlock them — not as vague “priority support” badges.",
+        body: "Domain count is the main scaling axis (Solo 5, Builder 20, Studio 40). Features like catch-all, filters, API keys, inbound webhooks, and Studio seats show up where plans unlock them — not as vague “priority support” badges.",
       },
       {
         heading: "Trust and exit",
@@ -694,6 +694,158 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       { href: "/hydra-alternative", label: "Hydra alternative" },
       { href: "/cloudflare-email-routing-alternative", label: "Cloudflare Email Routing alternative" },
       { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+  "/justemails-alternative": {
+    path: "/justemails-alternative",
+    title: "JustEmails alternative for multi-domain founders | Flap",
+    description:
+      "Comparing JustEmails to Flap? Flap is a domain-first multi-domain inbox on Amazon SES with filters, webhooks, export, and transparent limits — not a flat yearly black box.",
+    h1: "JustEmails alternative for serial launchers",
+    definition:
+      "JustEmails is a simple hosted email option some founders consider for a flat yearly fee. Flap (useflap.online) is built for people who keep launching domains and want one inbox, clear plan limits, and SES-backed send/receive.",
+    lede: "If JustEmails’ flat-year model fits a single quiet brand, keep it. If you outgrow one mailbox story and need domain-first pricing plus developer hooks, Flap is the honest comparison.",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "Where Flap differs",
+        body: `Domain-first plans (Free ${PLANS.free.limits.domains} domains, Solo ${PLANS.solo.limits.domains} at $${PLANS.solo.price_monthly}/mo, Builder ${PLANS.builder.limits.domains} at $${PLANS.builder.price_monthly}/mo). Filters, aliases, JSON/.mbox export, API keys and inbound webhooks on Solo+, Studio seats for small teams.`,
+      },
+      {
+        heading: "Architecture",
+        body: MARKETING.architecture_line + " You stay at your registrar; Flap does not force Cloudflare Email Routing.",
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "JustEmails may win on ultra-simple yearly sticker for a minimal mailbox. Flap does not claim IMAP/SMTP yet and is not a productivity suite. Prefer Flap when multi-domain inbox + transparent quotas matter.",
+      },
+    ],
+    table: {
+      caption: "Fit checklist",
+      headers: ["Need", "Flap angle"],
+      rows: [
+        ["Many project domains", "Core pricing axis"],
+        ["Real send + receive", "SES-backed inbox"],
+        ["Export / exit", "JSON + .mbox"],
+        ["API / webhooks", "Solo+"],
+        ["Desktop IMAP today", "Not yet — web/PWA"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Flap cheaper than JustEmails?",
+        a: "Depends on domain count and whether you need send quotas, filters, and team seats. Compare live pricing at /pricing rather than a single yearly headline.",
+      },
+      {
+        q: "Can I migrate automatically?",
+        a: "Not yet. Point DNS, recreate addresses, and import older mail manually if needed. Export from Flap anytime.",
+      },
+    ],
+    related: [
+      { href: "/migadu-alternative", label: "Migadu alternative" },
+      { href: "/improvmx-alternative", label: "ImprovMX alternative" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+  "/migadu-alternative": {
+    path: "/migadu-alternative",
+    title: "Migadu alternative for multi-domain email | Flap",
+    description:
+      "Looking at Migadu for custom domains? Flap focuses on one inbox across many startup domains with SES delivery, guided DNS, and domain-first plans for indie founders.",
+    h1: "Migadu alternative for multi-domain founders",
+    definition:
+      "Migadu is a respected independent email host. Flap is a narrower product: multi-domain founder inboxes on Amazon SES with Cloudflare app hosting and domain-first pricing.",
+    lede: "Choose Migadu if you want their mailbox model and admin UX. Choose Flap if your job is launching many brands into one inbox without a Workspace per project.",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "Flap’s focus",
+        body: "Guided MX/SPF/DKIM, compose as each brand, catch-all/aliases on paid plans, filters, export, and developer webhooks — optimized for serial launchers.",
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "Migadu may fit better for traditional mailbox hosting preferences. Flap does not offer IMAP/SMTP today and does not replace full collaboration suites.",
+      },
+    ],
+    table: {
+      caption: "Questions to ask",
+      headers: ["Ask", "Why"],
+      rows: [
+        ["How many domains will I add this year?", "Domain-first vs seat-first math"],
+        ["Do I need IMAP now?", "Flap is web/PWA today"],
+        ["Do I need API send + inbound hooks?", "Flap Solo+"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Flap a Migadu clone?",
+        a: "No. Flap is aimed at multi-domain founders with SES-backed mail and transparent plan limits.",
+      },
+      {
+        q: "Where does mail run?",
+        a: "Customer domains use Amazon SES. The Flap app runs on Cloudflare. System mail for useflap.online uses Cloudflare SEB.",
+      },
+    ],
+    related: [
+      { href: "/justemails-alternative", label: "JustEmails alternative" },
+      { href: "/flap-vs-google-workspace", label: "vs Google Workspace" },
+      { href: "/guides", label: "DNS guides" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+  "/improvmx-alternative": {
+    path: "/improvmx-alternative",
+    title: "ImprovMX alternative with a real inbox | Flap",
+    description:
+      "ImprovMX is great for forwarding. Flap is for founders who need a real reply inbox across many domains — SES send/receive, not forwards-only.",
+    h1: "ImprovMX alternative when you need a real inbox",
+    definition:
+      "ImprovMX focuses on email forwarding and aliases. Flap (useflap.online) hosts a real multi-domain inbox so you can send and receive as you@yourstartup.com without a Workspace per launch.",
+    lede: "Keep ImprovMX if forwarding to Gmail is enough. Switch intent to Flap when you need stored mail, compose-as-brand, filters, and outbound from your domains.",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "Forwarding vs inbox",
+        body: "Forwards-only products solve aliasing. Flap stores mail, supports compose identities, aliases/catch-all (plan allowing), and export — a different job than redirecting to another mailbox.",
+      },
+      {
+        heading: "Architecture",
+        body: MARKETING.architecture_line,
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "ImprovMX can be simpler and cheaper when you only need redirects. Flap costs more as you scale domains because you get a hosted inbox, not a forward.",
+      },
+    ],
+    table: {
+      caption: "Product job",
+      headers: ["Job", "Better fit"],
+      rows: [
+        ["Forward to Gmail/Outlook", "ImprovMX / similar"],
+        ["One inbox across startups", "Flap"],
+        ["Send as brand identities", "Flap"],
+        ["API send + inbound webhooks", "Flap Solo+"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Flap email forwarding?",
+        a: "No. Flap is a hosted inbox. Optional forwarding rules exist inside the product, but the core is stored mail on SES.",
+      },
+      {
+        q: "Can I keep Gmail and add Flap?",
+        a: "Yes for a transition. Long-term, founders usually cut over MX fully so brand mail is not split across providers.",
+      },
+    ],
+    related: [
+      { href: "/cloudflare-email-routing-alternative", label: "Cloudflare Email Routing alternative" },
+      { href: "/custom-domain-email", label: "Custom domain email" },
+      { href: "/pricing", label: "Pricing" },
       { href: "/signup", label: "Start free" },
     ],
   },

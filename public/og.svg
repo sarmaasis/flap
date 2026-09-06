@@ -11,6 +11,6 @@
   <path d="M88 98.5L108 112l20-13.5V128a4 4 0 0 1-4 4H92a4 4 0 0 1-4-4V98.5z" fill="#061412"/>
   <path d="M88 98.5L108 112l20-13.5L108 88 88 98.5z" fill="#1a6f66"/>
   <text x="72" y="220" fill="#eef1f6" font-family="Sora, system-ui, sans-serif" font-size="84" font-weight="700">Flap</text>
-  <text x="72" y="290" fill="#9aa6b8" font-family="Chakra Petch, system-ui, sans-serif" font-size="36">Custom-domain email that ships as a product</text>
+  <text x="72" y="290" fill="#9aa6b8" font-family="Chakra Petch, system-ui, sans-serif" font-size="36">One inbox for every startup you build</text>
   <text x="72" y="540" fill="#3dd6c3" font-family="IBM Plex Mono, monospace" font-size="28">useflap.online</text>
 </svg>

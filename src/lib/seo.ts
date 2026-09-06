@@ -15,11 +15,11 @@ export function setPageMeta(opts: {
   upsertMeta("property", "og:url", url);
   upsertMeta("property", "og:type", opts.type || "website");
   upsertMeta("property", "og:site_name", "Flap");
-  upsertMeta("property", "og:image", `${SITE_URL}/og.svg`);
+  upsertMeta("property", "og:image", `${SITE_URL}/og.png`);
   upsertMeta("name", "twitter:card", "summary_large_image");
   upsertMeta("name", "twitter:title", opts.title);
   upsertMeta("name", "twitter:description", opts.description);
-  upsertMeta("name", "twitter:image", `${SITE_URL}/og.svg`);
+  upsertMeta("name", "twitter:image", `${SITE_URL}/og.png`);
 
   let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
   if (!link) {
@@ -68,7 +68,7 @@ export function softwareApplicationLd() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free plan available; paid plans from $9/month",
+      description: "Free plan available; paid plans from $7/month",
     },
     publisher: {
       "@type": "Organization",

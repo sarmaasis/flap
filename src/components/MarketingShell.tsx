@@ -40,30 +40,43 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </a>
         <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
           <a href="/#pricing" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
-          <a href="/docs/api" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>Docs</a>
+          <a href="/docs" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
           <a href="/tools" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
-          <a href="/guides/cloudflare-custom-domain-email" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides/cloudflare-custom-domain-email"); }}>Guides</a>
+          <a href="/guides" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
           <a href="/blog" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
           <a href="/login" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
           <Button
             size="sm"
-            onClick={() => {
-              track("signup_clicked", { source: "nav" });
-              go(primaryHref);
-            }}
+            asChild
+            onClick={() => track("signup_clicked", { source: "nav" })}
           >
-            {primaryLabel}
+            <a
+              href={primaryHref}
+              onClick={(e) => {
+                e.preventDefault();
+                track("signup_clicked", { source: "nav" });
+                go(primaryHref);
+              }}
+            >
+              {primaryLabel}
+            </a>
           </Button>
         </nav>
         <Button
           className="md:hidden"
           size="sm"
-          onClick={() => {
-            track("signup_clicked", { source: "nav_mobile" });
-            go(primaryHref);
-          }}
+          asChild
         >
-          {primaryLabel}
+          <a
+            href={primaryHref}
+            onClick={(e) => {
+              e.preventDefault();
+              track("signup_clicked", { source: "nav_mobile" });
+              go(primaryHref);
+            }}
+          >
+            {primaryLabel}
+          </a>
         </Button>
       </header>
 
@@ -80,16 +93,20 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Product</span>
           <a href="/#pricing" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
+          <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>Full pricing page</a>
           <a href="/multiple-domains-one-inbox" onClick={(e) => { e.preventDefault(); go("/multiple-domains-one-inbox"); }}>Multiple domains</a>
           <a href="/custom-domain-email" onClick={(e) => { e.preventDefault(); go("/custom-domain-email"); }}>Custom domain email</a>
           <a href="/flap-vs-google-workspace" onClick={(e) => { e.preventDefault(); go("/flap-vs-google-workspace"); }}>vs Google Workspace</a>
           <a href="/flap-vs-zoho" onClick={(e) => { e.preventDefault(); go("/flap-vs-zoho"); }}>vs Zoho Mail</a>
+          <a href="/justemails-alternative" onClick={(e) => { e.preventDefault(); go("/justemails-alternative"); }}>vs JustEmails</a>
+          <a href="/improvmx-alternative" onClick={(e) => { e.preventDefault(); go("/improvmx-alternative"); }}>vs ImprovMX</a>
         </div>
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Learn</span>
           <a href="/blog" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
-          <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>
-          <a href="/guides/cloudflare-custom-domain-email" onClick={(e) => { e.preventDefault(); go("/guides/cloudflare-custom-domain-email"); }}>Cloudflare guide</a>
+          <a href="/docs" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
+          <a href="/guides" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
+          <a href="/status" onClick={(e) => { e.preventDefault(); go("/status"); }}>Status</a>
           <a href="/google-workspace-alternative" onClick={(e) => { e.preventDefault(); go("/google-workspace-alternative"); }}>Workspace alternative</a>
           <a href="/email-for-indie-hackers" onClick={(e) => { e.preventDefault(); go("/email-for-indie-hackers"); }}>Indie hackers</a>
         </div>
@@ -112,7 +129,8 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Account</span>
           <a href="/signup" onClick={(e) => { e.preventDefault(); track("signup_clicked", { source: "footer" }); go("/signup"); }}>Start free</a>
           <a href="/login" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
-          <a href={`mailto:${SUPPORT_EMAIL}`}>Support</a>
+          <a href="/support" onClick={(e) => { e.preventDefault(); go("/support"); }}>Support</a>
+          <a href={`mailto:${SUPPORT_EMAIL}`}>Email support</a>
           <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms</a>
           <a href="/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
         </div>

@@ -234,6 +234,7 @@ export default function Settings() {
     timer: null,
   });
   const [referralInfo, setReferralInfo] = useState<Awaited<ReturnType<typeof api.referrals>> | null>(null);
+  const [postVerifyShare, setPostVerifyShare] = useState<{ title: string; share_url: string; share_text: string } | null>(null);
   const [activation, setActivation] = useState<Awaited<ReturnType<typeof api.activation>> | null>(null);
   const loadedTabs = useRef(new Set<Tab>());
 
@@ -446,6 +447,19 @@ export default function Settings() {
     if (!focus) return;
     api.dns(focus.name).then((r) => setDns(r.records)).catch(() => undefined);
   }, [domainId, domains]);
+
+  useEffect(() => {
+    if (!dnsStatus?.verified) return;
+    try {
+      if (localStorage.getItem("flap_ref_prompt_dismissed") === "1") return;
+    } catch {
+      /* ignore */
+    }
+    void api
+      .referralAfterVerify()
+      .then(setPostVerifyShare)
+      .catch(() => undefined);
+  }, [dnsStatus?.verified]);
 
   function selectTab(id: Tab) {
     setTab(id);
@@ -995,7 +1009,43 @@ export default function Settings() {
                     </div>
                   ) : null}
                   {dnsStatus.verified ? (
-                    <p style={{ marginTop: 10 }}>Receiving looks good. Create an address and send a real test email to finish onboarding.</p>
+                    <>
+                      <p style={{ marginTop: 10 }}>Receiving looks good. Create an address and send a real test email to finish onboarding.</p>
+                      {postVerifyShare ? (
+                        <div className="notice" style={{ marginTop: 12 }} role="status">
+                          <strong>{postVerifyShare.title}</strong>
+                          <p style={{ marginTop: 6 }}>{postVerifyShare.share_text}</p>
+                          <p style={{ marginTop: 8 }}>
+                            <code>{postVerifyShare.share_url}</code>
+                          </p>
+                          <div className="row-form" style={{ marginTop: 10 }}>
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                void navigator.clipboard?.writeText(postVerifyShare.share_url).catch(() => undefined);
+                                setNotice("Referral link copied.");
+                              }}
+                            >
+                              Copy invite link
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                try {
+                                  localStorage.setItem("flap_ref_prompt_dismissed", "1");
+                                } catch {
+                                  /* ignore */
+                                }
+                                setPostVerifyShare(null);
+                              }}
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
                   ) : dnsStatus.issues.length ? (
                     <>
                       <p className="dns-step-title" style={{ marginTop: 12 }}>What to fix</p>

@@ -83,8 +83,16 @@ export default function ToolsIndex() {
           <p className="mt-2 max-w-xl text-sm text-[var(--muted)]">
             Flap hosts custom-domain email on Amazon SES — one inbox for every project domain.
           </p>
-          <Button className="mt-4" onClick={() => go("/signup")}>
-            Start free
+          <Button asChild className="mt-4">
+            <a
+              href="/signup"
+              onClick={(e) => {
+                e.preventDefault();
+                go("/signup");
+              }}
+            >
+              Start free
+            </a>
           </Button>
         </div>
       </main>

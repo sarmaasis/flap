@@ -169,12 +169,22 @@ export default function Landing() {
             {MARKETING.hero_subheadline}
           </p>
           <div className="hero-actions mt-9 flex flex-wrap items-center gap-3">
-            <Button size="lg" onClick={() => onPrimary("hero")}>
-              {primaryLabel}
-              <ArrowRight />
+            <Button size="lg" asChild>
+              <a
+                href={primaryHref}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPrimary("hero");
+                }}
+              >
+                {primaryLabel}
+                <ArrowRight />
+              </a>
             </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollTo("how")}>
-              See how it works
+            <Button size="lg" variant="outline" asChild>
+              <a href="/#how" onClick={(e) => { e.preventDefault(); scrollTo("how"); }}>
+                See how it works
+              </a>
             </Button>
           </div>
           <p className="mt-5 text-xs text-[var(--muted)]">

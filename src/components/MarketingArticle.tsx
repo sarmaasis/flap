@@ -109,19 +109,33 @@ export function RelatedLinks({ links }: { links: Array<{ href: string; label: st
 export function ArticleCtas({ source }: { source: string }) {
   return (
     <div className="mt-8 flex flex-wrap gap-3">
-      <Button
-        onClick={() => {
-          track("signup_clicked", { source });
-          go("/signup");
-        }}
-      >
-        Start free
+      <Button asChild>
+        <a
+          href="/signup"
+          onClick={(e) => {
+            e.preventDefault();
+            track("signup_clicked", { source });
+            go("/signup");
+          }}
+        >
+          Start free
+        </a>
       </Button>
-      <Button variant="outline" onClick={() => go("/#pricing")}>
-        See pricing
+      <Button asChild variant="outline">
+        <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>
+          See pricing
+        </a>
       </Button>
-      <Button variant="outline" onClick={() => go("/tools/google-workspace-cost-calculator")}>
-        Cost calculator
+      <Button asChild variant="outline">
+        <a
+          href="/tools/google-workspace-cost-calculator"
+          onClick={(e) => {
+            e.preventDefault();
+            go("/tools/google-workspace-cost-calculator");
+          }}
+        >
+          Cost calculator
+        </a>
       </Button>
     </div>
   );

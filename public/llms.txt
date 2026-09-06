@@ -8,7 +8,10 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 
 - [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
 - [Pricing](https://useflap.online/#pricing): Domain-first plans — Free $0 (2 domains), Solo $7/mo (5 domains), Builder $19/mo (20 domains), Studio $39/mo (40 domains, up to 10 seats). Annual −20%.
+- [Pricing page](https://useflap.online/pricing): Dedicated pricing + cancel/export FAQ
 - [Signup](https://useflap.online/signup): Create a Flap account
+- [Support](https://useflap.online/support): support@useflap.online
+- [Status](https://useflap.online/status): Public /api/health probe
 - [Contact](mailto:support@useflap.online): support@useflap.online
 
 ## SEO landings
@@ -27,9 +30,13 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 - [Cloudflare Email Routing alternative](https://useflap.online/cloudflare-email-routing-alternative): Real reply inbox vs forward-only routing (SES path)
 - [Hydra alternative](https://useflap.online/hydra-alternative): Multi-domain founder email vs Hydra-style products
 - [Folio alternative](https://useflap.online/folio-alternative): Project-domain email vs Folio
+- [JustEmails alternative](https://useflap.online/justemails-alternative): Domain-first inbox vs flat yearly mailbox
+- [Migadu alternative](https://useflap.online/migadu-alternative): Multi-domain founders comparing Migadu
+- [ImprovMX alternative](https://useflap.online/improvmx-alternative): Real inbox vs forwarding-only
 
 ## Guides (DNS → Amazon SES → Flap)
 
+- [Guides index](https://useflap.online/guides): All registrar DNS guides
 - [Cloudflare](https://useflap.online/guides/cloudflare-custom-domain-email): Cloudflare DNS (not Email Routing) for Flap SES mail
 - [Vercel](https://useflap.online/guides/vercel-custom-domain-email): Vercel DNS for Flap
 - [Namecheap](https://useflap.online/guides/namecheap-custom-domain-email): Namecheap DNS for Flap
@@ -40,6 +47,7 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 
 ## Developers
 
+- [Docs](https://useflap.online/docs): Documentation index
 - [API & webhooks](https://useflap.online/docs/api): POST /api/v1/send with Bearer flap_… keys; inbound mail.received webhooks with x-flap-signature (SHA-256 of secret.rawBody)
 
 ## Tools

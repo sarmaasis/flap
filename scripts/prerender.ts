@@ -156,7 +156,11 @@ const HOME_FAQS = [
   },
   {
     q: "How does DNS / delivery work?",
-    a: "Flap uses Cloudflare Email Routing. You add MX/SPF at your DNS host, then a Worker routing rule for each mailbox.",
+    a: "Publish Amazon SES MX/SPF/DKIM at your DNS host. Inbound mail goes SES → Flap ingest. The Flap app runs on Cloudflare; Cloudflare Email Routing is not required.",
+  },
+  {
+    q: "Can I cancel and export?",
+    a: "Yes. Cancel from Settings → Billing; access continues through the paid period. Export JSON or .mbox from Settings → Privacy anytime.",
   },
 ];
 
@@ -401,41 +405,181 @@ function buildPages(): Page[] {
     },
   });
 
+  pages.push({
+    path: "/tools",
+    title: "Free email DNS & deliverability tools | Flap",
+    description: "MX, SPF, DMARC, DKIM, headers, scorecards, and more — free tools for custom-domain email.",
+    bodyHtml: articleShell({
+      eyebrow: "Tools",
+      h1: "Free email DNS & deliverability tools",
+      lede: "Check MX, SPF, DMARC, and more before you cut over — or while debugging deliverability.",
+      definition: "Free public DNS and deliverability tools from Flap (useflap.online).",
+      sections: [
+        {
+          heading: "Tool index",
+          body: "Open any checker below, then finish setup in Flap when you want a real inbox.",
+          bullets: TOOL_PAGES.map((t) => `${t.title.replace(" | Flap", "")} (${t.path})`),
+        },
+      ],
+      ctaHref: "/signup",
+    }),
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        name: "Flap tools",
+        description: "Free DNS and deliverability tools for custom-domain email.",
+        url: `${SITE_URL}/tools`,
+      },
+      softwareLd(),
+    ],
+  });
+
+  pages.push({
+    path: "/pricing",
+    title: "Pricing | Flap — domain-first custom-domain email",
+    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo. Annual −20%.`,
+    bodyHtml: articleShell({
+      eyebrow: "Pricing",
+      h1: "Domain-first plans",
+      lede: "Pay for domains you launch, not a Workspace seat per brand. Annual billing is 20% off monthly.",
+      definition: MARKETING.short_description,
+      sections: PLAN_ORDER.map((id) => ({
+        heading: `${PLANS[id].name} — $${PLANS[id].price_monthly}${PLANS[id].price_monthly ? "/mo" : ""}`,
+        body: PLANS[id].blurb,
+        bullets: PLANS[id].features,
+      })),
+      faqs: [
+        {
+          q: "Can I cancel anytime?",
+          a: "Yes. You keep access through the paid period. Export JSON or .mbox from Settings before it ends.",
+        },
+        {
+          q: "Do you offer IMAP/SMTP today?",
+          a: "Not yet. Use the web app and PWA.",
+        },
+      ],
+      ctaHref: "/signup",
+    }),
+    jsonLd: [softwareLd(), faqLd([
+      {
+        q: "Can I cancel anytime?",
+        a: "Yes. You keep access through the paid period. Export JSON or .mbox from Settings before it ends.",
+      },
+    ])],
+  });
+
+  pages.push({
+    path: "/docs",
+    title: "Docs | Flap",
+    description: "Developer documentation for Flap API keys, send API, and inbound webhooks.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Flap documentation",
+      lede: "Public developer docs for send and webhooks.",
+      sections: [
+        {
+          heading: "API & webhooks",
+          body: API_DOCS.description,
+          bullets: [`Full guide: ${API_DOCS.path}`],
+        },
+      ],
+      ctaHref: API_DOCS.path,
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Flap docs",
+      url: `${SITE_URL}/docs`,
+    },
+  });
+
+  pages.push({
+    path: "/guides",
+    title: "DNS setup guides | Flap",
+    description: "Publish Amazon SES MX/SPF/DKIM for Flap at common DNS hosts.",
+    bodyHtml: articleShell({
+      eyebrow: "Guides",
+      h1: "DNS setup guides",
+      lede: "Point registrar DNS at Amazon SES with the records Flap shows in Settings → Setup.",
+      sections: [
+        {
+          heading: "Providers",
+          body: "Cloudflare Email Routing is not required for the current SES path.",
+          bullets: GUIDE_PAGES.map((g) => `${g.title.replace(" | Flap", "")} (${g.path})`),
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Flap DNS guides",
+      url: `${SITE_URL}/guides`,
+    },
+  });
+
+  pages.push({
+    path: "/support",
+    title: "Support | Flap",
+    description: `Contact Flap support at ${SUPPORT_EMAIL}.`,
+    bodyHtml: articleShell({
+      eyebrow: "Support",
+      h1: "Get help",
+      lede: `Email ${SUPPORT_EMAIL} for billing, DNS cutover, or account issues.`,
+      ctaHref: `mailto:${SUPPORT_EMAIL}`,
+    }),
+  });
+
+  pages.push({
+    path: "/status",
+    title: "Status | Flap",
+    description: "Live health check for Flap (useflap.online).",
+    bodyHtml: articleShell({
+      eyebrow: "Status",
+      h1: "Flap status",
+      lede: "Public probe against /api/health. Not a full incident timeline.",
+      definition: "Check https://useflap.online/api/health for JSON ok status.",
+    }),
+  });
+
   return pages;
+}
+
+function upsertMeta(
+  html: string,
+  attr: "name" | "property",
+  key: string,
+  content: string,
+): string {
+  const re = new RegExp(`<meta\\s+${attr}="${key}"\\s+content="[^"]*"\\s*/?>`, "i");
+  const tag = `<meta ${attr}="${key}" content="${esc(content)}" />`;
+  if (re.test(html)) return html.replace(re, tag);
+  return html.replace("</head>", `    ${tag}\n  </head>`);
 }
 
 function injectPage(template: string, page: Page): string {
   let html = template;
   const url = `${SITE_URL}${page.path === "/" ? "/" : page.path}`;
+  const ogImage = `${SITE_URL}/og.png`;
 
   // Idempotent: strip prior prerender JSON-LD when re-running against dist/client.
   html = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
 
   html = html.replace(/<title>[^<]*<\/title>/i, `<title>${esc(page.title)}</title>`);
-  html = html.replace(
-    /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i,
-    `<meta name="description" content="${esc(page.description)}" />`,
-  );
-  html = html.replace(
-    /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i,
-    `<meta property="og:title" content="${esc(page.title)}" />`,
-  );
-  html = html.replace(
-    /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i,
-    `<meta property="og:description" content="${esc(page.description)}" />`,
-  );
-  html = html.replace(
-    /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i,
-    `<meta property="og:url" content="${esc(url)}" />`,
-  );
-  html = html.replace(
-    /<meta\s+name="twitter:title"\s+content="[^"]*"\s*\/?>/i,
-    `<meta name="twitter:title" content="${esc(page.title)}" />`,
-  );
-  html = html.replace(
-    /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?>/i,
-    `<meta name="twitter:description" content="${esc(page.description)}" />`,
-  );
+  html = upsertMeta(html, "name", "description", page.description);
+  html = upsertMeta(html, "property", "og:type", "website");
+  html = upsertMeta(html, "property", "og:site_name", "Flap");
+  html = upsertMeta(html, "property", "og:title", page.title);
+  html = upsertMeta(html, "property", "og:description", page.description);
+  html = upsertMeta(html, "property", "og:url", url);
+  html = upsertMeta(html, "property", "og:image", ogImage);
+  html = upsertMeta(html, "property", "og:image:width", "1200");
+  html = upsertMeta(html, "property", "og:image:height", "630");
+  html = upsertMeta(html, "name", "twitter:card", "summary_large_image");
+  html = upsertMeta(html, "name", "twitter:title", page.title);
+  html = upsertMeta(html, "name", "twitter:description", page.description);
+  html = upsertMeta(html, "name", "twitter:image", ogImage);
+
   html = html.replace(
     /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i,
     `<link rel="canonical" href="${esc(url)}" />`,

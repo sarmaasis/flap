@@ -62,10 +62,45 @@ export function buildSitemapEntries(): SitemapEntry[] {
   });
 
   entries.push({
+    path: "/pricing",
+    lastmod: SITE_UPDATED,
+    changefreq: "weekly",
+    priority: "0.9",
+  });
+
+  entries.push({
+    path: "/docs",
+    lastmod: SITE_UPDATED,
+    changefreq: "monthly",
+    priority: "0.7",
+  });
+
+  entries.push({
     path: "/docs/api",
     lastmod: SITE_UPDATED,
     changefreq: "monthly",
     priority: "0.75",
+  });
+
+  entries.push({
+    path: "/guides",
+    lastmod: SITE_UPDATED,
+    changefreq: "monthly",
+    priority: "0.75",
+  });
+
+  entries.push({
+    path: "/support",
+    lastmod: SITE_UPDATED,
+    changefreq: "yearly",
+    priority: "0.4",
+  });
+
+  entries.push({
+    path: "/status",
+    lastmod: SITE_UPDATED,
+    changefreq: "daily",
+    priority: "0.3",
   });
 
   for (const page of Object.values(SEO_PAGE_DEFS)) {

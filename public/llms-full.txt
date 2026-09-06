@@ -31,8 +31,12 @@ Exact limits may change; prefer the live pricing section for current numbers. Re
 ## Key product pages
 
 - Home: https://useflap.online/
-- Pricing anchor: https://useflap.online/#pricing
+- Pricing: https://useflap.online/pricing (also https://useflap.online/#pricing)
 - API & webhooks docs: https://useflap.online/docs/api
+- Docs index: https://useflap.online/docs
+- Guides index: https://useflap.online/guides
+- Support: https://useflap.online/support
+- Status: https://useflap.online/status
 - Tools index: https://useflap.online/tools
 - Signup: https://useflap.online/signup (account creation; not for SEO indexing)
 - Login: https://useflap.online/login (private; not for SEO indexing)
@@ -73,6 +77,15 @@ Flap as a multi-domain founder email option versus Hydra-style products — SES-
 
 ### Folio alternative — https://useflap.online/folio-alternative
 Flap as a project-domain email option versus Folio — focus on hosted inbox + DNS cutover, export/exit paths.
+
+### JustEmails alternative — https://useflap.online/justemails-alternative
+Domain-first multi-domain inbox vs flat yearly mailbox products.
+
+### Migadu alternative — https://useflap.online/migadu-alternative
+Flap for serial launchers comparing Migadu-style hosting.
+
+### ImprovMX alternative — https://useflap.online/improvmx-alternative
+Real SES-backed inbox when forwarding-only is not enough.
 
 ## Comparisons
 
