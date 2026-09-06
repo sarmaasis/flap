@@ -33,6 +33,27 @@ npm run db:migrate:remote
 | `0011_auth_email_rate_limit.sql` | D1 counters for magic-link / verification email rate limits |
 | `0012_mailgun_provider.sql` | `mail_provider`, `provider_state`, `provider_dns_json` on domains |
 | `0013_ses_provider.sql` | SES readiness timestamps, inbound idempotency, suppressions, `provider_message_id` |
+| `0014_product_features.sql` | Labels, notes, domain color/mute, undo-send prefs |
+| `0015_webhook_deliveries.sql` | Webhook delivery attempt log |
+| `0016_domain_controls.sql` | Domain park/reputation/retention, deliverability events, health badges |
+| `0017_saved_views.sql` | Saved inbox views |
+| `0018_disposables_notify.sql` | Disposable addresses, notify channels, push, digests |
+| `0019_collaboration.sql` | Presence, audit log, portals, VA invites, holding workspaces |
+| `0020_forms_embed.sql` | Contact forms and embed widgets |
+| `0021_rules_automation.sql` | Rule templates, parse rules, message extras, theme/AI prefs |
+
+If a database already applied the old umbrella file `0016_mega_features.sql`, remap the journal once (schema is identical):
+
+```sql
+DELETE FROM d1_migrations WHERE name = '0016_mega_features.sql';
+INSERT INTO d1_migrations (name) VALUES
+  ('0016_domain_controls.sql'),
+  ('0017_saved_views.sql'),
+  ('0018_disposables_notify.sql'),
+  ('0019_collaboration.sql'),
+  ('0020_forms_embed.sql'),
+  ('0021_rules_automation.sql');
+```
 
 **Launch note:** Apply through `0013_ses_provider` on remote D1 before relying on SES customer-domain mail. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
 

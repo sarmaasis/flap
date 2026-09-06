@@ -190,6 +190,7 @@ export type PlanSummary = {
   id: string;
   name: string;
   price_monthly: number;
+  price_yearly?: number;
   blurb: string;
   features: string[];
   limits: Record<string, number>;

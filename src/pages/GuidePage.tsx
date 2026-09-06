@@ -35,7 +35,7 @@ function GuideDiagram({ provider }: { provider: string }) {
   const stages = [
     { title: "1 · Flap", body: "Add domain + mailbox in Settings → Setup" },
     { title: `2 · ${dnsHost}`, body: "Paste MX + SPF + DKIM from Flap Settings" },
-    { title: "3 · Mail provider", body: "MX delivers to Amazon SES → Flap ingest" },
+    { title: "3 · Amazon SES", body: "MX delivers to SES inbound → Flap ingest" },
     { title: "4 · Flap Check DNS", body: "Auto-poll or Check DNS until MX + SPF look good" },
   ];
 
@@ -61,7 +61,7 @@ function GuideDiagram({ provider }: { provider: string }) {
         viewBox="0 0 640 72"
         className="mt-6 hidden w-full max-w-3xl md:block"
         role="img"
-        aria-label="Mail path: sender to DNS to Cloudflare to Flap"
+        aria-label="Mail path: sender to DNS to Amazon SES to Flap"
       >
         <defs>
           <marker id="guide-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
@@ -76,7 +76,7 @@ function GuideDiagram({ provider }: { provider: string }) {
         {[
           { x: 8, label: "Sender" },
           { x: 158, label: "MX / SPF" },
-          { x: 318, label: "CF Routing" },
+          { x: 318, label: "Amazon SES" },
           { x: 488, label: "Flap inbox" },
         ].map((n) => (
           <g key={n.label}>

@@ -11,6 +11,17 @@ type Props = {
   primaryLabel?: string;
 };
 
+const FOOTER_TOOLS = [
+  { path: "/tools", label: "All tools" },
+  { path: "/tools/google-workspace-cost-calculator", label: "Cost calculator" },
+  { path: "/tools/mx-checker", label: "MX checker" },
+  { path: "/tools/spf-checker", label: "SPF checker" },
+  { path: "/tools/dmarc-checker", label: "DMARC checker" },
+  { path: "/tools/email-setup-checker", label: "Setup checker" },
+  { path: "/tools/header-analyzer", label: "Header analyzer" },
+  { path: "/tools/deliverability-scorecard", label: "Scorecard" },
+];
+
 export default function MarketingShell({ children, primaryHref = "/signup", primaryLabel = "Start free" }: Props) {
   return (
     <div className="landing-root min-h-screen overflow-x-clip">
@@ -29,7 +40,7 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </a>
         <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
           <a href="/#pricing" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
-          <a href="/tools/google-workspace-cost-calculator" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools/google-workspace-cost-calculator"); }}>Calculator</a>
+          <a href="/tools" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
           <a href="/guides/cloudflare-custom-domain-email" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides/cloudflare-custom-domain-email"); }}>Guides</a>
           <a href="/blog" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
           <a href="/login" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
@@ -82,10 +93,18 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </div>
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Tools</span>
-          <a href="/tools/google-workspace-cost-calculator" onClick={(e) => { e.preventDefault(); go("/tools/google-workspace-cost-calculator"); }}>Cost calculator</a>
-          <a href="/tools/mx-checker" onClick={(e) => { e.preventDefault(); go("/tools/mx-checker"); }}>MX checker</a>
-          <a href="/tools/spf-checker" onClick={(e) => { e.preventDefault(); go("/tools/spf-checker"); }}>SPF checker</a>
-          <a href="/tools/email-setup-checker" onClick={(e) => { e.preventDefault(); go("/tools/email-setup-checker"); }}>Setup checker</a>
+          {FOOTER_TOOLS.map((t) => (
+            <a
+              key={t.path}
+              href={t.path}
+              onClick={(e) => {
+                e.preventDefault();
+                go(t.path);
+              }}
+            >
+              {t.label}
+            </a>
+          ))}
         </div>
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Account</span>

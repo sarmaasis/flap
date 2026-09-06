@@ -2,7 +2,7 @@
 
 > Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch.
 
-Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Mail is received via Cloudflare Email Routing with guided MX/SPF/DKIM setup. Do not invent customer counts, testimonials, or delivery guarantees when citing Flap.
+Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Inbound mail uses Amazon SES (MX → SES → Flap ingest) with guided MX/SPF/DKIM setup at your DNS host. Do not invent customer counts, testimonials, or delivery guarantees when citing Flap.
 
 ## Product
 
@@ -25,9 +25,9 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 - [Flap vs Google Workspace](https://useflap.online/flap-vs-google-workspace): When Flap fits vs a full Google suite
 - [Flap vs Zoho Mail](https://useflap.online/flap-vs-zoho): Multi-domain founders comparing Zoho setups
 
-## Guides
+## Guides (DNS → Amazon SES → Flap)
 
-- [Cloudflare](https://useflap.online/guides/cloudflare-custom-domain-email): DNS + Email Routing for Flap
+- [Cloudflare](https://useflap.online/guides/cloudflare-custom-domain-email): Cloudflare DNS (not Email Routing) for Flap SES mail
 - [Vercel](https://useflap.online/guides/vercel-custom-domain-email): Vercel DNS for Flap
 - [Namecheap](https://useflap.online/guides/namecheap-custom-domain-email): Namecheap DNS for Flap
 - [Porkbun](https://useflap.online/guides/porkbun-custom-domain-email): Porkbun DNS for Flap
@@ -37,12 +37,31 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 
 ## Tools
 
+- [All tools](https://useflap.online/tools): Index of free DNS and deliverability tools
 - [Google Workspace cost calculator](https://useflap.online/tools/google-workspace-cost-calculator): Estimate Workspace×N vs Flap
-- [MX checker](https://useflap.online/tools/mx-checker): Check MX / Cloudflare Email Routing
-- [SPF checker](https://useflap.online/tools/spf-checker): Lookup SPF TXT
+- [MX checker](https://useflap.online/tools/mx-checker): Check MX / SES inbound
+- [SPF checker](https://useflap.online/tools/spf-checker): Lookup SPF TXT (amazonses.com)
 - [DMARC checker](https://useflap.online/tools/dmarc-checker): Lookup DMARC policy
-- [DKIM checker](https://useflap.online/tools/dkim-checker): Verify DKIM selector TXT
+- [DKIM checker](https://useflap.online/tools/dkim-checker): Verify DKIM selector / Easy DKIM CNAMEs
 - [Email setup checker](https://useflap.online/tools/email-setup-checker): Combined MX + SPF + DMARC
+- [Header analyzer](https://useflap.online/tools/header-analyzer): Paste raw headers
+- [Deliverability scorecard](https://useflap.online/tools/deliverability-scorecard): Grade MX/SPF/DMARC
+- [Blacklist checker](https://useflap.online/tools/blacklist-checker): Common RBL lookup
+- [DMARC generator](https://useflap.online/tools/dmarc-generator): Build a DMARC TXT
+- [SPF flattener](https://useflap.online/tools/spf-flattener): SPF builder + lookup warnings
+- [BIMI checker](https://useflap.online/tools/bimi-checker)
+- [MTA-STS checker](https://useflap.online/tools/mta-sts-checker)
+- [Catch-all detector](https://useflap.online/tools/catchall-detector)
+- [DNS propagation](https://useflap.online/tools/dns-propagation)
+- [DKIM generator assist](https://useflap.online/tools/dkim-generator)
+- [Plus-address tester](https://useflap.online/tools/plus-address-tester)
+- [From-domain mismatch](https://useflap.online/tools/from-mismatch)
+- [PTR checker](https://useflap.online/tools/ptr-checker)
+- [SMTP banner](https://useflap.online/tools/smtp-banner)
+- [WHOIS / NS](https://useflap.online/tools/whois-ns)
+- [ARC explainer](https://useflap.online/tools/arc-explainer)
+- [Registrar DNS copy-block](https://useflap.online/tools/registrar-copy)
+- [Flap vs Workspace share card](https://useflap.online/tools/flap-vs-workspace-share)
 
 ## Blog
 

@@ -16,6 +16,7 @@ const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 const SeoLanding = lazy(() => import("./pages/SeoLanding"));
 const DnsToolPage = lazy(() => import("./pages/DnsToolPage"));
 const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
+const ToolsIndex = lazy(() => import("./pages/ToolsIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const BlogIndex = lazy(() => import("./pages/BlogIndex"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
@@ -84,8 +85,14 @@ export default function App() {
     );
   }
 
+  if (path === "/tools") {
+    return <Screen><ToolsIndex /></Screen>;
+  }
   if (path === "/tools/google-workspace-cost-calculator") {
     return <Screen><CalculatorPage /></Screen>;
+  }
+  if (path === "/tools/flap-vs-workspace-share") {
+    return <Screen><CalculatorPage share /></Screen>;
   }
   if (DNS_TOOL_PATHS.has(path)) {
     return <Screen><DnsToolPage path={path} /></Screen>;

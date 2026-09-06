@@ -26,9 +26,13 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
 
   return (
     <div className="mail-toast" role="status">
-      <span>Install Flap on your phone for faster triage.</span>
+      <div>
+        <strong>Install Flap</strong>
+        <span>Faster triage on your phone.</span>
+      </div>
       <Button
         size="sm"
+        variant="secondary"
         onClick={async () => {
           await deferred.prompt();
           setDeferred(null);
@@ -36,9 +40,11 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
       >
         Install
       </Button>
-      <button
+      <Button
         type="button"
-        className="mail-toast-close"
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 text-[var(--sidebar-dim)] hover:bg-white/10 hover:text-white"
         aria-label="Dismiss"
         onClick={() => {
           localStorage.setItem("flap-pwa-dismiss", "1");
@@ -46,7 +52,7 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
         }}
       >
         ×
-      </button>
+      </Button>
     </div>
   );
 }

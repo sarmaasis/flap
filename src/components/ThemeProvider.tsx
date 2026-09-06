@@ -1,5 +1,7 @@
+import { Moon, Sun } from "lucide-react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 type Theme = "system" | "light" | "dark";
 type Ctx = { theme: Theme; setTheme: (t: Theme) => void };
@@ -49,17 +51,21 @@ export function useTheme() {
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const { theme, setTheme } = useTheme();
   return (
-    <label className={`inline-flex items-center gap-2 text-sm ${className}`}>
-      <span className="text-[var(--muted)]">Theme</span>
-      <select
-        className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1"
-        value={theme}
-        onChange={(e) => setTheme(e.target.value as Theme)}
-      >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <div className={`flex items-center gap-2 text-sm ${className}`}>
+      <span className="inline-flex items-center gap-1.5 text-[var(--muted)]">
+        {theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+        Theme
+      </span>
+      <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+        <SelectTrigger className="h-8 w-[120px]" aria-label="Color theme">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="system">System</SelectItem>
+          <SelectItem value="light">Light</SelectItem>
+          <SelectItem value="dark">Dark</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

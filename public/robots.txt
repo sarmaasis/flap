@@ -1,6 +1,14 @@
 User-agent: *
 Allow: /
 
+# Public marketing / SEO
+Allow: /tools
+Allow: /guides
+Allow: /blog
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /sitemap.xml
+
 # Private app, API, and auth — not for indexing
 Disallow: /app
 Disallow: /api
@@ -9,6 +17,9 @@ Disallow: /signup
 Disallow: /setup
 Disallow: /invite
 Disallow: /settings
+Disallow: /verify-email
+Disallow: /forgot-password
+Disallow: /reset-password
 
 Sitemap: https://useflap.online/sitemap.xml
 

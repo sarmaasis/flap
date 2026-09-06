@@ -42,7 +42,7 @@ export const LEGAL_PAGES = [
 ] as const;
 
 /** Site-wide content freshness for pages without their own updated field. */
-const SITE_UPDATED = "2026-09-04";
+const SITE_UPDATED = "2026-09-06";
 
 export function buildSitemapEntries(): SitemapEntry[] {
   const entries: SitemapEntry[] = [];
@@ -52,6 +52,13 @@ export function buildSitemapEntries(): SitemapEntry[] {
     lastmod: SITE_UPDATED,
     changefreq: "weekly",
     priority: "1.0",
+  });
+
+  entries.push({
+    path: "/tools",
+    lastmod: SITE_UPDATED,
+    changefreq: "weekly",
+    priority: "0.8",
   });
 
   for (const page of Object.values(SEO_PAGE_DEFS)) {

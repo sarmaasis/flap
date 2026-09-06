@@ -24,14 +24,14 @@ function OAuthButtons({ invite }: { invite?: string }) {
   return (
     <div className="stack gap-2">
       {providers.google ? (
-        <button type="button" className="btn oauth-btn" onClick={() => void social("google")}>
+        <Button type="button" variant="outline" className="w-full" onClick={() => void social("google")}>
           Continue with Google
-        </button>
+        </Button>
       ) : null}
       {providers.github ? (
-        <button type="button" className="btn oauth-btn oauth-btn-secondary" onClick={() => void social("github")}>
+        <Button type="button" variant="secondary" className="w-full" onClick={() => void social("github")}>
           Continue with GitHub
-        </button>
+        </Button>
       ) : null}
       <div className="auth-divider"><span>or email a magic link</span></div>
     </div>
