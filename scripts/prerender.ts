@@ -13,7 +13,7 @@
  * Limits vs full SSR: no per-request React render, no auth-aware HTML,
  * and bots that execute JS still see the SPA. Humans get the same JS app.
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLANS, PLAN_ORDER } from "../shared/plans.ts";
@@ -34,6 +34,24 @@ import {
   buildSitemapEntries,
   renderSitemapXml,
 } from "../src/content/sitemap.ts";
+import { TOOL_EXPLAINERS } from "../src/content/tool-explainers.ts";
+import { getRegistryEntry } from "../src/content/seo-registry.ts";
+import {
+  FOUNDER,
+  MAIL_ARCHITECTURE,
+  PRODUCT_ONE_PARAGRAPH,
+  TARGET_CUSTOMER,
+} from "../shared/product-facts.ts";
+import {
+  articleLd,
+  breadcrumbLd,
+  entityGraphLd,
+  faqPageLd as faqLdShared,
+  howToLd as howToLdShared,
+  softwareApplicationLd as softwareLdShared,
+  webApplicationToolLd,
+  webPageLd,
+} from "../src/lib/jsonld.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -58,54 +76,19 @@ function esc(s: string): string {
 }
 
 function faqLd(faqs: Array<{ q: string; a: string }>) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((f) => ({
-      "@type": "Question",
-      name: f.q,
-      acceptedAnswer: { "@type": "Answer", text: f.a },
-    })),
-  };
+  return faqLdShared(faqs);
 }
+
 
 function softwareLd() {
-  return {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: MARKETING.product_name,
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-    url: SITE_URL,
-    description: MARKETING.short_description,
-    offers: PLAN_ORDER.filter((id) => id !== "free").map((id) => ({
-      "@type": "Offer",
-      name: PLANS[id].name,
-      price: String(PLANS[id].price_monthly),
-      priceCurrency: "USD",
-    })),
-    publisher: {
-      "@type": "Organization",
-      name: "Flap",
-      url: SITE_URL,
-      email: SUPPORT_EMAIL,
-    },
-  };
+  return softwareLdShared();
 }
 
+
 function howToLd(name: string, description: string, steps: string[]) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "HowTo",
-    name,
-    description,
-    step: steps.map((text, i) => ({
-      "@type": "HowToStep",
-      position: i + 1,
-      text,
-    })),
-  };
+  return howToLdShared({ name, description, steps });
 }
+
 
 function articleShell(opts: {
   eyebrow?: string;
@@ -256,28 +239,48 @@ function buildPages(): Page[] {
   }
 
   for (const tool of TOOL_PAGES) {
+    const explainer = TOOL_EXPLAINERS[tool.path];
+    const sections = explainer
+      ? [
+          { heading: "What this tool checks", body: explainer.whatItChecks },
+          {
+            heading: "How to interpret results",
+            body: "Use these states as guidance only — DNS checks do not guarantee inbox placement.",
+            bullets: explainer.interpret.map((r) => `${r.state}: ${r.meaning}`),
+          },
+          {
+            heading: "Examples",
+            body: "Correct and incorrect patterns:",
+            bullets: explainer.examples.map((e) => `${e.label}: ${e.body}`),
+          },
+          {
+            heading: "Common errors",
+            body: "Safe remedies:",
+            bullets: explainer.commonErrors.map((e) => `${e.error} — ${e.fix}`),
+          },
+        ]
+      : undefined;
     pages.push({
       path: tool.path,
       title: tool.title,
       description: tool.description,
       bodyHtml: articleShell({
         h1: tool.title.replace(" | Flap", ""),
-        lede: tool.description,
-        definition: `${tool.description} Free DNS / cost tools from Flap (useflap.online).`,
+        lede: explainer?.answerFirst || tool.description,
+        definition:
+          explainer?.answerFirst ||
+          `${tool.description} Free DNS / cost tools from Flap (useflap.online). Passing checks does not guarantee delivery.`,
+        sections,
+        faqs: explainer?.faqs,
       }),
       jsonLd: [
-        {
-          "@context": "https://schema.org",
-          "@type": "WebApplication",
+        webApplicationToolLd({
           name: tool.title.replace(" | Flap", ""),
-          applicationCategory: "UtilitiesApplication",
-          operatingSystem: "Web",
-          url: `${SITE_URL}${tool.path}`,
+          path: tool.path,
           description: tool.description,
-          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-          provider: { "@type": "Organization", name: "Flap", url: SITE_URL },
-        },
+        }),
         softwareLd(),
+        ...(explainer?.faqs?.length ? [faqLd(explainer.faqs)] : []),
       ],
     });
   }
@@ -312,18 +315,16 @@ function buildPages(): Page[] {
 
   for (const post of BLOG_POSTS) {
     const schemas: Record<string, unknown>[] = [
-      {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        headline: post.h1,
-        description: post.description,
-        url: `${SITE_URL}${post.path}`,
-        datePublished: post.published,
-        dateModified: post.updated,
-        author: { "@type": "Organization", name: "Flap", url: SITE_URL },
-        publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
-      },
-      softwareLd(),
+      entityGraphLd([
+        articleLd({
+          path: post.path,
+          title: post.h1,
+          description: post.description,
+          datePublished: post.published,
+          dateModified: post.updated,
+        }),
+        softwareLd(),
+      ]),
     ];
     if (post.faqs.length) schemas.push(faqLd(post.faqs));
     pages.push({
@@ -542,6 +543,57 @@ function buildPages(): Page[] {
     }),
   });
 
+
+  pages.push({
+    path: "/about",
+    title: "About Flap — custom-domain email for founders",
+    description:
+      "What Flap is, who builds it, how mail runs on Amazon SES, and how to contact support@useflap.online.",
+    bodyHtml: articleShell({
+      eyebrow: "About",
+      h1: "About Flap",
+      lede: PRODUCT_ONE_PARAGRAPH,
+      definition: PRODUCT_ONE_PARAGRAPH,
+      sections: [
+        {
+          heading: "Who it is for",
+          body: TARGET_CUSTOMER,
+        },
+        {
+          heading: "Who operates Flap",
+          body: `Flap is founded and operated by ${FOUNDER.name}. On X: @${FOUNDER.xHandle} (${FOUNDER.xUrl}).`,
+        },
+        {
+          heading: "Infrastructure",
+          body: MAIL_ARCHITECTURE.dns_note,
+          bullets: [
+            `Inbound: ${MAIL_ARCHITECTURE.inbound_flow}`,
+            `Outbound: ${MAIL_ARCHITECTURE.outbound_flow}`,
+            `App: ${MAIL_ARCHITECTURE.app_host}`,
+            MAIL_ARCHITECTURE.system_mail_note,
+          ],
+        },
+        {
+          heading: "Contact",
+          body: `Email ${SUPPORT_EMAIL}. Policies: /privacy, /terms, /billing-terms. Docs: /docs. Status: /status.`,
+        },
+      ],
+    }),
+    jsonLd: entityGraphLd([
+      webPageLd({
+        path: "/about",
+        title: "About Flap",
+        description: PRODUCT_ONE_PARAGRAPH,
+        dateModified: "2026-09-07",
+      }),
+      softwareLd(),
+      breadcrumbLd([
+        { name: "Home", path: "/" },
+        { name: "About", path: "/about" },
+      ]),
+    ]),
+  });
+
   return pages;
 }
 
@@ -560,7 +612,10 @@ function upsertMeta(
 function injectPage(template: string, page: Page): string {
   let html = template;
   const url = `${SITE_URL}${page.path === "/" ? "/" : page.path}`;
-  const ogImage = `${SITE_URL}/og.png`;
+  const reg = getRegistryEntry(page.path);
+  const ogImagePath = reg?.ogImagePath || "/og.png";
+  const ogImage = `${SITE_URL}${ogImagePath}`;
+  const ogType = ogImagePath.endsWith(".svg") ? "image/svg+xml" : "image/png";
 
   // Idempotent: strip prior prerender JSON-LD when re-running against dist/client.
   html = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
@@ -575,6 +630,7 @@ function injectPage(template: string, page: Page): string {
   html = upsertMeta(html, "property", "og:image", ogImage);
   html = upsertMeta(html, "property", "og:image:width", "1200");
   html = upsertMeta(html, "property", "og:image:height", "630");
+  html = upsertMeta(html, "property", "og:image:type", ogType);
   html = upsertMeta(html, "name", "twitter:card", "summary_large_image");
   html = upsertMeta(html, "name", "twitter:title", page.title);
   html = upsertMeta(html, "name", "twitter:description", page.description);
@@ -636,6 +692,13 @@ function main() {
     console.log(`prerender ${page.path} → ${out.replace(root + "/", "")}`);
   }
   const sitemapCount = writeSitemap();
+  for (const name of ["robots.txt", "llms.txt", "llms-full.txt", "og.png", "og.svg"]) {
+    const src = join(publicDir, name);
+    if (existsSync(src)) writeFileSync(join(clientDir, name), readFileSync(src));
+  }
+  if (existsSync(join(publicDir, "og"))) {
+    cpSync(join(publicDir, "og"), join(clientDir, "og"), { recursive: true });
+  }
   console.log(`Prerendered ${pages.length} marketing/SEO HTML shells.`);
   console.log(`Wrote sitemap.xml with ${sitemapCount} URLs (public/ + dist/client/).`);
 }

@@ -80,7 +80,7 @@ export default function SeoLanding({ path }: { path: string }) {
         <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
           {page.h1}
         </h1>
-        <LastUpdated date={page.updated} />
+        <LastUpdated date={page.updated} verified={Boolean(page.comparison)} />
         <DefinitionBox>{page.definition}</DefinitionBox>
         <p className="mt-5 text-lg leading-relaxed text-[var(--muted)]">{page.lede}</p>
         <ArticleCtas source={page.path} />

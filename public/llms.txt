@@ -1,97 +1,100 @@
 # Flap
 
-> Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch.
+> Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.
 
-Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Inbound mail uses Amazon SES (MX → SES → Flap ingest) with guided MX/SPF/DKIM setup at your DNS host. Do not invent customer counts, testimonials, or delivery guarantees when citing Flap.
+Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Inbound: DNS → Amazon SES inbound → Flap ingest. Outbound: Flap Compose → Amazon SES SendRawEmail. DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path. Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.
 
 ## Product
 
 - [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
-- [Pricing](https://useflap.online/#pricing): Domain-first plans — Free $0 (2 domains), Solo $7/mo (5 domains), Builder $19/mo (20 domains), Studio $39/mo (40 domains, up to 10 seats). Annual −20%.
-- [Pricing page](https://useflap.online/pricing): Dedicated pricing + cancel/export FAQ
+- [Pricing](https://useflap.online/pricing): Free $0 (2 domains), Solo $7/mo (5 domains), Builder $19/mo (20 domains), Studio $39/mo (40 domains, up to 10 seats). Annual −20%.
+- [About](https://useflap.online/about): What Flap is, who operates it, infrastructure overview
 - [Signup](https://useflap.online/signup): Create a Flap account
 - [Support](https://useflap.online/support): support@useflap.online
 - [Status](https://useflap.online/status): Public /api/health probe
-- [Contact](mailto:support@useflap.online): support@useflap.online
+
+## Target customer
+
+Indie hackers, serial founders, and small studios who own multiple domains and need professional email without a suite per project.
 
 ## SEO landings
 
-- [Google Workspace alternative](https://useflap.online/google-workspace-alternative): Multi-domain founders who need email without a Workspace per project
-- [Email hosting for multiple domains](https://useflap.online/email-hosting-for-multiple-domains): Host many domains in one inbox
-- [Custom domain email](https://useflap.online/custom-domain-email): you@yourdomain.com without Workspace
-- [Email for indie hackers](https://useflap.online/email-for-indie-hackers): Professional email for side-project domains
-- [Email for side projects](https://useflap.online/email-for-side-projects): Launch another domain without another email subscription
-- [Multiple domains, one inbox](https://useflap.online/multiple-domains-one-inbox): Unified inbox across brand identities
+- [Google Workspace alternative for multi-domain founders](https://useflap.online/google-workspace-alternative): Flap is a Google Workspace alternative for founders who need custom-domain email on many projects — one inbox, domain-first pricing, no suite per launch.
+- [Email hosting for multiple domains — one inbox](https://useflap.online/email-hosting-for-multiple-domains): Host email for many domains in one inbox with Flap. Domain-first plans for indie hackers and studios juggling side projects.
+- [Custom domain email that is actually an inbox](https://useflap.online/custom-domain-email): Get you@yourdomain.com with a real Flap inbox — aliases, send, and DNS guidance. Custom domain email without a Google Workspace per project.
+- [Email for indie hackers who keep shipping](https://useflap.online/email-for-indie-hackers): Professional email for every side project domain. Flap gives indie hackers one inbox across launches — no per-project Workspace tax.
+- [Email for every side project — without another subscription](https://useflap.online/email-for-side-projects): Launch another domain without another email subscription. Flap is one inbox for all your side projects’ custom-domain email.
+- [Multiple domains. One inbox.](https://useflap.online/multiple-domains-one-inbox): Connect every startup domain to a single Flap inbox. Send and receive as each brand identity — one inbox for every startup you build.
 
 ## Comparisons
 
-- [Flap vs Google Workspace](https://useflap.online/flap-vs-google-workspace): When Flap fits vs a full Google suite
-- [Flap vs Zoho Mail](https://useflap.online/flap-vs-zoho): Multi-domain founders comparing Zoho setups
-- [Cloudflare Email Routing alternative](https://useflap.online/cloudflare-email-routing-alternative): Real reply inbox vs forward-only routing (SES path)
-- [Hydra alternative](https://useflap.online/hydra-alternative): Multi-domain founder email vs Hydra-style products
-- [Folio alternative](https://useflap.online/folio-alternative): Project-domain email vs Folio
-- [JustEmails alternative](https://useflap.online/justemails-alternative): Domain-first inbox vs flat yearly mailbox
-- [Migadu alternative](https://useflap.online/migadu-alternative): Multi-domain founders comparing Migadu
-- [ImprovMX alternative](https://useflap.online/improvmx-alternative): Real inbox vs forwarding-only
+- [Flap vs Google Workspace](https://useflap.online/flap-vs-google-workspace): Compare Flap and Google Workspace for founders with several small products: cost scaling, unified inbox, setup, and best use case. Honest tradeoffs.
+- [Flap vs Zoho Mail](https://useflap.online/flap-vs-zoho): Compare Flap and Zoho Mail for founders juggling many domains: workflow simplicity, unified inbox, and honest best-use-case guidance.
+- [Cloudflare Email Routing alternative when you need a real inbox](https://useflap.online/cloudflare-email-routing-alternative): Outgrown Cloudflare Email Routing forwards? Flap is the upgrade path when you need a real custom-domain inbox to reply from — Amazon SES mail, app on Cloudflare, DNS at any registrar.
+- [Hydra alternative for multi-domain founders](https://useflap.online/hydra-alternative): Looking beyond Hydra for custom-domain email across side projects? Flap offers one inbox, domain-first plans, SES mail, and Cloudflare app hosting — honest comparison without slam copy.
+- [Folio alternative for multi-project email](https://useflap.online/folio-alternative): Considering Folio for founder email? Flap is a multi-domain inbox alternative with SES mail, Cloudflare app hosting, filters, webhooks, and export — compared honestly.
+- [JustEmails alternative for serial launchers](https://useflap.online/justemails-alternative): Comparing JustEmails to Flap? Flap is a domain-first multi-domain inbox on Amazon SES with filters, webhooks, export, and transparent limits — not a flat yearly black box.
+- [Migadu alternative for multi-domain founders](https://useflap.online/migadu-alternative): Looking at Migadu for custom domains? Flap focuses on one inbox across many startup domains with SES delivery, guided DNS, and domain-first plans for indie founders.
+- [ImprovMX alternative when you need a real inbox](https://useflap.online/improvmx-alternative): ImprovMX is great for forwarding. Flap is for founders who need a real reply inbox across many domains — SES send/receive, not forwards-only.
 
 ## Guides (DNS → Amazon SES → Flap)
 
 - [Guides index](https://useflap.online/guides): All registrar DNS guides
-- [Cloudflare](https://useflap.online/guides/cloudflare-custom-domain-email): Cloudflare DNS (not Email Routing) for Flap SES mail
-- [Vercel](https://useflap.online/guides/vercel-custom-domain-email): Vercel DNS for Flap
-- [Namecheap](https://useflap.online/guides/namecheap-custom-domain-email): Namecheap DNS for Flap
-- [Porkbun](https://useflap.online/guides/porkbun-custom-domain-email): Porkbun DNS for Flap
-- [GoDaddy](https://useflap.online/guides/godaddy-custom-domain-email): GoDaddy DNS for Flap
-- [Squarespace](https://useflap.online/guides/squarespace-custom-domain-email): Squarespace Domains DNS for Flap
-- [Route 53](https://useflap.online/guides/route53-custom-domain-email): Amazon Route 53 DNS for Flap
+- [Cloudflare DNS for Flap email](https://useflap.online/guides/cloudflare-custom-domain-email): Exact MX/SPF/DKIM records and proxy settings when DNS is on Cloudflare — no Email Routing required.
+- [Vercel DNS for Flap email](https://useflap.online/guides/vercel-custom-domain-email): Add Flap MX/SPF/DKIM in Vercel Domains when nameservers are on vercel-dns.com.
+- [Namecheap DNS for Flap email](https://useflap.online/guides/namecheap-custom-domain-email): Add MX and SPF at Namecheap so Flap can receive mail on your domain.
+- [Porkbun DNS for Flap email](https://useflap.online/guides/porkbun-custom-domain-email): Point Porkbun DNS at Flap’s Amazon SES MX/SPF/DKIM records.
+- [GoDaddy DNS for Flap email](https://useflap.online/guides/godaddy-custom-domain-email): Add Flap MX and SPF records in GoDaddy DNS.
+- [Squarespace Domains DNS for Flap](https://useflap.online/guides/squarespace-custom-domain-email): Configure Squarespace Domains DNS for Flap custom-domain email.
+- [Route 53 DNS for Flap email](https://useflap.online/guides/route53-custom-domain-email): Publish Flap Amazon SES MX/SPF/DKIM in an Amazon Route 53 hosted zone.
 
 ## Developers
 
 - [Docs](https://useflap.online/docs): Documentation index
-- [API & webhooks](https://useflap.online/docs/api): POST /api/v1/send with Bearer flap_… keys; inbound mail.received webhooks with x-flap-signature (SHA-256 of secret.rawBody)
+- [API & webhooks](https://useflap.online/docs/api): POST /api/v1/send with Bearer flap_… keys; inbound mail.received webhooks
 
 ## Tools
 
 - [All tools](https://useflap.online/tools): Index of free DNS and deliverability tools
-- [Google Workspace cost calculator](https://useflap.online/tools/google-workspace-cost-calculator): Estimate Workspace×N vs Flap
-- [MX checker](https://useflap.online/tools/mx-checker): Check MX / SES inbound
-- [SPF checker](https://useflap.online/tools/spf-checker): Lookup SPF TXT (amazonses.com)
-- [DMARC checker](https://useflap.online/tools/dmarc-checker): Lookup DMARC policy
-- [DKIM checker](https://useflap.online/tools/dkim-checker): Verify DKIM selector / Easy DKIM CNAMEs
-- [Email setup checker](https://useflap.online/tools/email-setup-checker): Combined MX + SPF + DMARC
-- [Header analyzer](https://useflap.online/tools/header-analyzer): Paste raw headers
-- [Deliverability scorecard](https://useflap.online/tools/deliverability-scorecard): Grade MX/SPF/DMARC
-- [Blacklist checker](https://useflap.online/tools/blacklist-checker): Common RBL lookup
-- [DMARC generator](https://useflap.online/tools/dmarc-generator): Build a DMARC TXT
-- [SPF flattener](https://useflap.online/tools/spf-flattener): SPF builder + lookup warnings
-- [BIMI checker](https://useflap.online/tools/bimi-checker)
-- [MTA-STS checker](https://useflap.online/tools/mta-sts-checker)
-- [Catch-all detector](https://useflap.online/tools/catchall-detector)
-- [DNS propagation](https://useflap.online/tools/dns-propagation)
-- [DKIM generator assist](https://useflap.online/tools/dkim-generator)
-- [Plus-address tester](https://useflap.online/tools/plus-address-tester)
-- [From-domain mismatch](https://useflap.online/tools/from-mismatch)
-- [PTR checker](https://useflap.online/tools/ptr-checker)
-- [SMTP banner](https://useflap.online/tools/smtp-banner)
-- [WHOIS / NS](https://useflap.online/tools/whois-ns)
-- [ARC explainer](https://useflap.online/tools/arc-explainer)
-- [Registrar DNS copy-block](https://useflap.online/tools/registrar-copy)
-- [Flap vs Workspace share card](https://useflap.online/tools/flap-vs-workspace-share)
+- [Google Workspace cost calculator](https://useflap.online/tools/google-workspace-cost-calculator): Estimate Workspace spend across projects vs Flap - interactive savings calculator.
+- [Flap vs Workspace share card](https://useflap.online/tools/flap-vs-workspace-share): Generate a shareable savings card comparing Flap to Google Workspace.
+- [SPF checker](https://useflap.online/tools/spf-checker): Check your domain SPF TXT record and whether it includes Amazon SES.
+- [DMARC checker](https://useflap.online/tools/dmarc-checker): Look up _dmarc TXT for your domain and read a plain-English summary.
+- [DKIM checker](https://useflap.online/tools/dkim-checker): Verify a DKIM selector TXT or CNAME record exists for your domain.
+- [MX record checker](https://useflap.online/tools/mx-checker): Check MX records and whether they point at Flap (Amazon SES).
+- [Email setup checker](https://useflap.online/tools/email-setup-checker): Combined MX, SPF, and DMARC check for custom-domain email readiness.
+- [Email header analyzer](https://useflap.online/tools/header-analyzer): Paste raw message headers to decode Received, Auth-Results, and routing.
+- [Email blacklist / RBL checker](https://useflap.online/tools/blacklist-checker): Check if your domain or IP appears on common RBLs.
+- [DMARC record generator](https://useflap.online/tools/dmarc-generator): Build a paste-ready DMARC TXT record with policy and rua.
+- [SPF generator / flattener helper](https://useflap.online/tools/spf-flattener): Build SPF and see lookup-count warnings before you hit the 10-lookup limit.
+- [Deliverability scorecard](https://useflap.online/tools/deliverability-scorecard): Grade A-F deliverability from MX, SPF, and DMARC presence.
+- [BIMI checker](https://useflap.online/tools/bimi-checker): Look up default._bimi TXT for brand indicators.
+- [MTA-STS / TLS-RPT checker](https://useflap.online/tools/mta-sts-checker): Check _mta-sts and TLS reporting TXT records.
+- [Catch-all detector](https://useflap.online/tools/catchall-detector): DNS hints plus guidance to test catch-all safely.
+- [DNS propagation checker](https://useflap.online/tools/dns-propagation): Compare MX across public resolvers.
+- [DKIM generator assist](https://useflap.online/tools/dkim-generator): Guidance for SES Easy DKIM CNAMEs and selector naming.
+- [Plus-address / alias tester](https://useflap.online/tools/plus-address-tester): Build you+tag@domain addresses for signup hygiene.
+- [From-domain mismatch educator](https://useflap.online/tools/from-mismatch): Why replying from the wrong domain burns reputation.
+- [PTR / reverse DNS checker](https://useflap.online/tools/ptr-checker): Reverse-lookup PTR for a domain A record or IP.
+- [SMTP banner probe (safe)](https://useflap.online/tools/smtp-banner): Safe guidance for SMTP banner checks without sending mail.
+- [WHOIS / nameserver quick view](https://useflap.online/tools/whois-ns): See NS hosts and a WHOIS link-out for your DNS host.
+- [ARC / forward DMARC explainer](https://useflap.online/tools/arc-explainer): Why forwarded mail fails DMARC and how ARC helps.
+- [Registrar DNS copy-block](https://useflap.online/tools/registrar-copy): Paste-ready MX/SPF/DKIM blocks for common registrars.
 
 ## Blog
 
-- [Blog index](https://useflap.online/blog): Practical posts on multi-domain email and DNS
+- [Blog index](https://useflap.online/blog)
 - [Custom domain email without Google Workspace](https://useflap.online/blog/custom-domain-email-without-google-workspace)
-- [Cost of Google Workspace across domains](https://useflap.online/blog/cost-of-google-workspace-multiple-domains)
-- [MX/SPF/DMARC setup checklist](https://useflap.online/blog/mx-spf-dmarc-setup-checklist)
-- [Self-host vs hosted email](https://useflap.online/blog/self-host-vs-hosted-email-startups)
-- [Catch-all and aliases](https://useflap.online/blog/catchall-aliases-indie-founders)
+- [The cost of Google Workspace across multiple domains](https://useflap.online/blog/cost-of-google-workspace-multiple-domains)
+- [MX / SPF / DMARC setup checklist for custom-domain email](https://useflap.online/blog/mx-spf-dmarc-setup-checklist)
+- [Self-host vs hosted email for startups](https://useflap.online/blog/self-host-vs-hosted-email-startups)
+- [Catch-all and aliases for indie founders](https://useflap.online/blog/catchall-aliases-indie-founders)
 
 ## Optional
 
-- [Full AI summary](https://useflap.online/llms-full.txt): Longer product + pricing + page synopsis
-- [Sitemap](https://useflap.online/sitemap.xml): All public indexable URLs
-- [Terms](https://useflap.online/terms): Terms of Service
-- [Privacy](https://useflap.online/privacy): Privacy Policy
-- [Billing terms](https://useflap.online/billing-terms): Billing Terms
-- [robots.txt](https://useflap.online/robots.txt): Crawl rules (app/API/auth disallowed)
+- [Full AI summary](https://useflap.online/llms-full.txt)
+- [Sitemap](https://useflap.online/sitemap.xml)
+- [Terms](https://useflap.online/terms)
+- [Privacy](https://useflap.online/privacy)
+- [Billing terms](https://useflap.online/billing-terms)
+- [robots.txt](https://useflap.online/robots.txt)

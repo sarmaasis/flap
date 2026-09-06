@@ -40,6 +40,7 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </a>
         <nav className="hidden items-center gap-5 text-sm md:flex">
           <a href="/#pricing" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
+          <a href="/about" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
           <a href="/docs" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
           <a href="/tools" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
           <a href="/guides" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
@@ -94,6 +95,7 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Product</span>
           <a href="/#pricing" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
           <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>Full pricing page</a>
+          <a href="/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
           <a href="/multiple-domains-one-inbox" onClick={(e) => { e.preventDefault(); go("/multiple-domains-one-inbox"); }}>Multiple domains</a>
           <a href="/custom-domain-email" onClick={(e) => { e.preventDefault(); go("/custom-domain-email"); }}>Custom domain email</a>
           <a href="/flap-vs-google-workspace" onClick={(e) => { e.preventDefault(); go("/flap-vs-google-workspace"); }}>vs Google Workspace</a>

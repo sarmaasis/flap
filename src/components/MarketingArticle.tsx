@@ -4,10 +4,10 @@ import { Button } from "./ui/button";
 import { go } from "../lib/nav";
 import { track } from "../lib/analytics";
 
-export function LastUpdated({ date }: { date: string }) {
+export function LastUpdated({ date, verified }: { date: string; verified?: boolean }) {
   return (
     <p className="mt-3 text-sm text-[var(--muted)]">
-      Last updated: <time dateTime={date}>{date}</time>
+      {verified ? "Last verified" : "Last updated"}: <time dateTime={date}>{date}</time>
     </p>
   );
 }
@@ -115,6 +115,7 @@ export function ArticleCtas({ source }: { source: string }) {
           onClick={(e) => {
             e.preventDefault();
             track("signup_clicked", { source });
+            track("signup_cta_clicked", { source });
             go("/signup");
           }}
         >
@@ -122,7 +123,14 @@ export function ArticleCtas({ source }: { source: string }) {
         </a>
       </Button>
       <Button asChild variant="outline">
-        <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>
+        <a
+          href="/pricing"
+          onClick={(e) => {
+            e.preventDefault();
+            track("content_to_pricing", { source });
+            go("/pricing");
+          }}
+        >
           See pricing
         </a>
       </Button>

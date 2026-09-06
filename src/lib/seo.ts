@@ -1,25 +1,63 @@
 import { MARKETING, SITE_URL } from "../content/marketing";
+import { getRegistryEntry } from "../content/seo-registry";
+import {
+  articleLd,
+  breadcrumbLd,
+  entityGraphLd,
+  faqPageLd,
+  howToLd,
+  organizationLd,
+  personFounderLd,
+  softwareApplicationLd,
+  webApplicationToolLd,
+  webPageLd,
+  websiteLd,
+} from "./jsonld";
+
+export {
+  articleLd,
+  breadcrumbLd,
+  entityGraphLd,
+  faqPageLd,
+  howToLd,
+  organizationLd,
+  personFounderLd,
+  softwareApplicationLd,
+  webApplicationToolLd,
+  webPageLd,
+  websiteLd,
+};
 
 export function setPageMeta(opts: {
   title: string;
   description: string;
   path?: string;
   type?: string;
+  image?: string;
 }) {
-  const url = `${SITE_URL}${opts.path || "/"}`;
+  const path = opts.path || "/";
+  const url = path === "/" ? `${SITE_URL}/` : `${SITE_URL}${path}`;
+  const reg = getRegistryEntry(path);
+  const imagePath = opts.image || reg?.ogImagePath || "/og.png";
+  const imageUrl = imagePath.startsWith("http") ? imagePath : `${SITE_URL}${imagePath}`;
+  const ogType = opts.type || reg?.ogType || "website";
+
   document.title = opts.title;
 
   upsertMeta("name", "description", opts.description);
   upsertMeta("property", "og:title", opts.title);
   upsertMeta("property", "og:description", opts.description);
   upsertMeta("property", "og:url", url);
-  upsertMeta("property", "og:type", opts.type || "website");
+  upsertMeta("property", "og:type", ogType);
   upsertMeta("property", "og:site_name", "Flap");
-  upsertMeta("property", "og:image", `${SITE_URL}/og.png`);
+  upsertMeta("property", "og:image", imageUrl);
+  upsertMeta("property", "og:image:width", "1200");
+  upsertMeta("property", "og:image:height", "630");
+  upsertMeta("property", "og:image:type", imagePath.endsWith(".svg") ? "image/svg+xml" : "image/png");
   upsertMeta("name", "twitter:card", "summary_large_image");
   upsertMeta("name", "twitter:title", opts.title);
   upsertMeta("name", "twitter:description", opts.description);
-  upsertMeta("name", "twitter:image", `${SITE_URL}/og.png`);
+  upsertMeta("name", "twitter:image", imageUrl);
 
   let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
   if (!link) {
@@ -40,6 +78,8 @@ function upsertMeta(attr: "name" | "property", key: string, content: string) {
   el.content = content;
 }
 
+const JSON_LD_IDS = ["flap-jsonld", "flap-webpage", "flap-software", "flap-tool", "flap-faq", "flap-howto", "flap-article"];
+
 export function setJsonLd(id: string, data: Record<string, unknown> | Record<string, unknown>[]) {
   let el = document.getElementById(id) as HTMLScriptElement | null;
   if (!el) {
@@ -51,11 +91,20 @@ export function setJsonLd(id: string, data: Record<string, unknown> | Record<str
   el.textContent = JSON.stringify(data);
 }
 
+export function setJsonLdBundle(data: Record<string, unknown> | Record<string, unknown>[]) {
+  setJsonLd("flap-jsonld", data);
+}
+
 export function clearJsonLd(id: string) {
   document.getElementById(id)?.remove();
 }
 
-export function softwareApplicationLd() {
+export function clearJsonLdHelpers() {
+  for (const id of JSON_LD_IDS) clearJsonLd(id);
+}
+
+/** @deprecated Prefer softwareApplicationLd from jsonld (offers from PLANS). */
+export function softwareApplicationLdLegacy() {
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -75,80 +124,6 @@ export function softwareApplicationLd() {
       name: "Flap",
       url: SITE_URL,
     },
-  };
-}
-
-export function webPageLd(opts: {
-  path: string;
-  title: string;
-  description: string;
-  dateModified?: string;
-}) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: opts.title,
-    description: opts.description,
-    url: `${SITE_URL}${opts.path}`,
-    isPartOf: { "@type": "WebSite", name: "Flap", url: SITE_URL },
-    about: { "@type": "SoftwareApplication", name: "Flap", url: SITE_URL },
-    ...(opts.dateModified ? { dateModified: opts.dateModified } : {}),
-  };
-}
-
-export function articleLd(opts: {
-  path: string;
-  title: string;
-  description: string;
-  datePublished: string;
-  dateModified?: string;
-}) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: opts.title,
-    description: opts.description,
-    url: `${SITE_URL}${opts.path}`,
-    datePublished: opts.datePublished,
-    dateModified: opts.dateModified || opts.datePublished,
-    author: { "@type": "Organization", name: "Flap", url: SITE_URL },
-    publisher: { "@type": "Organization", name: "Flap", url: SITE_URL },
-    mainEntityOfPage: `${SITE_URL}${opts.path}`,
-    about: [
-      { "@type": "Thing", name: "Flap" },
-      { "@type": "Thing", name: "custom domain email" },
-      { "@type": "Thing", name: "useflap.online" },
-    ],
-  };
-}
-
-export function faqPageLd(faqs: Array<{ q: string; a: string }>) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((f) => ({
-      "@type": "Question",
-      name: f.q,
-      acceptedAnswer: { "@type": "Answer", text: f.a },
-    })),
-  };
-}
-
-export function howToLd(opts: {
-  name: string;
-  description: string;
-  steps: string[];
-}) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "HowTo",
-    name: opts.name,
-    description: opts.description,
-    step: opts.steps.map((text, i) => ({
-      "@type": "HowToStep",
-      position: i + 1,
-      text,
-    })),
   };
 }
 
@@ -175,4 +150,32 @@ export function getStoredReferral(): string | null {
   }
   const match = document.cookie.match(/(?:^|;\s*)flap_ref=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
+
+export function captureUtmFromUrl() {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  const utm: Record<string, string> = {};
+  for (const k of UTM_KEYS) {
+    const v = params.get(k);
+    if (v) utm[k] = v.slice(0, 120);
+  }
+  if (!Object.keys(utm).length) return;
+  try {
+    sessionStorage.setItem("flap_utm", JSON.stringify(utm));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getStoredUtm(): Record<string, string> | null {
+  try {
+    const raw = sessionStorage.getItem("flap_utm");
+    if (!raw) return null;
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return null;
+  }
 }

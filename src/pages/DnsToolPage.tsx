@@ -5,8 +5,17 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
-import { clearJsonLd, setJsonLd, setPageMeta, softwareApplicationLd, webPageLd } from "../lib/seo";
+import {
+  clearJsonLd,
+  faqPageLd,
+  setJsonLd,
+  setPageMeta,
+  softwareApplicationLd,
+  webApplicationToolLd,
+  webPageLd,
+} from "../lib/seo";
 import { TOOL_PAGES } from "../content/marketing";
+import { getToolExplainer } from "../content/tool-explainers";
 
 type Result = {
   ok?: boolean;
@@ -184,6 +193,7 @@ function localResult(tool: string, domain: string, extra: string): Result {
 
 export default function DnsToolPage({ path }: { path: string }) {
   const meta = useMemo(() => metaForPath(path), [path]);
+  const explainer = useMemo(() => getToolExplainer(path), [path]);
   const [domain, setDomain] = useState("");
   const [selector, setSelector] = useState("smtp");
   const [extra, setExtra] = useState("");
@@ -195,34 +205,39 @@ export default function DnsToolPage({ path }: { path: string }) {
     trackOnce(`tool_${path}`, "seo_page_view", { path });
     setJsonLd(
       "flap-webpage",
-      webPageLd({ path, title: meta.title, description: meta.description, dateModified: "2026-09-06" }),
+      webPageLd({
+        path,
+        title: meta.title,
+        description: meta.description,
+        dateModified: explainer?.updated || "2026-09-07",
+      }),
     );
     setJsonLd("flap-software", softwareApplicationLd());
-    setJsonLd("flap-tool", {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      name: meta.heading,
-      applicationCategory: "UtilitiesApplication",
-      operatingSystem: "Web",
-      url: `https://useflap.online${path}`,
-      description: meta.description,
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    });
+    setJsonLd(
+      "flap-tool",
+      webApplicationToolLd({ name: meta.heading, path, description: meta.description }),
+    );
+    if (explainer?.faqs.length) setJsonLd("flap-faq", faqPageLd(explainer.faqs));
     return () => {
       clearJsonLd("flap-webpage");
       clearJsonLd("flap-software");
       clearJsonLd("flap-tool");
+      clearJsonLd("flap-faq");
     };
-  }, [meta, path]);
+  }, [meta, path, explainer]);
 
   async function onCheck(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setResult(null);
-    track("seo_tool_used", { tool: meta.tool, domain });
+    track("tool_started", { tool: meta.tool });
+    track("seo_tool_used", { tool: meta.tool });
     try {
       if (meta.kind === "local") {
-        setResult(localResult(meta.tool, domain, extra));
+        const local = localResult(meta.tool, domain, extra);
+        setResult(local);
+        if (local.error) track("tool_error", { tool: meta.tool });
+        else track("tool_completed", { tool: meta.tool, ok: Boolean(local.ok) });
         return;
       }
       const res = await fetch("/api/tools/dns-check", {
@@ -231,10 +246,19 @@ export default function DnsToolPage({ path }: { path: string }) {
         body: JSON.stringify({ domain, tool: meta.tool, selector }),
       });
       const data = (await res.json()) as Result;
-      if (!res.ok) setResult({ error: data.error || "Check failed." });
-      else setResult(data);
+      if (!res.ok) {
+        setResult({ error: data.error || "Check failed." });
+        track("tool_error", { tool: meta.tool });
+      } else {
+        setResult(data);
+        track("tool_completed", {
+          tool: meta.tool,
+          ok: Boolean(data.ok || data.status === "valid_flap_ready"),
+        });
+      }
     } catch {
       setResult({ error: "Network error. Try again." });
+      track("tool_error", { tool: meta.tool });
     } finally {
       setBusy(false);
     }
@@ -252,7 +276,25 @@ export default function DnsToolPage({ path }: { path: string }) {
     <MarketingShell>
       <div className="mx-auto max-w-xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">{meta.heading}</h1>
-        <p className="mt-4 text-[var(--muted)]">{meta.blurb}</p>
+        {explainer ? (
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Last updated: <time dateTime={explainer.updated}>{explainer.updated}</time>
+          </p>
+        ) : null}
+        <p className="mt-4 text-[var(--muted)]">{explainer?.answerFirst || meta.blurb}</p>
+
+        {explainer ? (
+          <div className="mt-6 space-y-4 text-sm leading-relaxed text-[var(--muted)]">
+            <p>
+              <strong className="text-[var(--fg)]">What this tool checks: </strong>
+              {explainer.whatItChecks}
+            </p>
+            <p className="rounded-md border border-[var(--line)] px-3 py-2 text-xs">
+              Passing a DNS check does not guarantee inbox placement. SPF, DKIM, and DMARC are
+              authentication signals — not delivery promises.
+            </p>
+          </div>
+        ) : null}
 
         <form className="mt-8 space-y-4" onSubmit={onCheck}>
           {needsDomain ? (
@@ -358,6 +400,92 @@ export default function DnsToolPage({ path }: { path: string }) {
         ) : null}
 
         <div className="mt-10 border-t border-[var(--line)] pt-8">
+          {explainer ? (
+            <div className="mb-10 space-y-8 text-sm leading-relaxed text-[var(--muted)]">
+              <section>
+                <h2 className="text-lg font-semibold text-[var(--fg)]">How to interpret results</h2>
+                <ul className="mt-3 list-disc space-y-2 pl-5">
+                  {explainer.interpret.map((row) => (
+                    <li key={row.state}>
+                      <strong className="text-[var(--fg)]">{row.state}:</strong> {row.meaning}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h2 className="text-lg font-semibold text-[var(--fg)]">Examples</h2>
+                {explainer.examples.map((ex) => (
+                  <div key={ex.label} className="mt-3">
+                    <p className="font-medium text-[var(--fg)]">{ex.label}</p>
+                    <p className="mt-1">{ex.body}</p>
+                  </div>
+                ))}
+              </section>
+              <section>
+                <h2 className="text-lg font-semibold text-[var(--fg)]">Common errors</h2>
+                <ul className="mt-3 list-disc space-y-2 pl-5">
+                  {explainer.commonErrors.map((row) => (
+                    <li key={row.error}>
+                      <strong className="text-[var(--fg)]">{row.error}.</strong> {row.fix}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h2 className="text-lg font-semibold text-[var(--fg)]">References</h2>
+                <ul className="mt-3 flex flex-col gap-1">
+                  {explainer.references.map((r) => (
+                    <li key={r.href}>
+                      <a
+                        href={r.href}
+                        className="text-[var(--cta)] hover:underline"
+                        {...(r.href.startsWith("http")
+                          ? { target: "_blank", rel: "noreferrer" }
+                          : {
+                              onClick: (e: React.MouseEvent) => {
+                                e.preventDefault();
+                                go(r.href);
+                              },
+                            })}
+                      >
+                        {r.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              {explainer.faqs.length ? (
+                <section>
+                  <h2 className="text-lg font-semibold text-[var(--fg)]">FAQ</h2>
+                  {explainer.faqs.map((f) => (
+                    <div key={f.q} className="mt-3">
+                      <h3 className="font-medium text-[var(--fg)]">{f.q}</h3>
+                      <p className="mt-1">{f.a}</p>
+                    </div>
+                  ))}
+                </section>
+              ) : null}
+              <section>
+                <h2 className="text-lg font-semibold text-[var(--fg)]">Next steps</h2>
+                <ul className="mt-3 flex flex-col gap-1">
+                  {explainer.nextLinks.map((l) => (
+                    <li key={l.href}>
+                      <a
+                        href={l.href}
+                        className="text-[var(--cta)] hover:underline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          go(l.href);
+                        }}
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          ) : null}
           <p className="text-sm font-medium">Fix this permanently in the Flap DNS wizard</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             {ready

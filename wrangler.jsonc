@@ -15,6 +15,8 @@
 	"assets": {
 		"not_found_handling": "404-page",
 		"binding": "ASSETS",
+		// Auth shells + marketing HTML: Worker serves prerender asset when present, else SPA
+		// index (Vite dev has no prerender). Unknown paths still hit Assets 404-page.
 		"run_worker_first": [
 			"/api/*",
 			"/app",
@@ -27,7 +29,36 @@
 			"/reset-password",
 			"/invite",
 			"/invite/*",
-			"/settings/referrals"
+			"/settings/referrals",
+			"/about",
+			"/pricing",
+			"/support",
+			"/status",
+			"/terms",
+			"/privacy",
+			"/billing-terms",
+			"/tools",
+			"/tools/*",
+			"/docs",
+			"/docs/*",
+			"/guides",
+			"/guides/*",
+			"/blog",
+			"/blog/*",
+			"/google-workspace-alternative",
+			"/email-hosting-for-multiple-domains",
+			"/custom-domain-email",
+			"/email-for-indie-hackers",
+			"/email-for-side-projects",
+			"/flap-vs-google-workspace",
+			"/flap-vs-zoho",
+			"/multiple-domains-one-inbox",
+			"/cloudflare-email-routing-alternative",
+			"/hydra-alternative",
+			"/folio-alternative",
+			"/justemails-alternative",
+			"/migadu-alternative",
+			"/improvmx-alternative"
 		]
 	},
 	// InboxHub: WebSocket hibernation fan-out (idle connections do not accrue DO duration).

@@ -1,3 +1,4 @@
+import { PLANS } from "../../shared/plans";
 export type BlogSection = {
   heading: string;
   body: string;
@@ -22,7 +23,7 @@ export type BlogPost = {
   related: Array<{ href: string; label: string }>;
 };
 
-const UPDATED = "2026-09-04";
+const UPDATED = "2026-09-07";
 
 export const BLOG_POSTS: BlogPost[] = [
   {
@@ -58,13 +59,13 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Setup outline",
-        body: "Add the domain in Flap, publish Cloudflare Email Routing MX/SPF/DKIM at your DNS host, finish the Worker routing rule, create addresses, verify with Check DNS, send a test. Provider guides cover Cloudflare, Namecheap, Porkbun, GoDaddy, Squarespace, Route 53, and Vercel.",
+        body: "Add the domain in Flap, publish Amazon SES MX/SPF/DKIM at your DNS host, create addresses, verify with Check setup, send a test. Provider guides cover Cloudflare DNS, Namecheap, Porkbun, GoDaddy, Squarespace, Route 53, and Vercel.",
       },
     ],
     faqs: [
       {
         q: "Is Flap free?",
-        a: "Yes — a Free plan exists to prove MX on one domain with limited sends. Paid Solo/Builder/Studio add domains and limits.",
+        a: `Yes — a Free plan exists to prove MX on up to ${PLANS.free.limits.domains} domains with limited sends. Paid Solo/Builder/Studio add domains and limits.`,
       },
       {
         q: "Do I delete my Google account?",
@@ -98,7 +99,7 @@ export const BLOG_POSTS: BlogPost[] = [
         subheads: [
           {
             h3: "Example",
-            body: "8 projects × 1 user → about $56/month on that model. Flap Builder is $19/month for up to 10 domains — savings depend on your real provisioning habits.",
+            body: `8 projects × 1 user → about $56/month on that model. Flap Builder is $${PLANS.builder.price_monthly}/month for up to ${PLANS.builder.limits.domains} domains — savings depend on your real provisioning habits.`,
           },
         ],
       },
@@ -108,7 +109,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Flap’s domain-first pricing",
-        body: "Solo $9 (3 domains), Builder $19 (10), Studio $39 (40), plus a Free trial tier. Team seats appear on Studio. The product wedge is multi-domain inbox — not undercutting every Workspace SKU.",
+        body: `Solo $${PLANS.solo.price_monthly} (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly} (${PLANS.builder.limits.domains}), Studio $${PLANS.studio.price_monthly} (${PLANS.studio.limits.domains}), plus a Free plan. Team seats appear on Studio. The product wedge is multi-domain inbox — not undercutting every Workspace SKU.`,
       },
       {
         heading: "When paying for Workspace is still right",
@@ -120,11 +121,11 @@ export const BLOG_POSTS: BlogPost[] = [
       headers: ["Domains", "Workspace (illus.)", "Flap plan (typical)"],
       rows: [
         ["1", "$7", "Free or Solo"],
-        ["3", "$21", "Solo $9"],
-        ["5", "$35", "Builder $19"],
-        ["8", "$56", "Builder $19"],
-        ["10", "$70", "Builder $19"],
-        ["20", "$140", "Studio $39"],
+        ["3", "$21", `Solo $${PLANS.solo.price_monthly}`],
+        ["5", "$35", `Solo $${PLANS.solo.price_monthly}`],
+        ["8", "$56", `Builder $${PLANS.builder.price_monthly}`],
+        ["10", "$70", `Builder $${PLANS.builder.price_monthly}`],
+        ["20", "$140", `Builder $${PLANS.builder.price_monthly}`],
       ],
     },
     faqs: [
@@ -149,10 +150,10 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/mx-spf-dmarc-setup-checklist",
     title: "MX, SPF, and DMARC setup checklist | Flap Blog",
     description:
-      "A founder-friendly checklist for MX, SPF, DKIM, and DMARC when setting up custom-domain email — including Flap via Cloudflare Email Routing.",
+      "A founder-friendly checklist for MX, SPF, DKIM, and DMARC when setting up custom-domain email — including Flap via Amazon SES.",
     h1: "MX / SPF / DMARC setup checklist for custom-domain email",
     definition:
-      "MX routes inbound mail; SPF lists allowed senders; DKIM signs messages; DMARC tells receivers how to handle failures. Flap’s inbound path uses Cloudflare Email Routing MX/SPF/DKIM values plus a Worker rule into your Flap inbox.",
+      "MX routes inbound mail; SPF lists allowed senders; DKIM signs messages; DMARC tells receivers how to handle failures. Flap’s inbound path uses Amazon SES MX/SPF/DKIM values → SES → Flap ingest.",
     lede: "DNS mistakes cause most “email doesn’t work” tickets. Use this checklist before you blame the mail product.",
     published: UPDATED,
     updated: UPDATED,
@@ -169,15 +170,15 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "MX checklist",
-        body: "Publish exactly the MX hosts and priorities your mail product shows. For Flap, that is Cloudflare Email Routing (route1/2/3.mx.cloudflare.net). Never proxy MX on Cloudflare (grey cloud only).",
+        body: "Publish exactly the MX hosts and priorities your mail product shows. For Flap, that is Amazon SES inbound-smtp.<region>.amazonaws.com (exact host from Settings → Setup). Never proxy MX on Cloudflare (grey cloud / DNS-only).",
       },
       {
         heading: "SPF checklist",
-        body: "One TXT starting with v=spf1. Include every sender you use. For Flap inbound via Cloudflare Routing, include include:_spf.mx.cloudflare.net. End with ~all or -all once you know the set is complete.",
+        body: "One TXT starting with v=spf1. Include every sender you use. For Flap via Amazon SES, include include:amazonses.com. End with ~all or -all once you know the set is complete.",
       },
       {
         heading: "DKIM checklist",
-        body: "Publish the selector TXT your provider gives you. For Flap’s Cloudflare path, copy DKIM from Cloudflare Email Routing settings — Flap does not invent those keys.",
+        body: "Publish the Easy DKIM CNAME records Flap shows after SES identity provisioning. Copy exact tokens from Settings → Setup — do not invent selectors.",
       },
       {
         heading: "DMARC checklist",
@@ -185,7 +186,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Flap-specific finish line",
-        body: "MX + SPF alone are not enough: create the Cloudflare Email Routing rule that sends to the Flap Worker, create the mailbox in Flap, then Check DNS and send an external test.",
+        body: "MX + SPF alone are not enough: wait until Flap shows receiving ready (identity, MX, inbound rule), create the mailbox in Flap, then Check setup and send an external test.",
       },
     ],
     faqs: [
@@ -229,7 +230,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Where Flap sits",
-        body: "Flap is hosted inbox for founders with many domains — not a self-host control panel, not a full Google suite. Inbound uses Cloudflare Email Routing; you manage domains and identities in one product.",
+        body: "Flap is hosted inbox for founders with many domains — not a self-host control panel, not a full Google suite. Inbound uses Amazon SES; you manage domains and identities in one product.",
       },
       {
         heading: "Decision rule",
@@ -249,7 +250,7 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         q: "Can I migrate from self-host to Flap?",
-        a: "Point MX to Cloudflare Email Routing as Flap documents, create addresses, and import old mail manually if needed (no automatic importer yet).",
+        a: "Point MX to Amazon SES as Flap documents, create addresses, and import old mail manually if needed (no automatic importer yet).",
       },
     ],
     related: [
@@ -283,7 +284,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "DNS and routing still matter",
-        body: "Catch-all in the product only works if Cloudflare Email Routing (for Flap) also has a matching catch-all or wildcard rule sending to the Flap Worker. Product toggle ≠ DNS magic.",
+        body: "Catch-all in Flap is a product setting on paid plans. With Amazon SES inbound, mail for unknown local-parts is delivered according to Flap catch-all — you do not configure a separate Cloudflare Email Routing wildcard. Product toggle ≠ inventing DNS records.",
       },
       {
         heading: "Hygiene tips",

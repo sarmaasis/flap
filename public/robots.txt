@@ -14,7 +14,9 @@ Allow: /llms-full.txt
 Allow: /sitemap.xml
 Allow: /og.png
 Allow: /og.svg
+Allow: /og/
 Allow: /*.txt
+Allow: /about
 
 # Private app, API, and auth — not for indexing
 Disallow: /app

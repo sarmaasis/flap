@@ -10,11 +10,13 @@ import {
 } from "../components/MarketingArticle";
 import { Button } from "../components/ui/button";
 import { getBlogPostByPath } from "../content/blog";
+import { FOUNDER } from "../../shared/product-facts";
 import { trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
 import {
   articleLd,
   clearJsonLd,
+  entityGraphLd,
   faqPageLd,
   setJsonLd,
   setPageMeta,
@@ -35,20 +37,20 @@ export default function BlogPost({ path }: { path: string }) {
     trackOnce(`blog_${post.slug}`, "seo_page_view", { path: post.path });
     setJsonLd(
       "flap-article",
-      articleLd({
-        path: post.path,
-        title: post.h1,
-        description: post.description,
-        datePublished: post.published,
-        dateModified: post.updated,
-      }),
+      entityGraphLd([
+        articleLd({
+          path: post.path,
+          title: post.h1,
+          description: post.description,
+          datePublished: post.published,
+          dateModified: post.updated,
+        }),
+        softwareApplicationLd(),
+        ...(post.faqs.length ? [faqPageLd(post.faqs)] : []),
+      ]),
     );
-    setJsonLd("flap-software", softwareApplicationLd());
-    if (post.faqs.length) setJsonLd("flap-faq", faqPageLd(post.faqs));
     return () => {
       clearJsonLd("flap-article");
-      clearJsonLd("flap-software");
-      clearJsonLd("flap-faq");
     };
   }, [post]);
 
@@ -84,6 +86,20 @@ export default function BlogPost({ path }: { path: string }) {
         <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
           {post.h1}
         </h1>
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          By{" "}
+          <a href="/about#founder" className="text-[var(--cta)] hover:underline" onClick={(e) => { e.preventDefault(); go("/about#founder"); }}>
+            {FOUNDER.name}
+          </a>
+          {" · "}
+          <time dateTime={post.published}>Published {post.published}</time>
+          {post.updated !== post.published ? (
+            <>
+              {" · "}
+              <time dateTime={post.updated}>Updated {post.updated}</time>
+            </>
+          ) : null}
+        </p>
         <LastUpdated date={post.updated} />
         <DefinitionBox>{post.definition}</DefinitionBox>
         <p className="mt-5 text-lg leading-relaxed text-[var(--muted)]">{post.lede}</p>

@@ -201,7 +201,13 @@ export default function GuidePage({ path }: { path: string }) {
           >
             Start free
           </Button>
-          <Button variant="outline" onClick={() => go("/tools/email-setup-checker")}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              track("guide_to_tool", { tool: "email-setup-checker" });
+              go("/tools/email-setup-checker");
+            }}
+          >
             Run setup checker
           </Button>
         </div>

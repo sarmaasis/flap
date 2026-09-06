@@ -22,13 +22,16 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
   useEffect(() => {
     if (!started) return;
     const t = window.setTimeout(() => {
-      track("calculator_completed", {
+      const props = {
+        tool: "google-workspace-cost-calculator",
         domains: result.domains,
         users: result.users_per_domain,
         google_monthly: result.google_monthly,
         flap_monthly: result.flap_monthly,
         savings_annual: result.savings_annual,
-      });
+      };
+      track("calculator_completed", props);
+      track("tool_completed", props);
     }, 400);
     return () => window.clearTimeout(t);
   }, [started, result]);
@@ -37,6 +40,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
     if (!started) {
       setStarted(true);
       track("calculator_started", { domains: n, users });
+      track("tool_started", { tool: "google-workspace-cost-calculator", domains: n, users });
     }
     setDomains(n);
   }
@@ -45,6 +49,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
     if (!started) {
       setStarted(true);
       track("calculator_started", { domains, users: n });
+      track("tool_started", { tool: "google-workspace-cost-calculator", domains, users: n });
     }
     setUsers(n);
   }
@@ -127,6 +132,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
         className="mt-4 w-full sm:w-auto"
         onClick={() => {
           track("signup_clicked", { source: "calculator" });
+          track("signup_cta_clicked", { source: "calculator" });
           go(ctaHref);
         }}
       >

@@ -11,6 +11,14 @@ export default function NotFoundPage() {
       description: "That URL is not a Flap page. Try tools, guides, pricing, or the home page.",
       path: "/404",
     });
+    // Soft-404 hygiene: client navigations must stay noindex (Assets 404.html already is).
+    let robots = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+    if (!robots) {
+      robots = document.createElement("meta");
+      robots.name = "robots";
+      document.head.appendChild(robots);
+    }
+    robots.content = "noindex, nofollow";
     setJsonLd(
       "not-found",
       webPageLd({
@@ -19,7 +27,10 @@ export default function NotFoundPage() {
         path: "/404",
       }),
     );
-    return () => clearJsonLd("not-found");
+    return () => {
+      clearJsonLd("not-found");
+      robots?.remove();
+    };
   }, []);
 
   return (

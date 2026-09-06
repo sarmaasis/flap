@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Porkbun DNS for Flap email">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f3d34"/>
+      <stop offset="55%" stop-color="#1c6e5c"/>
+      <stop offset="100%" stop-color="#14352f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1040" cy="120" r="180" fill="#f0efeb" fill-opacity="0.06"/>
+  <circle cx="160" cy="520" r="220" fill="#f0efeb" fill-opacity="0.05"/>
+  <text x="72" y="88" fill="#d8f3ec" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="600" letter-spacing="0.12em">GUIDE</text>
+  <text x="72" y="250" fill="#f7f6f2" font-family="Georgia, 'Times New Roman', serif" font-size="54" font-weight="700"><tspan x="72" dy="0">Porkbun DNS for Flap email</tspan></text>
+  <text x="72" y="560" fill="#f7f6f2" font-family="Georgia, 'Times New Roman', serif" font-size="36" font-weight="700">Flap</text>
+  <text x="72" y="598" fill="#d8f3ec" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22">useflap.online · one inbox for every startup</text>
+</svg>

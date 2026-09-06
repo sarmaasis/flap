@@ -1,17 +1,13 @@
 /**
  * Canonical list of public, indexable URLs for sitemap.xml.
- * Keep in sync with App routes + prerender (scripts/prerender.ts).
- * Do not include auth, app, or API paths.
+ * Generated from the SEO registry (src/content/seo-registry.ts).
  */
-import { BLOG_POSTS } from "./blog";
-import { GUIDE_CONTENT } from "./guides";
 import {
-  BLOG_INDEX,
-  GUIDE_PAGES,
-  SITE_URL,
-  TOOL_PAGES,
-} from "./marketing";
-import { SEO_PAGE_DEFS } from "./seo-pages";
+  absoluteCanonical,
+  indexableRegistryEntries,
+  LEGAL_PAGES,
+  type SeoRegistryEntry,
+} from "./seo-registry";
 
 export type SitemapEntry = {
   path: string;
@@ -20,150 +16,37 @@ export type SitemapEntry = {
   priority?: string;
 };
 
-export const LEGAL_PAGES = [
-  {
-    path: "/terms",
-    title: "Terms of Service | Flap",
-    description: "Terms of Service for Flap custom-domain email at useflap.online.",
-    lastmod: "2026-09-04",
-  },
-  {
-    path: "/privacy",
-    title: "Privacy Policy | Flap",
-    description: "Privacy Policy for Flap — how we handle account and mailbox data.",
-    lastmod: "2026-09-04",
-  },
-  {
-    path: "/billing-terms",
-    title: "Billing Terms | Flap",
-    description: "Billing Terms for Flap paid plans and renewals.",
-    lastmod: "2026-09-04",
-  },
-] as const;
+export { LEGAL_PAGES };
 
-/** Site-wide content freshness for pages without their own updated field. */
-const SITE_UPDATED = "2026-09-06";
+function priorityFor(e: SeoRegistryEntry): string {
+  if (e.path === "/") return "1.0";
+  if (e.pageType === "pricing") return "0.9";
+  if (e.pageType === "comparison") return "0.85";
+  if (e.pageType === "product" || e.pageType === "about") return "0.8";
+  if (e.pageType === "guide" || e.pageType === "blog_index" || e.pageType === "docs") return "0.75";
+  if (e.pageType === "tool" || e.pageType === "blog") return "0.7";
+  if (e.pageType === "legal" || e.pageType === "status") return "0.3";
+  return "0.5";
+}
+
+function changefreqFor(e: SeoRegistryEntry): SitemapEntry["changefreq"] {
+  if (e.path === "/" || e.pageType === "pricing" || e.pageType === "blog_index") return "weekly";
+  if (e.pageType === "status") return "daily";
+  if (e.pageType === "legal" || e.pageType === "support") return "yearly";
+  return "monthly";
+}
 
 export function buildSitemapEntries(): SitemapEntry[] {
-  const entries: SitemapEntry[] = [];
-
-  entries.push({
-    path: "/",
-    lastmod: SITE_UPDATED,
-    changefreq: "weekly",
-    priority: "1.0",
-  });
-
-  entries.push({
-    path: "/tools",
-    lastmod: SITE_UPDATED,
-    changefreq: "weekly",
-    priority: "0.8",
-  });
-
-  entries.push({
-    path: "/pricing",
-    lastmod: SITE_UPDATED,
-    changefreq: "weekly",
-    priority: "0.9",
-  });
-
-  entries.push({
-    path: "/docs",
-    lastmod: SITE_UPDATED,
-    changefreq: "monthly",
-    priority: "0.7",
-  });
-
-  entries.push({
-    path: "/docs/api",
-    lastmod: SITE_UPDATED,
-    changefreq: "monthly",
-    priority: "0.75",
-  });
-
-  entries.push({
-    path: "/guides",
-    lastmod: SITE_UPDATED,
-    changefreq: "monthly",
-    priority: "0.75",
-  });
-
-  entries.push({
-    path: "/support",
-    lastmod: SITE_UPDATED,
-    changefreq: "yearly",
-    priority: "0.4",
-  });
-
-  entries.push({
-    path: "/status",
-    lastmod: SITE_UPDATED,
-    changefreq: "daily",
-    priority: "0.3",
-  });
-
-  for (const page of Object.values(SEO_PAGE_DEFS)) {
-    entries.push({
-      path: page.path,
-      lastmod: page.updated,
-      changefreq: "monthly",
-      priority: page.comparison ? "0.85" : "0.8",
-    });
-  }
-
-  for (const guide of GUIDE_PAGES) {
-    const body = GUIDE_CONTENT[guide.provider];
-    entries.push({
-      path: guide.path,
-      lastmod: body?.updated || SITE_UPDATED,
-      changefreq: "monthly",
-      priority: "0.75",
-    });
-  }
-
-  for (const tool of TOOL_PAGES) {
-    entries.push({
-      path: tool.path,
-      lastmod: SITE_UPDATED,
-      changefreq: "monthly",
-      priority: "0.7",
-    });
-  }
-
-  const blogLast =
-    BLOG_POSTS.reduce((max, p) => (p.updated > max ? p.updated : max), SITE_UPDATED);
-  entries.push({
-    path: BLOG_INDEX.path,
-    lastmod: blogLast,
-    changefreq: "weekly",
-    priority: "0.75",
-  });
-
-  for (const post of BLOG_POSTS) {
-    entries.push({
-      path: post.path,
-      lastmod: post.updated,
-      changefreq: "monthly",
-      priority: "0.7",
-    });
-  }
-
-  for (const legal of LEGAL_PAGES) {
-    entries.push({
-      path: legal.path,
-      lastmod: legal.lastmod,
-      changefreq: "yearly",
-      priority: "0.3",
-    });
-  }
-
-  return entries;
+  return indexableRegistryEntries().map((e) => ({
+    path: e.path,
+    lastmod: e.modified,
+    changefreq: changefreqFor(e),
+    priority: priorityFor(e),
+  }));
 }
 
 export function absoluteUrl(path: string): string {
-  if (path === "/") return `${SITE_URL}/`;
-  return `${SITE_URL}${path}`;
+  return absoluteCanonical(path);
 }
 
 export function renderSitemapXml(entries: SitemapEntry[] = buildSitemapEntries()): string {

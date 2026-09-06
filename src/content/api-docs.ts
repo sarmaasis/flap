@@ -1,5 +1,7 @@
 /** Public developer docs — API send + outbound webhooks. */
 
+import { PLANS } from "../../shared/plans";
+
 export const API_DOCS = {
   path: "/docs/api",
   title: "API & webhooks | Flap",
@@ -26,7 +28,7 @@ export const API_SEND = {
   success: '{ "ok": true, "id": "msg_…" }',
   notes: [
     "API keys are created in Settings → Developers. The full token is shown once.",
-    "Keys are available on Solo (5), Builder (25), and Studio (100).",
+    `Keys are available on Solo (${PLANS.solo.limits.api_keys}), Builder (${PLANS.builder.limits.api_keys}), and Studio (${PLANS.studio.limits.api_keys}).`,
     "Sends count toward your plan’s monthly outbound quota and storage limits.",
     "From addresses must belong to a mailbox on your workspace.",
   ],
@@ -60,6 +62,6 @@ export const WEBHOOK_DOCS = {
     "Webhook URL must be https://",
     "Subscribe to mail.received or * (all events).",
     "Delivery attempts are logged in Settings → Developers → Deliveries (last 20).",
-    "Webhook slots follow plan limits (Solo 3, Builder 15, Studio 50).",
+    `Webhook slots follow plan limits (Solo ${PLANS.solo.limits.webhooks}, Builder ${PLANS.builder.limits.webhooks}, Studio ${PLANS.studio.limits.webhooks}).`,
   ],
 } as const;

@@ -27,6 +27,7 @@ const GuidesIndexPage = lazy(() => import("./pages/GuidesIndexPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const StatusPage = lazy(() => import("./pages/StatusPage"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function Screen({ children }: { children: ReactNode }) {
@@ -91,6 +92,7 @@ export default function App() {
   if (path === "/guides") return <Screen><GuidesIndexPage /></Screen>;
   if (path === "/support") return <Screen><SupportPage /></Screen>;
   if (path === "/status") return <Screen><StatusPage /></Screen>;
+  if (path === "/about") return <Screen><AboutPage /></Screen>;
   if (path === "/tools") return <Screen><ToolsIndex /></Screen>;
   if (path === "/tools/google-workspace-cost-calculator") {
     return <Screen><CalculatorPage /></Screen>;

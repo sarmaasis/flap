@@ -22,20 +22,23 @@ export type SeoPageDef = {
   faqs: Array<{ q: string; a: string }>;
   related: Array<{ href: string; label: string }>;
   comparison?: boolean;
+  /** Distinct search intent — used to prevent cannibalization. */
+  primaryIntent?: string;
 };
 
-const UPDATED = "2026-09-06";
+const UPDATED = "2026-09-07";
 
 export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
   "/google-workspace-alternative": {
     path: "/google-workspace-alternative",
+    primaryIntent: "Find alternatives to the Workspace email model (not a full suite replacement)",
     title: "Google Workspace alternative for multi-domain founders | Flap",
     description:
       "Flap is a Google Workspace alternative for founders who need custom-domain email on many projects — one inbox, domain-first pricing, no suite per launch.",
     h1: "Google Workspace alternative for multi-domain founders",
     definition:
       "Flap (useflap.online) is a hosted custom-domain email product for indie hackers and serial founders: connect multiple project domains to one inbox instead of provisioning a separate Google Workspace (or similar) for each startup.",
-    lede: "If you keep launching products, a full Workspace account per domain is expensive and heavy. Flap is built for the narrower job: professional email on every domain you own, from one place.",
+    lede: "Looking for a Google Workspace alternative for email on many project domains? Flap replaces the mailbox-and-suite-per-launch pattern — not Docs, Drive, or Meet.",
     updated: UPDATED,
     sections: [
       {
@@ -48,19 +51,19 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "When Workspace is the wrong unit of cost",
-        body: "Workspace shines for companies that need shared drives and calendars. It is a poor fit when you just need you@project.com on the fifth side project this year. Flap prices primarily by how many domains you connect (Solo 3, Builder 10, Studio 40), not by standing up a new suite environment per brand.",
+        body: `Workspace shines for companies that need shared drives and calendars. It is a poor fit when you just need you@project.com on the fifth side project this year. Flap prices primarily by how many domains you connect (Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}), not by standing up a new suite environment per brand.`,
       },
       {
         heading: "What you get with Flap",
-        body: `Connect domains, create addresses, send and receive from one inbox. Free trial: ${PLANS.free.limits.domains} domain, ${PLANS.free.limits.send_per_month} sends/month. Paid plans add catch-all, higher limits, and (on Studio) team seats. Outbound uses your authenticated domain identities.`,
+        body: `Connect domains, create addresses, send and receive from one inbox. Free plan: ${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/month. Paid plans add catch-all, higher limits, and (on Studio) team seats. Outbound uses your authenticated domain identities.`,
       },
       {
         heading: "Honest tradeoffs",
-        body: "Choose Google Workspace when collaboration apps matter more than multi-domain mail. Choose Flap when the pain is another mailbox setup per launch. Flap receives mail via Cloudflare Email Routing and guided DNS — you still manage records at your DNS host.",
+        body: "Choose Google Workspace when collaboration apps matter more than multi-domain mail. Choose Flap when the pain is another mailbox setup per launch. Flap receives mail via Amazon SES after you publish guided MX/SPF/DKIM at your DNS host — Cloudflare Email Routing is not required.",
       },
       {
         heading: "How founders switch",
-        body: "Add the domain in Flap, paste MX/SPF (and DKIM) at your DNS provider, finish the Cloudflare Email Routing Worker rule, then create hello@ and send a test. Use the free DNS checkers on Flap if you want a sanity check before cutover.",
+        body: "Add the domain in Flap, paste MX/SPF/DKIM (Amazon SES) at your DNS provider, use Check setup until receiving is ready, then create hello@ and send a test. Use the free DNS checkers on Flap if you want a sanity check before cutover.",
       },
     ],
     table: {
@@ -104,20 +107,21 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/email-hosting-for-multiple-domains": {
     path: "/email-hosting-for-multiple-domains",
+    primaryIntent: "Find email hosting that supports many domains on one account",
     title: "Email hosting for multiple domains | Flap",
     description:
       "Host email for many domains in one inbox with Flap. Domain-first plans for indie hackers and studios juggling side projects.",
     h1: "Email hosting for multiple domains — one inbox",
     definition:
       "Multi-domain email hosting means one mail product accepts and sends mail for several custom domains. Flap (useflap.online) provides that as a single inbox with per-domain sender identities, aimed at founders who run many projects.",
-    lede: "Add every project domain to Flap. Read and reply as each brand without separate hosting accounts or a Workspace per launch.",
+    lede: "Need a host that accepts mail for many domains without a separate customer per brand? Flap is domain-first hosting: add domains to one account up to your plan limit.",
     updated: UPDATED,
     sections: [
       {
         heading: "Domain-first, not seat-first",
         body: "Plans are built around how many domains you connect. That matches how founders actually accumulate projects — domains grow faster than headcount.",
         bullets: [
-          `Free: ${PLANS.free.limits.domains} domain`,
+          `Free: ${PLANS.free.limits.domains} domains`,
           `Solo: ${PLANS.solo.limits.domains} · Builder: ${PLANS.builder.limits.domains} · Studio: ${PLANS.studio.limits.domains}`,
           "Referral bonuses can add permanent domain slots",
         ],
@@ -128,7 +132,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "DNS you can finish",
-        body: "Copy MX and SPF from Flap, add DKIM from Cloudflare Email Routing, then use Check DNS or the free MX/SPF tools. Precise errors (“SPF missing Cloudflare include”) beat a vague “verification failed.”",
+        body: "Copy MX, SPF, and SES Easy DKIM CNAMEs from Flap Settings → Setup, then use Check setup or the free MX/SPF tools. Precise errors (“SPF missing include:amazonses.com”) beat a vague “verification failed.”",
       },
       {
         heading: "Catch-all when you need it",
@@ -139,7 +143,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       caption: "What multi-domain hosting on Flap includes",
       headers: ["Capability", "Notes"],
       rows: [
-        ["Receive on custom domains", "Via Cloudflare Email Routing → Flap Worker"],
+        ["Receive on custom domains", "Via Amazon SES inbound → Flap ingest"],
         ["Send as domain identities", "Authenticated outbound from Flap"],
         ["Aliases / disposables", "Limits by plan; unlimited aliases on paid"],
         ["Catch-all", "Paid plans"],
@@ -150,7 +154,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     faqs: [
       {
         q: "Do I need Cloudflare already?",
-        a: "Flap receives mail via Cloudflare Email Routing. Your DNS can live at Namecheap, Porkbun, Route 53, Vercel, etc. — you still add the Cloudflare MX/SPF values Flap shows and finish the Worker routing rule.",
+        a: "No. Flap receives mail via Amazon SES. Your DNS can live at Namecheap, Porkbun, Route 53, Cloudflare DNS, Vercel, etc. — publish the SES MX/SPF/DKIM values Flap shows. Cloudflare Email Routing is not required.",
       },
       {
         q: "Is this the same as email forwarding?",
@@ -172,13 +176,14 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/custom-domain-email": {
     path: "/custom-domain-email",
+    primaryIntent: "Learn how branded custom-domain email works and how to obtain an inbox",
     title: "Custom domain email without Workspace | Flap",
     description:
       "Get you@yourdomain.com with a real Flap inbox — aliases, send, and DNS guidance. Custom domain email without a Google Workspace per project.",
     h1: "Custom domain email that is actually an inbox",
     definition:
       "Custom domain email means sending and receiving mail as addresses on a domain you own (e.g. you@startup.com). Flap hosts that inbox for founders, with multi-domain support at useflap.online.",
-    lede: "Forwarding dumps brand mail into Gmail. Flap is the mailbox: receive, reply, schedule, and archive as your domain — without standing up Workspace for every launch.",
+    lede: "Custom domain email means you@yourdomain.com with a real mailbox. This guide explains inbox vs forwarding, DNS basics, and how Flap hosts branded addresses without Workspace.",
     updated: UPDATED,
     sections: [
       {
@@ -187,15 +192,15 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Start free, then scale domains",
-        body: `Prove MX on one domain (${PLANS.free.limits.domains} domain, ${PLANS.free.limits.send_per_month} sends/mo, ${PLANS.free.limits.mailboxes} mailboxes). Upgrade to Solo, Builder, or Studio when projects multiply.`,
+        body: `Prove MX on the Free plan (${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/mo, ${PLANS.free.limits.mailboxes} mailboxes). Upgrade to Solo, Builder, or Studio when projects multiply.`,
       },
       {
         heading: "Send as the brand",
-        body: "Outbound uses your authenticated domain identities — not a personal Gmail rewrite. SPF/DKIM alignment follows the DNS you configure for Cloudflare Email Routing and Flap.",
+        body: "Outbound uses your authenticated domain identities — not a personal Gmail rewrite. SPF/DKIM alignment follows the Amazon SES DNS you publish for Flap.",
       },
       {
         heading: "Setup path",
-        body: "Add domain → create hello@ → paste MX/SPF/DKIM → Cloudflare Worker routing rule → Check DNS → send a test. Provider-specific guides cover Cloudflare, Namecheap, Porkbun, GoDaddy, Squarespace, Route 53, and Vercel DNS.",
+        body: "Add domain → paste MX/SPF/DKIM (Amazon SES) → Check setup → create hello@ → send a test. Provider-specific guides cover Cloudflare DNS, Namecheap, Porkbun, GoDaddy, Squarespace, Route 53, and Vercel DNS.",
       },
     ],
     faqs: [
@@ -205,7 +210,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "Can I use an existing domain?",
-        a: "Yes. Keep the site where it is; only mail-related MX/TXT records need to match Flap’s Cloudflare Email Routing values (and remove conflicting MX).",
+        a: "Yes. Keep the site where it is; only mail-related MX/TXT/CNAME records need to match Flap’s Amazon SES values (and remove conflicting MX).",
       },
       {
         q: "Does Flap support aliases?",
@@ -223,13 +228,14 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/email-for-indie-hackers": {
     path: "/email-for-indie-hackers",
+    primaryIntent: "Audience-specific use case for indie hackers who keep shipping",
     title: "Email for indie hackers | Flap",
     description:
       "Professional email for every side project domain. Flap gives indie hackers one inbox across launches — no per-project Workspace tax.",
     h1: "Email for indie hackers who keep shipping",
     definition:
       "Email for indie hackers is professional custom-domain mail sized for solo builders with many domains. Flap positions as “email infrastructure for people who keep launching things” — one inbox at useflap.online across project brands.",
-    lede: MARKETING.founder_tagline,
+    lede: "Built for indie hackers who ship often: professional email on every domain you own, without suite procurement theater.",
     updated: UPDATED,
     sections: [
       {
@@ -273,13 +279,14 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/email-for-side-projects": {
     path: "/email-for-side-projects",
+    primaryIntent: "Avoid full-suite cost for experimental / low-commitment projects",
     title: "Email for side projects | Flap",
     description:
       "Launch another domain without another email subscription. Flap is one inbox for all your side projects’ custom-domain email.",
     h1: "Email for every side project — without another subscription",
     definition:
       "Side-project email means a professional address on each experiment domain without paying for a full workspace per idea. Flap hosts those domains in one inbox so subscriptions do not multiply with launches.",
-    lede: "Side projects multiply. Email subscriptions should not.",
+    lede: "Side projects should not inherit enterprise seat math. Use Flap when the experiment needs a professional address without a Workspace trial per idea.",
     updated: UPDATED,
     sections: [
       {
@@ -306,7 +313,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "Can multiple side projects share one free plan?",
-        a: `Free includes ${PLANS.free.limits.domains} domain. Add Solo or Builder when you need more domains on the same inbox.`,
+        a: `Free includes ${PLANS.free.limits.domains} domains. Add Solo or Builder when you need more domains on the same inbox.`,
       },
       {
         q: "Is forwarding enough for side projects?",
@@ -323,19 +330,20 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/flap-vs-google-workspace": {
     path: "/flap-vs-google-workspace",
+    primaryIntent: "Head-to-head Flap vs Google Workspace tradeoffs for multi-project founders",
     title: "Flap vs Google Workspace for multi-project founders",
     description:
       "Compare Flap and Google Workspace for founders with several small products: cost scaling, unified inbox, setup, and best use case. Honest tradeoffs.",
     h1: "Flap vs Google Workspace",
     definition:
       "Flap vs Google Workspace is a use-case comparison: for a founder managing several small project domains, Flap may be simpler because one inbox covers many domains, while Workspace is stronger when you need Google’s full productivity suite and org tools.",
-    lede: "For a founder managing several small projects, Flap may be simpler because you keep one inbox across domains instead of provisioning a Workspace (or seat) per brand. That is not a claim of universal superiority.",
+    lede: "This page compares two named products side by side. Use it when you already know both names and need tradeoffs — not a generic “alternatives” list.",
     updated: UPDATED,
     comparison: true,
     sections: [
       {
         heading: "Multiple domains / projects",
-        body: "Workspace: typically separate customers or complex multi-domain admin when each brand is its own environment. Flap: add domains to one account up to your plan limit (Solo 3, Builder 10, Studio 40).",
+        body: `Workspace: typically separate customers or complex multi-domain admin when each brand is its own environment. Flap: add domains to one account up to your plan limit (Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}).`,
       },
       {
         heading: "Number of separate accounts / admin setups",
@@ -351,7 +359,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Setup complexity",
-        body: "Both need DNS. Flap’s path is MX/SPF/DKIM plus Cloudflare Email Routing Worker delivery, with provider guides and DNS checkers. Workspace has mature admin UX and a broader suite to configure.",
+        body: "Both need DNS. Flap’s path is MX/SPF/DKIM for Amazon SES inbound, with provider guides and DNS checkers. Workspace has mature admin UX and a broader suite to configure.",
       },
       {
         heading: "Best use case",
@@ -367,7 +375,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
         ["Cost scaling", "Seats × environments", "Primarily domain tiers"],
         ["Unified inbox", "Per-org users", "One inbox, many identities"],
         ["Multiple identities", "Aliases in an org", "Addresses across domains"],
-        ["Setup", "Suite + DNS", "DNS + Cloudflare routing"],
+        ["Setup", "Suite + DNS", "DNS → Amazon SES → Flap"],
         ["Best use case", "Teams in Google apps", "Serial / multi-domain founders"],
       ],
     },
@@ -457,13 +465,14 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
 
   "/multiple-domains-one-inbox": {
     path: "/multiple-domains-one-inbox",
+    primaryIntent: "Solve unified-inbox workflow across brand identities",
     title: "Multiple domains, one inbox | Flap",
     description:
       "Connect every startup domain to a single Flap inbox. Send and receive as each brand identity — one inbox for every startup you build.",
     h1: "Multiple domains. One inbox.",
     definition:
       "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the tagline “One inbox for every startup you build.”",
-    lede: MARKETING.primary_tagline,
+    lede: "The problem is workflow: threads scatter across forwards and forgotten trials. Flap’s job here is one inbox, many sender identities — not “which host supports N domains.”",
     updated: UPDATED,
     sections: [
       {
@@ -476,7 +485,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "How it works (short)",
-        body: "Connect domains → point MX/SPF/DKIM → Cloudflare Email Routing delivers to Flap → create addresses → send and receive. Upgrade when domain count exceeds your plan.",
+        body: "Connect domains → publish MX/SPF/DKIM for Amazon SES → Flap ingest receives mail → create addresses → send and receive. Upgrade when domain count exceeds your plan.",
       },
       {
         heading: "Plan limits (domains)",
@@ -606,7 +615,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Try before you cut over",
-        body: "Start on Free with one domain, prove receiving, export anytime. Cancel keeps access through the paid period — download your mailbox before it ends.",
+        body: `Start on Free with up to ${PLANS.free.limits.domains} domains, prove receiving, export anytime. Cancel keeps access through the paid period — download your mailbox before it ends.`,
       },
     ],
     table: {
@@ -687,7 +696,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "How do I try Flap?",
-        a: "Sign up free, add one domain, Check setup, create hello@, send a test. Upgrade only when domain count needs it.",
+        a: `Sign up free, add a domain (Free covers up to ${PLANS.free.limits.domains}), Check setup, create hello@, send a test. Upgrade only when domain count needs it.`,
       },
     ],
     related: [

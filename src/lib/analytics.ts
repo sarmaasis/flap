@@ -2,13 +2,20 @@
 
 export type AnalyticsEvent =
   | "landing_view"
+  | "organic_landing"
   | "pricing_view"
   | "signup_clicked"
+  | "signup_cta_clicked"
   | "comparison_page_view"
   | "calculator_started"
   | "calculator_completed"
   | "calculator_share_copied"
   | "seo_tool_used"
+  | "tool_started"
+  | "tool_completed"
+  | "tool_error"
+  | "guide_to_tool"
+  | "content_to_pricing"
   | "signup_started"
   | "signup_completed"
   | "email_verified"
@@ -108,9 +115,29 @@ function postPayload(payload: { e: string; p?: Props; t: number; s: string; path
 }
 
 export function track(event: AnalyticsEvent, props?: Props) {
+  const utm = (() => {
+    try {
+      const raw = sessionStorage.getItem("flap_utm");
+      return raw ? (JSON.parse(raw) as Record<string, string>) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const safeProps: Props = { ...(props || {}) };
+  // Never send sensitive DNS/email payloads
+  delete safeProps.domain;
+  delete safeProps.email;
+  delete safeProps.headers;
+  delete safeProps.records;
+  delete safeProps.raw;
+  if (utm) {
+    for (const [k, v] of Object.entries(utm)) {
+      if (safeProps[k] === undefined) safeProps[k] = v;
+    }
+  }
   const payload = {
     e: event,
-    p: props,
+    p: Object.keys(safeProps).length ? safeProps : undefined,
     t: Date.now(),
     s: sessionId(),
     path: typeof window !== "undefined" ? window.location.pathname : undefined,

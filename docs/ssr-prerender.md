@@ -1,14 +1,18 @@
 # SEO / prerender (not full React SSR)
 
-Flap is a **Vite SPA** deployed on **Cloudflare Workers Assets** (`not_found_handling: single-page-application`). There is no React Server Components / Node SSR pipeline.
+Flap is a **Vite SPA** deployed on **Cloudflare Workers Assets** (`not_found_handling: 404-page`). There is no React Server Components / Node SSR pipeline.
+
+Unknown marketing URLs serve `public/404.html` with HTTP 404 and `noindex` (avoids soft-404 homepage clones). Authenticated SPA routes (`/app`, `/login`, …) and known marketing paths (when a prerender shell is missing — e.g. Vite `npm run dev`) are handled by the Worker via `spa-shell.html` / index, so direct loads like `/about` work locally without changing production hard-404 behavior for unknown URLs.
 
 ## What we ship
 
 After `vite build`, `npm run prerender` (`scripts/prerender.ts`) writes static HTML shells into `dist/client/`:
 
 - `/` (updates `index.html`)
+- `/about`
 - SEO landing pages (`src/content/seo-pages.ts`)
-- Guides, DNS tools, blog index + posts
+- Guides, DNS tools (with `tool-explainers` body copy), blog index + posts
+- Pricing, docs, support, status
 - Legal (`/terms`, `/privacy`, `/billing-terms`)
 
 Each shell keeps the production JS/CSS asset tags from the SPA build, then injects:
@@ -17,7 +21,7 @@ Each shell keeps the production JS/CSS asset tags from the SPA build, then injec
 2. JSON-LD (`SoftwareApplication`, `FAQPage`, `Article`, `HowTo`, `WebApplication` as appropriate)
 3. Crawlable article HTML inside `#root` (definition, sections, FAQ, CTA)
 
-The same script regenerates `public/sitemap.xml` and `dist/client/sitemap.xml` from `src/content/sitemap.ts` (aligned with App public routes).
+The same script regenerates `public/sitemap.xml` and `dist/client/sitemap.xml` from the SEO registry (`src/content/seo-registry.ts` → `src/content/sitemap.ts`).
 
 Static discovery files in `public/` (copied to Assets by Vite):
 
@@ -25,8 +29,9 @@ Static discovery files in `public/` (copied to Assets by Vite):
 |--|--|
 | `robots.txt` | Allow marketing; disallow `/app`, `/api`, auth, settings; sitemap pointer |
 | `sitemap.xml` | Public indexable URLs + lastmod |
-| `llms.txt` | Short AI-oriented link index ([llms.txt](https://llmstxt.org/) convention) |
-| `llms-full.txt` | Longer product / pricing / page synopsis for agents |
+| `llms.txt` / `llms-full.txt` | AI-oriented summaries (generated from `shared/product-facts.ts`) |
+| `og/*.png` | Page-specific Open Graph images (1200×630 PNG; SVG sources also written) |
+| `404.html` | Hard 404 + noindex for unknown paths |
 
 Cloudflare Assets serves those files for exact paths. React still mounts client-side and replaces `#root` for interactive users.
 

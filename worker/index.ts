@@ -33,6 +33,7 @@ import { isAddressSuppressed } from "./lib/inbound-webhook";
 import { domainIsSendingReady, loadDomain } from "./lib/domain-readiness";
 import { trackServerEvent } from "./lib/analytics";
 import { InboxHub } from "./inbox-hub";
+import { isKnownClientPath, normalizePathname } from "../shared/client-routes";
 
 export { InboxHub };
 
@@ -102,6 +103,43 @@ async function serveSpaShell(c: { env: Env; req: { raw: Request; url: string } }
   });
 }
 
+/**
+ * Marketing HTML: prefer prerendered Assets shell; if missing (Vite dev / incomplete
+ * build) serve SPA index so React can route. Unknown paths under a prefix still get
+ * the hard 404 asset (`not_found_handling: 404-page`).
+ */
+async function servePrerenderOrSpa(c: { env: Env; req: { raw: Request; url: string } }) {
+  const url = new URL(c.req.url);
+  const pathname = normalizePathname(url.pathname);
+  const assetRes = await c.env.ASSETS.fetch(
+    new Request(new URL(pathname, url.origin), {
+      method: "GET",
+      headers: c.req.raw.headers,
+      redirect: "manual",
+    }),
+  );
+  if (assetRes.ok && assetRes.body) {
+    const headers = new Headers(assetRes.headers);
+    headers.set("x-flap-shell", "prerender");
+    return new Response(assetRes.body, { status: assetRes.status, headers });
+  }
+  if (isKnownClientPath(pathname)) {
+    return serveSpaShell(c);
+  }
+  // Unknown slug under /blog/* etc. — keep hard 404 HTML from Assets.
+  if (assetRes.status === 404 && assetRes.body) {
+    return new Response(assetRes.body, {
+      status: 404,
+      headers: {
+        "content-type": assetRes.headers.get("content-type") || "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-flap-shell": "hard-404",
+      },
+    });
+  }
+  return serveSpaShell(c);
+}
+
 app.get("/app", (c) => serveSpaShell(c));
 app.get("/app/", (c) => serveSpaShell(c));
 app.get("/app/*", (c) => serveSpaShell(c));
@@ -114,6 +152,36 @@ app.get("/reset-password", (c) => serveSpaShell(c));
 app.get("/invite", (c) => serveSpaShell(c));
 app.get("/invite/*", (c) => serveSpaShell(c));
 app.get("/settings/referrals", (c) => serveSpaShell(c));
+
+app.get("/about", (c) => servePrerenderOrSpa(c));
+app.get("/pricing", (c) => servePrerenderOrSpa(c));
+app.get("/support", (c) => servePrerenderOrSpa(c));
+app.get("/status", (c) => servePrerenderOrSpa(c));
+app.get("/terms", (c) => servePrerenderOrSpa(c));
+app.get("/privacy", (c) => servePrerenderOrSpa(c));
+app.get("/billing-terms", (c) => servePrerenderOrSpa(c));
+app.get("/tools", (c) => servePrerenderOrSpa(c));
+app.get("/tools/*", (c) => servePrerenderOrSpa(c));
+app.get("/docs", (c) => servePrerenderOrSpa(c));
+app.get("/docs/*", (c) => servePrerenderOrSpa(c));
+app.get("/guides", (c) => servePrerenderOrSpa(c));
+app.get("/guides/*", (c) => servePrerenderOrSpa(c));
+app.get("/blog", (c) => servePrerenderOrSpa(c));
+app.get("/blog/*", (c) => servePrerenderOrSpa(c));
+app.get("/google-workspace-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/email-hosting-for-multiple-domains", (c) => servePrerenderOrSpa(c));
+app.get("/custom-domain-email", (c) => servePrerenderOrSpa(c));
+app.get("/email-for-indie-hackers", (c) => servePrerenderOrSpa(c));
+app.get("/email-for-side-projects", (c) => servePrerenderOrSpa(c));
+app.get("/flap-vs-google-workspace", (c) => servePrerenderOrSpa(c));
+app.get("/flap-vs-zoho", (c) => servePrerenderOrSpa(c));
+app.get("/multiple-domains-one-inbox", (c) => servePrerenderOrSpa(c));
+app.get("/cloudflare-email-routing-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/hydra-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/folio-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/justemails-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/migadu-alternative", (c) => servePrerenderOrSpa(c));
+app.get("/improvmx-alternative", (c) => servePrerenderOrSpa(c));
 
 app.get("/api/health", (c) =>
   c.json({
