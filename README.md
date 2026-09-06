@@ -122,3 +122,10 @@ This is a Vite SPA on Cloudflare Assets — not full React SSR. Build-time prere
 ## Legacy rename note (`inlet` → `flap`)
 
 Older Cloudflare resources may still be named `inlet`. Current Wrangler names are **flap** (`DB`, `ATTACHMENTS`, `SEB`, `ASSETS`). If you still have an `inlet` Worker or bucket, migrate secrets/routes/objects once, then retire the old resources. Prefer keeping the existing D1 `database_id` over recreating empty.
+
+
+## Dodo billing product IDs
+
+See `docs/dodo-billing.md`. Annual products use `DODO_PRODUCT_*_ANNUAL` (−20% vs monthly).
+Customer mail is **Amazon SES**. Cloudflare runs the app (Workers / D1 / R2), not customer mailbox transport.
+IMAP is deferred to **2026-10-15** (`docs/imap-decision.md`).

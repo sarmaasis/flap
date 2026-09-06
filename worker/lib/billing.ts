@@ -382,6 +382,7 @@ export function registerBillingRoutes(app: Hono<App>) {
           id: p.id,
           name: p.name,
           price_monthly: p.price_monthly,
+          price_yearly: p.price_yearly,
           blurb: p.blurb,
           features: p.features,
           limits: p.limits,
@@ -425,12 +426,13 @@ export function registerBillingRoutes(app: Hono<App>) {
   app.post("/api/billing/checkout", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const body = (await c.req.json().catch(() => ({}))) as { plan?: string };
+    const body = (await c.req.json().catch(() => ({}))) as { plan?: string; interval?: string };
     const plan = normalizePlanId((body.plan || "").toLowerCase());
     if (plan === "free" || !PAID_PLAN_IDS.includes(plan)) {
       return c.json({ error: "Choose solo, builder, or studio." }, 400);
     }
-    const productId = productIdForPlan(plan, c.env);
+    const interval = body.interval === "year" ? "year" as const : "month" as const;
+    const productId = productIdForPlan(plan, c.env, interval) || productIdForPlan(plan, c.env, "month");
     if (!envStr(c.env.DODO_PAYMENTS_API_KEY)) {
       return c.json({
         error:

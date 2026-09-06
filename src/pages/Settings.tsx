@@ -22,6 +22,7 @@ import {
   type Webhook,
   type WebhookDelivery,
 } from "../lib/api";
+import { ThemeToggle } from "../components/ThemeProvider";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
@@ -153,6 +154,7 @@ function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const [email, setEmail] = useState("");
   const [domains, setDomains] = useState<Domain[]>([]);
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -606,7 +608,7 @@ export default function Settings() {
     try {
       const { track } = await import("../lib/analytics");
       track("checkout_started", { plan: planId });
-      const session = await api.billingCheckout(planId);
+      const session = await api.billingCheckout(planId, billingInterval);
       window.location.href = session.checkout_url;
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not start checkout.");
@@ -1162,7 +1164,7 @@ export default function Settings() {
                     <strong>IMAP / SMTP</strong>
                     <p style={{ margin: "6px 0 0" }}>
                       {deliveryInfo.imap?.note ||
-                        "IMAP/SMTP is not available yet. Use the web app and PWA. We'll announce when client access ships."}
+                        "IMAP credentials path is scheduled for 2026-10-15. Use the web app and PWA until then."}
                     </p>
                   </div>
                 </>
@@ -1395,10 +1397,44 @@ export default function Settings() {
                 </label>
               </div>
             </section>
+          
+          <div className="card mt-4 space-y-4">
+            <h3>Appearance</h3>
+            <ThemeToggle />
+            <p className="muted text-sm">Dark mode keeps Flap teal. System follows your OS.</p>
+            <h3>IMAP</h3>
+            <p className="muted text-sm">IMAP credentials are scheduled for <strong>2026-10-15</strong>. Until then use the web inbox and PWA. We do not market IMAP as available.</p>
+            <h3>AI assist (confirm only)</h3>
+            <p className="muted text-sm">Optional summaries and draft replies. Never auto-send.</p>
+            <div className="flex gap-2">
+              <button type="button" className="btn" onClick={() => void api.setAiOptIn(true).then(() => setNotice("AI opt-in enabled."))}>Enable AI</button>
+              <button type="button" className="btn ghost" onClick={() => void api.setAiOptIn(false).then(() => setNotice("AI disabled."))}>Disable</button>
+            </div>
+            <h3>Rule packs</h3>
+            <button type="button" className="btn" onClick={() => void api.ruleTemplates().then(async (r) => {
+              const first = r.templates[0];
+              if (first) await api.installRuleTemplate(first.id);
+              setNotice("Installed a starter rule pack.");
+            })}>Install starter pack</button>
+            <h3>Compose starters</h3>
+            <button type="button" className="btn" onClick={() => void api.seedTemplates("en").then(() => setNotice("Added Thanks / Pricing / Bug ack / Waitlist templates."))}>Seed domain templates</button>
+            <h3>Export trust</h3>
+            <p className="muted text-sm">30-day export window on cancel. Download .mbox anytime from Privacy tools above.</p>
+            <h3>Cancel / export policy</h3>
+            <button type="button" className="btn ghost" onClick={() => void api.trustExportPolicy().then((p) => setNotice(String(p.retention || "Export anytime.")))}>View policy</button>
+          </div>
           </>
         ) : null}
 
+        
+
         {tab === "billing" ? (
+          <>
+          <div className="mb-4 inline-flex rounded-lg border p-1 text-sm">
+            <button type="button" className={`px-3 py-1 rounded ${billingInterval==="month"?"btn":"btn ghost"}`} onClick={() => setBillingInterval("month")}>Monthly</button>
+            <button type="button" className={`px-3 py-1 rounded ${billingInterval==="year"?"btn":"btn ghost"}`} onClick={() => setBillingInterval("year")}>Annual (-20%)</button>
+          </div>
+
           <section className="settings-card">
             <div className="section-heading">
               <div>
@@ -1532,6 +1568,7 @@ export default function Settings() {
               See <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a> for renewals and cancellation.
             </p>
           </section>
+          </>
         ) : null}
 
         {tab === "team" ? (

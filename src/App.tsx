@@ -27,7 +27,11 @@ function Screen({ children }: { children: ReactNode }) {
 const SEO_PATH_SET = new Set<string>(SEO_PATHS);
 
 const DNS_TOOL_PATHS = new Set<string>(
-  TOOL_PAGES.filter((t) => t.path !== "/tools/google-workspace-cost-calculator").map((t) => t.path),
+  TOOL_PAGES.filter(
+    (t) =>
+      t.path !== "/tools/google-workspace-cost-calculator" &&
+      t.path !== "/tools/flap-vs-workspace-share",
+  ).map((t) => t.path),
 );
 
 const GUIDE_PATHS = new Set<string>(GUIDE_PAGES.map((g) => g.path));

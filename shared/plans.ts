@@ -12,12 +12,18 @@ export type PlanLimits = {
   api_keys: number;
   webhooks: number;
   team_seats: number;
+  /** Saved smart views pinned to the sidebar. */
+  saved_views: number;
+  /** Slack/Discord notify channels. */
+  notify_channels: number;
 };
 
 export type PlanDef = {
   id: PlanId;
   name: string;
   price_monthly: number;
+  /** Annual sticker = monthly * 12 * 0.8, rounded to nearest dollar. */
+  price_yearly: number;
   blurb: string;
   features: string[];
   limits: PlanLimits;
@@ -26,25 +32,40 @@ export type PlanDef = {
   branding_footer?: boolean;
 };
 
+/** Annual price: 20% off vs paying monthly. */
+export function yearlyPriceFromMonthly(monthly: number): number {
+  if (monthly <= 0) return 0;
+  return Math.round(monthly * 12 * 0.8);
+}
+
+export function monthlyEquivalentFromYearly(yearly: number): number {
+  if (yearly <= 0) return 0;
+  return Math.round((yearly / 12) * 100) / 100;
+}
+
 /**
  * Domain-first pricing for founders who keep launching products.
- * Free is a tight trial; Solo/Builder/Studio scale primarily by domain count.
- *
+ * Free is a usable trial (2 domains); Solo/Builder/Studio scale by domain count.
  * Storage quota = D1 message bodies (UTF-8) + R2 attachment bytes.
  * Send quota = successful outbound sends; resets on UTC calendar month.
+ *
+ * Pricing refresh 2026-09-06 (marketing research):
+ * Free 2 domains / 500MB / 400 sends; Solo $7 / 5 domains;
+ * Builder $19 / 20 domains (hero); Studio $39 / 40 domains / 10 seats.
  */
 export const PLANS: Record<PlanId, PlanDef> = {
   free: {
     id: "free",
     name: "Free",
     price_monthly: 0,
-    blurb: "Prove MX on one project domain.",
+    price_yearly: 0,
+    blurb: "Prove MX on two project domains.",
     features: [
-      "1 custom domain",
-      "2 mailboxes",
-      "5 aliases",
-      "25 MB storage",
-      "100 sends / month",
+      "2 custom domains",
+      "4 mailboxes",
+      "10 aliases",
+      "500 MB storage",
+      "400 sends / month",
       "Rules, contacts, signatures",
       "Export & restore",
       "1 seat (you only)",
@@ -52,74 +73,84 @@ export const PLANS: Record<PlanId, PlanDef> = {
     ],
     branding_footer: true,
     limits: {
-      domains: 1,
-      mailboxes: 2,
-      aliases: 5,
-      storage_bytes: 25 * 1024 * 1024,
-      send_per_month: 100,
+      domains: 2,
+      mailboxes: 4,
+      aliases: 10,
+      storage_bytes: 500 * 1024 * 1024,
+      send_per_month: 400,
       api_keys: 0,
       webhooks: 0,
       team_seats: 1,
+      saved_views: 3,
+      notify_channels: 0,
     },
   },
   solo: {
     id: "solo",
     name: "Solo",
-    price_monthly: 9,
+    price_monthly: 7,
+    price_yearly: yearlyPriceFromMonthly(7),
     blurb: "A few side projects, one inbox.",
     features: [
-      "3 domains",
-      "10 mailboxes",
+      "5 domains",
+      "15 mailboxes",
       "Unlimited aliases",
       "2 GB storage",
-      "500 sends / month",
+      "1,000 sends / month",
       "Catch-all",
       "No Flap footer",
+      "1 notify channel",
       "1 seat (solo)",
     ],
     limits: {
-      domains: 3,
-      mailboxes: 10,
+      domains: 5,
+      mailboxes: 15,
       aliases: 10_000,
       storage_bytes: 2 * 1024 * 1024 * 1024,
-      send_per_month: 500,
+      send_per_month: 1_000,
       api_keys: 5,
       webhooks: 3,
       team_seats: 1,
+      saved_views: 25,
+      notify_channels: 1,
     },
   },
   builder: {
     id: "builder",
     name: "Builder",
     price_monthly: 19,
+    price_yearly: yearlyPriceFromMonthly(19),
     blurb: "Serial launchers with many domains.",
     features: [
-      "10 domains",
-      "30 mailboxes",
+      "20 domains",
+      "40 mailboxes",
       "Unlimited aliases & disposables",
       "15 GB storage",
-      "2,000 sends / month",
+      "3,000 sends / month",
       "Catch-all & filters",
       "API keys + webhooks",
-      "Inbound delivery logs",
+      "Many notify channels",
       "1 seat (solo)",
     ],
     highlighted: true,
     limits: {
-      domains: 10,
-      mailboxes: 30,
+      domains: 20,
+      mailboxes: 40,
       aliases: 50_000,
       storage_bytes: 15 * 1024 * 1024 * 1024,
-      send_per_month: 2_000,
+      send_per_month: 3_000,
       api_keys: 25,
       webhooks: 15,
       team_seats: 1,
+      saved_views: 100,
+      notify_channels: 10,
     },
   },
   studio: {
     id: "studio",
     name: "Studio",
     price_monthly: 39,
+    price_yearly: yearlyPriceFromMonthly(39),
     blurb: "Studios and small teams across many brands.",
     features: [
       "40 domains",
@@ -130,7 +161,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "Up to 10 team seats",
       "Shared inboxes (support@, hello@)",
       "Mailbox delegation & roles",
-      "Export anytime (.mbox / JSON)",
+      "Priority support",
     ],
     limits: {
       domains: 40,
@@ -141,6 +172,8 @@ export const PLANS: Record<PlanId, PlanDef> = {
       api_keys: 100,
       webhooks: 50,
       team_seats: 10,
+      saved_views: 500,
+      notify_channels: 50,
     },
   },
 };
@@ -156,6 +189,9 @@ export type DodoProductEnv = {
   DODO_PRODUCT_SOLO?: string;
   DODO_PRODUCT_BUILDER?: string;
   DODO_PRODUCT_STUDIO?: string;
+  DODO_PRODUCT_SOLO_ANNUAL?: string;
+  DODO_PRODUCT_BUILDER_ANNUAL?: string;
+  DODO_PRODUCT_STUDIO_ANNUAL?: string;
   /** @deprecated → builder */
   DODO_PRODUCT_PRO?: string;
   /** @deprecated → studio */
@@ -182,16 +218,35 @@ export function planFromProductId(productId: string | null | undefined, env: Dod
   const solo = (env.DODO_PRODUCT_SOLO || env.DODO_PRODUCT_STARTER || "").trim();
   const builder = (env.DODO_PRODUCT_BUILDER || env.DODO_PRODUCT_PRO || "").trim();
   const studio = (env.DODO_PRODUCT_STUDIO || env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_BUSINESS || "").trim();
+  const soloY = (env.DODO_PRODUCT_SOLO_ANNUAL || "").trim();
+  const builderY = (env.DODO_PRODUCT_BUILDER_ANNUAL || "").trim();
+  const studioY = (env.DODO_PRODUCT_STUDIO_ANNUAL || "").trim();
   if (solo && productId === solo) return "solo";
   if (builder && productId === builder) return "builder";
   if (studio && productId === studio) return "studio";
+  if (soloY && productId === soloY) return "solo";
+  if (builderY && productId === builderY) return "builder";
+  if (studioY && productId === studioY) return "studio";
   return "free";
 }
 
-export function productIdForPlan(plan: PlanId, env: DodoProductEnv): string | null {
-  if (plan === "solo") return (env.DODO_PRODUCT_SOLO || env.DODO_PRODUCT_STARTER || "").trim() || null;
-  if (plan === "builder") return (env.DODO_PRODUCT_BUILDER || env.DODO_PRODUCT_PRO || "").trim() || null;
-  if (plan === "studio") return (env.DODO_PRODUCT_STUDIO || env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_BUSINESS || "").trim() || null;
+export function productIdForPlan(
+  plan: PlanId,
+  env: DodoProductEnv,
+  interval: "month" | "year" = "month",
+): string | null {
+  if (plan === "solo") {
+    if (interval === "year") return (env.DODO_PRODUCT_SOLO_ANNUAL || "").trim() || null;
+    return (env.DODO_PRODUCT_SOLO || env.DODO_PRODUCT_STARTER || "").trim() || null;
+  }
+  if (plan === "builder") {
+    if (interval === "year") return (env.DODO_PRODUCT_BUILDER_ANNUAL || "").trim() || null;
+    return (env.DODO_PRODUCT_BUILDER || env.DODO_PRODUCT_PRO || "").trim() || null;
+  }
+  if (plan === "studio") {
+    if (interval === "year") return (env.DODO_PRODUCT_STUDIO_ANNUAL || "").trim() || null;
+    return (env.DODO_PRODUCT_STUDIO || env.DODO_PRODUCT_TEAM || env.DODO_PRODUCT_BUSINESS || "").trim() || null;
+  }
   return null;
 }
 
@@ -219,6 +274,7 @@ export function savingsVsGoogle(domains: number, usersPerDomain = 1) {
     users_per_domain: Math.max(1, Math.floor(usersPerDomain)),
     google_monthly: google,
     flap_monthly: flap.price_monthly,
+    flap_yearly: flap.price_yearly,
     flap_plan_id: flap.id,
     flap_plan_name: flap.name,
     savings_monthly: monthly,

@@ -72,8 +72,11 @@ export function registerDnsToolRoutes(app: Hono<App>) {
   app.post("/api/tools/dns-check", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { domain?: string; tool?: string; selector?: string };
     const tool = (body.tool || "mx").toLowerCase();
-    if (!["mx", "spf", "dmarc", "dkim", "setup"].includes(tool)) {
-      return c.json({ error: "Unknown tool. Use mx, spf, dmarc, dkim, or setup." }, 400);
+    const ALLOWED = [
+      "mx","spf","dmarc","dkim","setup","bimi","mta-sts","ptr","ns","propagation","rbl","catchall","scorecard","smtp-banner"
+    ];
+    if (!ALLOWED.includes(tool)) {
+      return c.json({ error: "Unknown tool." }, 400);
     }
     const domain = normalizeDomainInput(body.domain || "");
     if (!DOMAIN_RE.test(domain)) return c.json({ error: "Enter a valid domain name." }, 400);
@@ -178,6 +181,157 @@ export function registerDnsToolRoutes(app: Hono<App>) {
             : "No DKIM CNAME or SES verification TXT found. Copy exact values from Flap Settings → Setup.",
           records: results,
           raw: results,
+        });
+      }
+
+
+      if (tool === "bimi") {
+        const data = await dohQuery(`default._bimi.${domain}`, "TXT");
+        const texts = txtValues(data.Answer);
+        const bimi = texts.filter((t) => /v=BIMI1/i.test(t));
+        return c.json({
+          tool, domain, ok: bimi.length > 0, status: bimi.length ? "valid" : "invalid",
+          summary: bimi.length ? "BIMI TXT found at default._bimi." : "No BIMI record. Publish default._bimi TXT after DMARC enforcement.",
+          records: bimi, raw: texts,
+        });
+      }
+
+      if (tool === "mta-sts") {
+        const [sts, tls] = await Promise.all([
+          dohQuery(`_mta-sts.${domain}`, "TXT"),
+          dohQuery(`_smtp._tls.${domain}`, "TXT"),
+        ]);
+        const stsTxt = txtValues(sts.Answer).filter((t) => /v=STSv1/i.test(t));
+        const tlsTxt = txtValues(tls.Answer).filter((t) => /v=TLSRPTv1/i.test(t));
+        return c.json({
+          tool, domain,
+          ok: stsTxt.length > 0,
+          status: stsTxt.length && tlsTxt.length ? "valid" : stsTxt.length ? "partial" : "invalid",
+          summary: stsTxt.length
+            ? "MTA-STS TXT present. Also host https://mta-sts." + domain + "/.well-known/mta-sts.txt"
+            : "No _mta-sts TXT. Add STSv1 policy id and host the policy file.",
+          records: { mta_sts: stsTxt, tlsrpt: tlsTxt },
+        });
+      }
+
+      if (tool === "ptr") {
+        const ip = domain; // allow IP in domain field for PTR
+        const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(ip);
+        if (!isIp) {
+          // resolve A then PTR
+          const a = await dohQuery(domain, "A");
+          const addrs = (a.Answer ?? []).filter((x) => x.type === 1).map((x) => x.data);
+          if (!addrs.length) return c.json({ tool, domain, ok: false, status: "invalid", summary: "No A record to reverse-lookup.", records: [] });
+          const first = addrs[0];
+          const rev = first.split(".").reverse().join(".") + ".in-addr.arpa";
+          const ptr = await dohQuery(rev, "PTR");
+          const names = (ptr.Answer ?? []).filter((x) => x.type === 12).map((x) => x.data.replace(/\.$/, ""));
+          return c.json({ tool, domain, ok: names.length > 0, status: names.length ? "valid" : "invalid", summary: names.length ? `PTR for ${first}: ${names.join(", ")}` : `No PTR for ${first}.`, records: names, ip: first });
+        }
+        const rev = ip.split(".").reverse().join(".") + ".in-addr.arpa";
+        const ptr = await dohQuery(rev, "PTR");
+        const names = (ptr.Answer ?? []).filter((x) => x.type === 12).map((x) => x.data.replace(/\.$/, ""));
+        return c.json({ tool, domain: ip, ok: names.length > 0, status: names.length ? "valid" : "invalid", summary: names.length ? `PTR: ${names.join(", ")}` : "No PTR found.", records: names });
+      }
+
+      if (tool === "ns") {
+        const ns = await dohQuery(domain, "NS");
+        const nameservers = (ns.Answer ?? []).filter((a) => a.type === 2).map((a) => a.data.replace(/\.$/, "").toLowerCase());
+        const provider = detectDnsProvider(nameservers);
+        return c.json({
+          tool, domain, ok: nameservers.length > 0, status: nameservers.length ? "valid" : "invalid",
+          summary: nameservers.length ? `Nameservers via ${provider}.` : "No NS records.",
+          records: nameservers, provider, whois_hint: `https://who.is/whois/${domain}`,
+        });
+      }
+
+      if (tool === "propagation") {
+        const resolvers = [
+          { name: "cloudflare", url: "https://cloudflare-dns.com/dns-query" },
+          { name: "google", url: "https://dns.google/resolve" },
+        ];
+        const results = [];
+        for (const r of resolvers) {
+          const url = `${r.url}?name=${encodeURIComponent(domain)}&type=MX`;
+          const res = await fetch(url, { headers: { Accept: "application/dns-json" }, signal: AbortSignal.timeout(8000) });
+          const data = await res.json() as { Answer?: DnsAnswer[] };
+          results.push({ resolver: r.name, mx: parseMxRecords(data.Answer) });
+        }
+        const same = JSON.stringify(results[0]?.mx) === JSON.stringify(results[1]?.mx);
+        return c.json({
+          tool, domain, ok: true, status: same ? "valid" : "partial",
+          summary: same ? "MX looks consistent across Cloudflare and Google resolvers." : "MX differs between resolvers — propagation in progress.",
+          records: results,
+        });
+      }
+
+      if (tool === "rbl") {
+        const a = await dohQuery(domain, "A");
+        const ips = (a.Answer ?? []).filter((x) => x.type === 1).map((x) => x.data);
+        if (!ips.length) return c.json({ tool, domain, ok: false, status: "invalid", summary: "No A record to check RBLs against.", records: [] });
+        const ip = ips[0];
+        const rev = ip.split(".").reverse().join(".");
+        const lists = ["zen.spamhaus.org", "bl.spamcop.net", "b.barracudacentral.org"];
+        const hits = [];
+        for (const list of lists) {
+          try {
+            const q = await dohQuery(`${rev}.${list}`, "A");
+            const listed = (q.Answer ?? []).some((x) => x.type === 1);
+            hits.push({ list, listed });
+          } catch {
+            hits.push({ list, listed: false, error: true });
+          }
+        }
+        const any = hits.some((h) => h.listed);
+        return c.json({
+          tool, domain, ok: !any, status: any ? "invalid" : "valid",
+          summary: any ? `${ip} appears on one or more RBLs.` : `${ip} not listed on checked RBLs (sample).`,
+          records: hits, ip,
+        });
+      }
+
+      if (tool === "catchall") {
+        const mx = await dohQuery(domain, "MX");
+        const mxParsed = parseMxRecords(mx.Answer);
+        return c.json({
+          tool, domain, ok: mxParsed.length > 0, status: mxParsed.length ? "partial" : "invalid",
+          summary: mxParsed.length
+            ? "MX exists. Catch-all cannot be proven from DNS alone. Use Flap plus-address tester or send to a random local-part after MX points at Flap."
+            : "No MX — catch-all cannot work yet.",
+          records: mxParsed.map((r) => `${r.priority} ${r.exchange}`),
+          detector: "dns_hint_only",
+        });
+      }
+
+      if (tool === "scorecard") {
+        const [mx, spf, dmarc] = await Promise.all([
+          dohQuery(domain, "MX"),
+          dohQuery(domain, "TXT"),
+          dohQuery(`_dmarc.${domain}`, "TXT"),
+        ]);
+        const mxParsed = parseMxRecords(mx.Answer);
+        const spfRecords = txtValues(spf.Answer).filter((t) => /^v=spf1\b/i.test(t));
+        const dmarcRecords = txtValues(dmarc.Answer).filter((t) => /^v=DMARC1\b/i.test(t));
+        let score = 0;
+        if (mxParsed.length) score += 30;
+        if (mxParsed.some((r) => isFlapMx(r.exchange))) score += 15;
+        if (spfRecords.length) score += 25;
+        if (spfRecords.some((t) => isFlapSpf(t))) score += 10;
+        if (dmarcRecords.length) score += 20;
+        const grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 55 ? "C" : score >= 35 ? "D" : "F";
+        return c.json({
+          tool, domain, ok: score >= 55, status: grade, score, grade,
+          summary: `Deliverability scorecard ${grade} (${score}/100) based on MX/SPF/DMARC presence.`,
+          records: { mx: mxParsed, spf: spfRecords, dmarc: dmarcRecords },
+        });
+      }
+
+      if (tool === "smtp-banner") {
+        return c.json({
+          tool, domain, ok: true, status: "partial",
+          summary: "Safe SMTP banner probe is limited on Workers (no raw TCP). Use your host's port-25 check or Flap after MX cutover. We never send mail from this tool.",
+          records: [],
+          safe: true,
         });
       }
 

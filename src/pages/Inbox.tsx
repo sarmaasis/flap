@@ -17,6 +17,9 @@ import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/f
 import { go } from "../lib/nav";
 import AppShell, { FOLDERS } from "../components/AppShell";
 import CommandPalette from "../components/CommandPalette";
+import PwaInstallPrompt from "../components/PwaInstallPrompt";
+import ProjectWizard from "../components/ProjectWizard";
+import { ThemeToggle } from "../components/ThemeProvider";
 import MessageReader from "../components/MessageReader";
 import type { ComposeDraft } from "./Compose";
 
@@ -55,6 +58,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [domainUnread, setDomainUnread] = useState<Record<string, number>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [undoToast, setUndoToast] = useState<{ id: string; seconds: number } | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [showCompose, setShowCompose] = useState(Boolean(composeOpen));
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | null>(null);
   const [email, setEmail] = useState("");
@@ -947,6 +951,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </div>
       ) : null}
+      <PwaInstallPrompt ready={domains.length > 0} />
+      <ProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
+      <div className="fixed bottom-3 left-3 z-40 hidden md:block"><ThemeToggle /></div>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

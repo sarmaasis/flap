@@ -99,3 +99,8 @@ DODO_PRODUCT_BUSINESS=
 # SES inbound: https://useflap.online/api/inbound/ses
 # OAuth callbacks: https://useflap.online/api/auth/callback/google
 #                  https://useflap.online/api/auth/callback/github
+
+# Annual Dodo products (−20%)
+# DODO_PRODUCT_SOLO_ANNUAL=
+# DODO_PRODUCT_BUILDER_ANNUAL=
+# DODO_PRODUCT_STUDIO_ANNUAL=

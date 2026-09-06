@@ -244,10 +244,10 @@ export const api = {
   me: () => req<{ user: User; mailboxes: Mailbox[] }>("/api/me"),
   billingPlans: () => req<BillingPlansResponse>("/api/billing/plans"),
   billingSubscription: () => req<BillingSubscription>("/api/billing/subscription"),
-  billingCheckout: (plan: string) =>
+  billingCheckout: (plan: string, interval: "month" | "year" = "month") =>
     req<{ checkout_url: string; session_id: string }>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, interval }),
     }),
   billingPortal: () =>
     req<{ portal_url: string }>("/api/billing/portal", { method: "POST", body: "{}" }),
@@ -437,6 +437,45 @@ export const api = {
     a.click();
     URL.revokeObjectURL(url);
   },
+  // Mega feature APIs
+  savedViews: () => req<{ views: Array<{ id: string; name: string; query_json: string; pinned: number }> }>("/api/saved-views"),
+  createSavedView: (body: { name: string; query?: Record<string, unknown> }) =>
+    req<{ view: { id: string } }>("/api/saved-views", { method: "POST", body: JSON.stringify(body) }),
+  deleteSavedView: (id: string) => req<{ ok: boolean }>(`/api/saved-views/${id}`, { method: "DELETE" }),
+  disposables: () => req<{ disposables: unknown[] }>("/api/disposables"),
+  createDisposable: (body: Record<string, unknown>) =>
+    req<{ disposable: { id: string; address: string; share_url: string } }>("/api/disposables", { method: "POST", body: JSON.stringify(body) }),
+  notifyChannels: () => req<{ channels: unknown[] }>("/api/notify-channels"),
+  createNotifyChannel: (body: Record<string, unknown>) =>
+    req<{ channel: { id: string } }>("/api/notify-channels", { method: "POST", body: JSON.stringify(body) }),
+  deleteNotifyChannel: (id: string) => req<{ ok: boolean }>(`/api/notify-channels/${id}`, { method: "DELETE" }),
+  prefsExtra: () => req<{ prefs: Record<string, unknown>; imap: { status: string; target_date: string; note: string } }>("/api/settings/prefs-extra"),
+  setTheme: (theme: string) => req<{ ok: boolean }>("/api/settings/theme", { method: "POST", body: JSON.stringify({ theme }) }),
+  setAiOptIn: (enabled: boolean) => req<{ ok: boolean }>("/api/settings/ai-opt-in", { method: "POST", body: JSON.stringify({ enabled }) }),
+  aiSummarize: (message_id: string) =>
+    req<{ summary: string; draft_reply: string; confirm_required: boolean }>("/api/ai/summarize", { method: "POST", body: JSON.stringify({ message_id }) }),
+  parkDomain: (id: string, parked: boolean, mode?: string) =>
+    req<{ ok: boolean }>(`/api/domains/${id}/park`, { method: "POST", body: JSON.stringify({ parked, mode }) }),
+  deliverabilityDashboard: () => req<Record<string, unknown>>("/api/deliverability/dashboard"),
+  preMxTest: (id: string) => req<Record<string, unknown>>(`/api/domains/${id}/pre-mx-test`, { method: "POST", body: "{}" }),
+  ruleTemplates: () => req<{ templates: Array<{ id: string; slug: string; name: string; description: string }> }>("/api/rule-templates"),
+  installRuleTemplate: (id: string) => req<{ ok: boolean }>(`/api/rule-templates/${id}/install`, { method: "POST", body: "{}" }),
+  seedTemplates: (locale = "en") =>
+    req<{ ok: boolean }>("/api/templates/seed-domain", { method: "POST", body: JSON.stringify({ locale }) }),
+  plusAddress: (mailbox_id: string, tag: string) =>
+    req<{ address: string }>("/api/plus-addresses", { method: "POST", body: JSON.stringify({ mailbox_id, tag }) }),
+  referralAfterVerify: () => req<{ title: string; share_url: string; share_text: string }>("/api/referrals/after-verify"),
+  trustExportPolicy: () => req<Record<string, unknown>>("/api/trust/export-policy"),
+  presence: (threadKey: string) =>
+    req<{ viewers: Array<{ user_id: string; display_name: string }> }>(`/api/presence/${encodeURIComponent(threadKey)}`, { method: "POST", body: "{}" }),
+  assignMail: (id: string, assignee_user_id: string | null) =>
+    req<{ ok: boolean }>(`/api/mail/${id}/assign`, { method: "POST", body: JSON.stringify({ assignee_user_id }) }),
+  auditLog: () => req<{ entries: unknown[] }>("/api/audit-log"),
+  migrateCfRouting: (body: Record<string, unknown>) =>
+    req<Record<string, unknown>>("/api/migrate/cf-routing", { method: "POST", body: JSON.stringify(body) }),
+  wizardNewProject: (body: Record<string, unknown>) =>
+    req<Record<string, unknown>>("/api/wizard/new-project", { method: "POST", body: JSON.stringify(body) }),
+
   exportMbox: async () => {
     const res = await fetch("/api/export?format=mbox", { credentials: "same-origin" });
     if (!res.ok) throw new Error("Could not export mailbox as .mbox.");
