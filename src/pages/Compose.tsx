@@ -70,6 +70,7 @@ export default function Compose({
   const [scheduleAt, setScheduleAt] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
   const [suggest, setSuggest] = useState<"to" | "cc" | "bcc" | null>(null);
+  const [unlockFrom, setUnlockFrom] = useState(false);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const defaultSig = signatures.find((item) => item.is_default) ?? signatures[0];
@@ -89,9 +90,12 @@ export default function Compose({
     else if (!from && mailboxes[0]) setFrom(mailboxes[0].address);
   }, [from, mailboxes, sendableMailboxes]);
 
-  const identityLocked = (draft?.mode === "reply" || draft?.mode === "forward") && Boolean(draft?.from);
+  const identityLocked = (draft?.mode === "reply" || draft?.mode === "forward") && Boolean(draft?.from) && !unlockFrom;
   const fromMailbox = mailboxes.find((m) => m.address === from) ?? sendableMailboxes.find((m) => m.address === from);
   const fromDomain = domains.find((d) => d.id === fromMailbox?.domain_id);
+  const domainStyle = fromDomain?.color
+    ? ({ ["--domain-color"]: fromDomain.color } as CSSProperties)
+    : undefined;
   const fromOptions = useMemo(() => {
     if (!from || sendableMailboxes.some((m) => m.address === from)) return sendableMailboxes;
     const extra = mailboxes.find((m) => m.address === from);
@@ -255,12 +259,24 @@ export default function Compose({
         </div>
       ) : (
         <div
-          className={`compose-from-row${identityLocked ? " compose-from-identity" : ""}`}
-          style={identityLocked && fromDomain?.color ? ({ ["--domain-color"]: fromDomain.color } as CSSProperties) : undefined}
+          className={`compose-from-row${identityLocked ? " compose-from-identity" : fromDomain?.color ? " compose-from-tinted" : ""}`}
+          style={domainStyle}
         >
           <div className="field" style={{ marginBottom: 0, flex: 1 }}>
             <label htmlFor="from">From</label>
             {identityLocked ? (
+              <div className="compose-from-locked">
+                <span
+                  className="domain-swatch"
+                  aria-hidden
+                  style={{ background: fromDomain?.color || "var(--muted)" }}
+                />
+                <span id="from">{from}</span>
+                <button type="button" className="text-button" onClick={() => setUnlockFrom(true)}>
+                  Change
+                </button>
+              </div>
+            ) : (
               <div className="compose-from-pill">
                 <span
                   className="domain-swatch"
@@ -279,18 +295,6 @@ export default function Compose({
                   })}
                 </select>
               </div>
-            ) : (
-              <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }}>
-                {sendableMailboxes.map((m) => {
-                  const d = domains.find((x) => x.id === m.domain_id);
-                  const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
-                  return (
-                    <option key={m.id} value={m.address}>
-                      {d?.name ? `${label} (${d.name})` : label}
-                    </option>
-                  );
-                })}
-              </select>
             )}
           </div>
           <button type="button" className="text-button" onClick={() => setShowCc((v) => !v)}>{showCc ? "Hide Cc/Bcc" : "Cc/Bcc"}</button>
@@ -384,7 +388,12 @@ export default function Compose({
 
   if (variant === "pane") {
     return (
-      <div className="compose-pane" role="region" aria-label={title}>
+      <div
+        className={`compose-pane${fromDomain?.color ? " compose-shell-identity" : ""}`}
+        role="region"
+        aria-label={title}
+        style={domainStyle}
+      >
         {form}
       </div>
     );
@@ -392,7 +401,9 @@ export default function Compose({
 
   return (
     <div className="modal-back" role="dialog" aria-modal="true">
-      <div className="modal">{form}</div>
+      <div className={`modal${fromDomain?.color ? " compose-shell-identity" : ""}`} style={domainStyle}>
+        {form}
+      </div>
     </div>
   );
 }

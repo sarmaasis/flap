@@ -17,6 +17,7 @@ import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/f
 import { go } from "../lib/nav";
 import AppShell, { FOLDERS } from "../components/AppShell";
 import CommandPalette from "../components/CommandPalette";
+import MessageReader from "../components/MessageReader";
 import type { ComposeDraft } from "./Compose";
 
 const Compose = lazy(() => import("./Compose"));
@@ -64,12 +65,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [thread, setThread] = useState<MailSummary[]>([]);
   const [notifyBrowser, setNotifyBrowser] = useState(false);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [copyNotice, setCopyNotice] = useState("");
   const lastUnreadRef = useRef<number | null>(null);
   const pollBusyRef = useRef(false);
   /** When true, selected id is for draft/scheduled compose — do not load the reader. */
@@ -156,6 +155,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       setMessage(null);
       setAtts([]);
       setThread([]);
+      setNoteDraft("");
       return;
     }
     // Drafts/scheduled open in the composer pane by design — skip the message reader.
@@ -168,6 +168,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     }
     const ac = new AbortController();
     setLoadingMessage(true);
+    setNoteDraft("");
     api.message(selected, ac.signal)
       .then(async (d) => {
         setMessage(d.message);
@@ -264,12 +265,6 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    if (!copyNotice) return;
-    const t = window.setTimeout(() => setCopyNotice(""), 1800);
-    return () => window.clearTimeout(t);
-  }, [copyNotice]);
-
   const title = useMemo(() => FOLDERS.find((f) => f.id === folder)?.label ?? "Inbox", [folder]);
   const visibleList = useMemo(
     () => (unreadOnly ? list.filter((m) => m.unread) : list),
@@ -290,9 +285,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   async function copyText(value: string, label = "Copied") {
     try {
       await navigator.clipboard.writeText(value);
-      setCopyNotice(label);
+      setToast({ title: label, body: value });
     } catch {
-      setCopyNotice("Could not copy");
+      setErr("Could not copy.");
     }
   }
 
@@ -366,7 +361,6 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
 
   async function snooze(id: string, until: number) {
     await api.flags(id, { snooze_until: until });
-    setSnoozeOpen(false);
     if (selected === id) setSelected(null);
     await Promise.all([loadList(), refreshBootstrap().catch(() => undefined)]);
   }
@@ -685,7 +679,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               visibleList.map((m) => {
                 const mb = mailboxes.find((item) => item.id === m.mailbox_id);
                 const domain = domains.find((d) => d.id === mb?.domain_id);
-                const via = mb?.address || domain?.name || undefined;
+                const via = domain?.name || mb?.address || undefined;
                 return (
                 <MessageRow
                   key={m.id}
@@ -774,224 +768,78 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           ) : (
             <>
               <button type="button" className="mobile-back" onClick={() => setSelected(null)}>Back to {title}</button>
-              <article className="read-card">
-              <div className="read-head">
-                <div className="read-subject-row">
-                  <h2>{message.subject || "(no subject)"}</h2>
-                  <span className="read-date">{fmtDate(message.date_ms)}</span>
-                </div>
-                <div className="sender-card">
-                  <span className="mail-avatar large" aria-hidden>{initials(message.from_addr)}</span>
-                  <div>
-                    <strong>{senderName(message.from_addr)}</strong>
-                    <div className="read-kv">{message.from_addr || "(unknown)"} <span>→</span> {message.to_addr || "(unknown)"}</div>
-                    {message.cc_addr ? <div className="read-kv">Cc {message.cc_addr}</div> : null}
-                  </div>
-                  <div className="sender-actions">
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => void copyText(extractEmail(message.from_addr) || message.from_addr, "Sender copied")}
-                    >
-                      Copy sender
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => {
-                        const frame = document.querySelector<HTMLIFrameElement>(".message-frame");
-                        if (frame?.contentWindow) frame.contentWindow.print();
-                        else window.print();
-                      }}
-                    >
-                      Print
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {copyNotice ? <p className="muted" style={{ margin: "8px 0 0" }}>{copyNotice}</p> : null}
-              {thread.length > 1 ? (
-                <div className="thread-rail" aria-label="Conversation">
-                  <div className="thread-rail-title">Thread · {thread.length}</div>
-                  {thread.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`thread-item${item.id === message.id ? " active" : ""}`}
-                      onClick={() => setSelected(item.id)}
-                    >
-                      <span>
-                        <strong>{item.subject || "(no subject)"}</strong>
-                        {senderName(item.from_addr)}
-                      </span>
-                      <span>{fmtDate(item.date_ms)}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <div className="read-actions">
-                <button type="button" className="btn" onClick={() => reply(false)}>Reply</button>
-                <button type="button" className="btn btn-ghost" onClick={() => reply(true)}>Reply all</button>
-                <button type="button" className="btn btn-ghost" onClick={forward}>Forward</button>
-                <button type="button" className="btn btn-ghost" onClick={() => void toggleStar(message)}>{message.starred ? "Unstar" : "Star"}</button>
-                <button type="button" className="btn btn-ghost" onClick={() => {
-                  void api.flags(message.id, { unread: true }).then(() => {
-                    setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, unread: 1 } : item)));
-                    setMessage({ ...message, unread: 1 });
-                  });
-                }}>Mark unread</button>
-                <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "archive")}>Archive</button>
-                <button type="button" className="btn btn-ghost" onClick={() => setSnoozeOpen((v) => !v)}>Snooze</button>
-                {folder !== "spam" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "spam")}>Spam</button> : null}
-                {folder === "trash" ? (
-                  <button type="button" className="btn btn-danger" onClick={() => void discardMail(message.id, folder)}>Delete forever</button>
-                ) : (
-                  <button type="button" className="btn btn-ghost" onClick={() => void discardMail(message.id, folder)}>Delete</button>
-                )}
-                {folder !== "inbox" && folder !== "starred" && folder !== "snoozed" ? <button type="button" className="btn btn-ghost" onClick={() => void move(message.id, "inbox")}>Move to Inbox</button> : null}
-                <button type="button" className="btn btn-ghost" onClick={() => { void api.block(extractEmail(message.from_addr)).then(() => move(message.id, "spam")); }}>Block sender</button>
-              </div>
-              {snoozeOpen ? (
-                <div className="snooze-row">
-                  <button type="button" className="btn btn-ghost" onClick={() => void snooze(message.id, Date.now() + 3 * 60 * 60 * 1000)}>In 3 hours</button>
-                  <button type="button" className="btn btn-ghost" onClick={() => void snooze(message.id, Date.now() + 24 * 60 * 60 * 1000)}>Tomorrow</button>
-                  <button type="button" className="btn btn-ghost" onClick={() => void snooze(message.id, Date.now() + 7 * 24 * 60 * 60 * 1000)}>Next week</button>
-                </div>
-              ) : null}
-              {message.html_body ? (
-                <iframe
-                  title="Message body"
-                  sandbox=""
-                  srcDoc={message.html_body}
-                  className="message-frame"
-                />
-              ) : (
-                <div className="body-text">{message.text_body || ""}</div>
-              )}
-              {atts.length > 0 ? (
-                <div className="att-list">
-                  {atts.map((a) => (
-                    <a key={a.id} href={`/api/mail/${message.id}/attachments/${a.id}`}>
-                      {a.filename} ({Math.ceil(a.size / 1024)} KB)
-                    </a>
-                  ))}
-                </div>
-              ) : message.has_attachments ? (
-                <p className="muted">This message had attachments, but R2 is not bound so files were not stored.</p>
-              ) : null}
-              <div className="collab-panel">
-                <h3>Organize</h3>
-                {message.label ? (
-                  <div className="label-chip-row">
-                    <span className="label-chip">{message.label}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => {
-                        void api.clearMessageLabel(message.id).then(() => {
-                          setMessage({ ...message, label: "" });
-                          setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: "" } : item)));
-                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not clear label."));
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                ) : null}
-                <form
-                  className="row-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const form = e.currentTarget;
-                    const input = form.elements.namedItem("newlabel") as HTMLInputElement;
-                    const name = (input?.value || "").trim();
-                    if (!name) return;
-                    void api.addMessageLabel(message.id, { name }).then((r) => {
-                      setMessage({ ...message, label: r.name });
-                      setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: r.name } : item)));
-                      input.value = "";
-                      return api.labels().then((l) => setLabels(l.labels));
-                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not label."));
-                  }}
-                >
-                  <select
-                    id="message-label-select"
-                    aria-label="Add label"
-                    value=""
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      e.target.value = "";
-                      if (!name) return;
+              {(() => {
+                const mb = mailboxes.find((item) => item.id === message.mailbox_id);
+                const domain = domains.find((d) => d.id === mb?.domain_id);
+                return (
+                  <MessageReader
+                    message={message}
+                    folder={folder}
+                    attachments={atts}
+                    thread={thread}
+                    labels={labels}
+                    notes={notes}
+                    noteDraft={noteDraft}
+                    onNoteDraftChange={setNoteDraft}
+                    domainName={domain?.name || mb?.address}
+                    domainColor={domain?.color || undefined}
+                    teamsUnlocked={teamsUnlocked}
+                    teamMembers={teamMembers}
+                    onSelectThread={setSelected}
+                    onReply={reply}
+                    onForward={forward}
+                    onArchive={() => void move(message.id, "archive")}
+                    onToggleStar={() => void toggleStar(message)}
+                    onMarkUnread={() => {
+                      void api.flags(message.id, { unread: true }).then(() => {
+                        setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, unread: 1 } : item)));
+                        setMessage({ ...message, unread: 1 });
+                      });
+                    }}
+                    onSnooze={(until) => void snooze(message.id, until)}
+                    onSpam={() => void move(message.id, "spam")}
+                    onDelete={() => void discardMail(message.id, folder)}
+                    onMoveInbox={() => void move(message.id, "inbox")}
+                    onBlockSender={() => {
+                      void api.block(extractEmail(message.from_addr)).then(() => move(message.id, "spam"));
+                    }}
+                    onCopySender={() => {
+                      void copyText(extractEmail(message.from_addr) || message.from_addr, "Sender copied");
+                    }}
+                    onPrint={() => {
+                      const frame = document.querySelector<HTMLIFrameElement>(".message-frame");
+                      if (frame?.contentWindow) frame.contentWindow.print();
+                      else window.print();
+                    }}
+                    onApplyLabel={(name) => {
                       void api.addMessageLabel(message.id, { name }).then((r) => {
                         setMessage({ ...message, label: r.name });
                         setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: r.name } : item)));
                         return api.labels().then((l) => setLabels(l.labels));
                       }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not label."));
                     }}
-                  >
-                    <option value="">Add existing…</option>
-                    {labels.map((l) => (
-                      <option key={l.id} value={l.name}>{l.name}</option>
-                    ))}
-                    {!labels.some((l) => l.name === "Follow-up") ? <option value="Follow-up">Follow-up</option> : null}
-                    {!labels.some((l) => l.name === "Customer") ? <option value="Customer">Customer</option> : null}
-                  </select>
-                  <input name="newlabel" placeholder="New label" maxLength={48} />
-                  <button className="btn" type="submit">Apply</button>
-                </form>
-                {teamsUnlocked ? (
-                  <div className="list-toolbar" style={{ marginTop: 10 }}>
-                    <select
-                      aria-label="Assign"
-                      value={message.assignee_user_id || ""}
-                      onChange={(e) => {
-                        const user_id = e.target.value || null;
-                        void api.assignMessage(message.id, user_id).then(() => {
-                          setMessage({ ...message, assignee_user_id: user_id });
-                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not assign."));
-                      }}
-                    >
-                      <option value="">Unassigned</option>
-                      {teamMembers.map((m) => (
-                        <option key={m.user_id} value={m.user_id}>{m.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-                    Need teammates on a thread?{" "}
-                    <button type="button" className="text-button" onClick={() => go("/app/settings?tab=billing")}>
-                      Assignment is on Studio
-                    </button>
-                  </p>
-                )}
-                {message.plus_tag ? <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>Plus-tag: +{message.plus_tag}</p> : null}
-                <h3 style={{ marginTop: 14 }}>Notes</h3>
-                <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Private to your workspace — never emailed.</p>
-                <ul className="note-list">
-                  {notes.map((n) => (
-                    <li key={n.id}>
-                      <div>{n.body}</div>
-                      <div className="muted">{n.author_email || "you"} · {new Date(n.created_at).toLocaleString()}</div>
-                    </li>
-                  ))}
-                </ul>
-                <form
-                  className="row-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!noteDraft.trim()) return;
-                    void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
-                      setNotes((prev) => [...prev, r.note]);
-                      setNoteDraft("");
-                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
-                  }}
-                >
-                  <input placeholder="Add a private note" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
-                  <button className="btn" type="submit">Add</button>
-                </form>
-              </div>
-              </article>
+                    onClearLabel={() => {
+                      void api.clearMessageLabel(message.id).then(() => {
+                        setMessage({ ...message, label: "" });
+                        setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: "" } : item)));
+                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not clear label."));
+                    }}
+                    onAssign={(user_id) => {
+                      void api.assignMessage(message.id, user_id).then(() => {
+                        setMessage({ ...message, assignee_user_id: user_id });
+                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not assign."));
+                    }}
+                    onAddNote={() => {
+                      if (!noteDraft.trim()) return;
+                      void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
+                        setNotes((prev) => [...prev, r.note]);
+                        setNoteDraft("");
+                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
+                    }}
+                    onOpenBilling={() => go("/app/settings?tab=billing")}
+                  />
+                );
+              })()}
             </>
           )}
         </section>
@@ -1166,7 +1014,9 @@ const MessageRow = memo(function MessageRow({
         </div>
         <div className="mail-summary">
           <div className="subj">{row.subject || "(no subject)"}</div>
-          <span className="message-chip">{row.label || (row.has_attachments ? "Attachment" : row.folder === "drafts" ? "Draft" : "Message")}</span>
+          {row.label ? <span className="message-chip chip-label">{row.label}</span> : null}
+          {!row.label && row.has_attachments ? <span className="message-chip">Attachment</span> : null}
+          {!row.label && !row.has_attachments && row.folder === "drafts" ? <span className="message-chip">Draft</span> : null}
         </div>
         {row.snippet ? <div className="preview">{row.snippet}</div> : null}
       </button>
