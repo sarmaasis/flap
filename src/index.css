@@ -663,8 +663,6 @@ textarea { min-height: 160px; resize: vertical; }
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 64px;
   position: relative;
 }
 
@@ -697,7 +695,6 @@ textarea { min-height: 160px; resize: vertical; }
 }
 
 .msg-meta {
-  grid-column: 2;
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -707,7 +704,8 @@ textarea { min-height: 160px; resize: vertical; }
   font-family: var(--font-mono);
 }
 
-.mail-summary { grid-column: 2; display: flex; min-width: 0; align-items: center; gap: 8px; }
+.mail-summary { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.msg-row-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .subj { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .message-chip {
   flex: 0 0 auto;
@@ -730,7 +728,6 @@ textarea { min-height: 160px; resize: vertical; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  grid-column: 2;
 }
 
 .read-pane {
@@ -1454,8 +1451,9 @@ textarea { min-height: 160px; resize: vertical; }
 .list-body { flex: 1; min-height: 0; overflow-y: auto; }
 .msg-row-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   column-gap: 10px;
+  align-items: start;
   width: 100%;
   border: 0;
   background: transparent;
@@ -1465,6 +1463,9 @@ textarea { min-height: 160px; resize: vertical; }
   color: inherit;
 }
 @media (min-width: 901px) {
+  .msg-row-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .msg-row-main .mail-avatar { display: none; }
 }
 .star-btn {

@@ -270,6 +270,16 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     () => (unreadOnly ? list.filter((m) => m.unread) : list),
     [list, unreadOnly],
   );
+  const headerCount = useMemo(() => {
+    if (qDebounced || mailbox || domainFilter || unreadOnly) return visibleList.length;
+    const badge = counts[folder];
+    if (!badge) return visibleList.length;
+    // Same number the sidebar shows for this folder (deduped server counts).
+    if (folder === "inbox" || folder === "drafts" || folder === "scheduled") {
+      return badge.unread || badge.total || visibleList.length;
+    }
+    return badge.total || visibleList.length;
+  }, [counts, domainFilter, folder, mailbox, qDebounced, unreadOnly, visibleList.length]);
 
   async function markFolderRead() {
     try {
@@ -598,7 +608,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
                 <h2>{qDebounced ? `Results for “${qDebounced}”` : title}</h2>
               </div>
-              <span className="mail-count">{loadingList ? "…" : visibleList.length}</span>
+              <span className="mail-count">{loadingList ? "…" : headerCount}</span>
             </div>
             <div className="search-field">
               <span aria-hidden>⌕</span>
@@ -1000,25 +1010,27 @@ const MessageRow = memo(function MessageRow({
       <button type="button" className="star-btn" aria-label={row.starred ? "Unstar" : "Star"} onClick={(e) => { e.stopPropagation(); onStar(); }}>{row.starred ? "★" : "☆"}</button>
       <button type="button" className="msg-row-main" onClick={onOpen}>
         <span className="mail-avatar" aria-hidden>{initials(who)}</span>
-        <div className="msg-meta">
-          <span className="msg-sender-block">
-            <span>{senderName(who)}</span>
-            {via ? (
-              <span className="msg-via">
-                <span className="domain-swatch msg-via-chip" aria-hidden style={domainColor ? { background: domainColor } : undefined} />
-                via {via}
-              </span>
-            ) : null}
-          </span>
-          <span>{fmtDate(row.date_ms)}</span>
+        <div className="msg-row-copy">
+          <div className="msg-meta">
+            <span className="msg-sender-block">
+              <span>{senderName(who)}</span>
+              {via ? (
+                <span className="msg-via">
+                  <span className="domain-swatch msg-via-chip" aria-hidden style={domainColor ? { background: domainColor } : undefined} />
+                  via {via}
+                </span>
+              ) : null}
+            </span>
+            <span>{fmtDate(row.date_ms)}</span>
+          </div>
+          <div className="mail-summary">
+            <div className="subj">{row.subject || "(no subject)"}</div>
+            {row.label ? <span className="message-chip chip-label">{row.label}</span> : null}
+            {!row.label && row.has_attachments ? <span className="message-chip">Attachment</span> : null}
+            {!row.label && !row.has_attachments && row.folder === "drafts" ? <span className="message-chip">Draft</span> : null}
+          </div>
+          {row.snippet ? <div className="preview">{row.snippet}</div> : null}
         </div>
-        <div className="mail-summary">
-          <div className="subj">{row.subject || "(no subject)"}</div>
-          {row.label ? <span className="message-chip chip-label">{row.label}</span> : null}
-          {!row.label && row.has_attachments ? <span className="message-chip">Attachment</span> : null}
-          {!row.label && !row.has_attachments && row.folder === "drafts" ? <span className="message-chip">Draft</span> : null}
-        </div>
-        {row.snippet ? <div className="preview">{row.snippet}</div> : null}
       </button>
       <button
         type="button"

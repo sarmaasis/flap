@@ -471,6 +471,9 @@ export async function flushScheduled(env: Env): Promise<void> {
   }
 }
 
+/** Count each Message-ID once (same rule as list dedupe) so badges match visible rows. */
+const MSG_DEDUP_KEY = `CASE WHEN rfc_message_id IS NOT NULL AND rfc_message_id != '' THEN rfc_message_id ELSE id END`;
+
 export async function folderCounts(
   db: D1Database,
   workspaceId: string,
@@ -491,8 +494,16 @@ export async function folderCounts(
       `SELECT folder,
               COUNT(*) AS total,
               SUM(CASE WHEN unread = 1 THEN 1 ELSE 0 END) AS unread
-       FROM messages
-       WHERE user_id = ?${access.sql} AND (snooze_until IS NULL OR snooze_until <= ?)
+       FROM (
+         SELECT folder, unread,
+                ROW_NUMBER() OVER (
+                  PARTITION BY user_id, ${MSG_DEDUP_KEY}
+                  ORDER BY date_ms ASC, created_at ASC
+                ) AS rn
+         FROM messages
+         WHERE user_id = ?${access.sql} AND (snooze_until IS NULL OR snooze_until <= ?)
+       )
+       WHERE rn = 1
        GROUP BY folder`,
     )
     .bind(workspaceId, ...access.binds, now)
@@ -503,12 +514,24 @@ export async function folderCounts(
   }
   const starred = await db
     .prepare(
-      `SELECT COUNT(*) AS n FROM messages WHERE user_id = ?${access.sql} AND starred = 1 AND folder NOT IN ('trash', 'spam')`,
+      `SELECT COUNT(*) AS n FROM (
+         SELECT 1
+         FROM messages
+         WHERE user_id = ?${access.sql} AND starred = 1 AND folder NOT IN ('trash', 'spam')
+         GROUP BY ${MSG_DEDUP_KEY}
+       )`,
     )
     .bind(workspaceId, ...access.binds)
     .first<{ n: number }>();
   const snoozed = await db
-    .prepare(`SELECT COUNT(*) AS n FROM messages WHERE user_id = ?${access.sql} AND snooze_until > ?`)
+    .prepare(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT 1
+         FROM messages
+         WHERE user_id = ?${access.sql} AND snooze_until > ?
+         GROUP BY ${MSG_DEDUP_KEY}
+       )`,
+    )
     .bind(workspaceId, ...access.binds, now)
     .first<{ n: number }>();
   counts.starred = { total: Number(starred?.n ?? 0), unread: 0 };
@@ -534,14 +557,23 @@ export async function domainUnreadCounts(
           };
   const rows = await db
     .prepare(
-      `SELECT mb.domain_id AS domain_id,
-              SUM(CASE WHEN msg.unread = 1 THEN 1 ELSE 0 END) AS unread
-       FROM messages msg
-       JOIN mailboxes mb ON mb.id = msg.mailbox_id
-       WHERE msg.user_id = ?${access.sql}
-         AND msg.folder = 'inbox'
-         AND (msg.snooze_until IS NULL OR msg.snooze_until <= ?)
-       GROUP BY mb.domain_id`,
+      `SELECT domain_id, SUM(CASE WHEN unread = 1 THEN 1 ELSE 0 END) AS unread
+       FROM (
+         SELECT mb.domain_id AS domain_id,
+                msg.unread AS unread,
+                ROW_NUMBER() OVER (
+                  PARTITION BY msg.user_id,
+                    CASE WHEN msg.rfc_message_id IS NOT NULL AND msg.rfc_message_id != '' THEN msg.rfc_message_id ELSE msg.id END
+                  ORDER BY msg.date_ms ASC, msg.created_at ASC
+                ) AS rn
+         FROM messages msg
+         JOIN mailboxes mb ON mb.id = msg.mailbox_id
+         WHERE msg.user_id = ?${access.sql}
+           AND msg.folder = 'inbox'
+           AND (msg.snooze_until IS NULL OR msg.snooze_until <= ?)
+       )
+       WHERE rn = 1
+       GROUP BY domain_id`,
     )
     .bind(workspaceId, ...access.binds, now)
     .all<{ domain_id: string; unread: number }>();
