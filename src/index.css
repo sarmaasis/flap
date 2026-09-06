@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Fraunces", "Source Sans 3", ui-serif, Georgia, serif;
-  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 }
@@ -18,39 +18,44 @@
 }
 
 :root {
-  /* Clean editorial SaaS — light, airy, high contrast (Piqo-inspired restraint) */
-  --font-display: "Fraunces", "Source Sans 3", ui-serif, Georgia, serif;
-  --bg: #f7f6f3;
+  /* Shipmail-clean: paper / orange / ink (docs/shipmail-redesign.md §4) */
+  --paper: #FAF9F6;
+  --ink: #141211;
+  --orange: #F26522;
+  --carbon: #050505;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --bg: #FAF9F6;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f0efeb;
-  --fg: #141413;
-  --muted: #5c5a55;
-  --cta-rgb: 28, 110, 92;
-  --accent-2-rgb: 45, 90, 140;
-  --warn-rgb: 180, 120, 40;
-  --danger-rgb: 180, 55, 55;
-  --line: rgba(20, 20, 19, 0.08);
-  --line-strong: rgba(20, 20, 19, 0.16);
-  --cta: #1c6e5c;
-  --cta-fg: #f7f6f3;
-  --cta-dim: rgba(var(--cta-rgb), 0.08);
-  --danger: #b43737;
-  --warn: #b47828;
-  --unread: #141413;
-  --accent-2: #2d5a8c;
-  --sidebar: #141413;
-  --sidebar-fg: #f7f6f3;
-  --sidebar-dim: #a8a59e;
+  --surface-2: #f3f1ec;
+  --fg: #141211;
+  --muted: #5c5652;
+  --cta-rgb: 242, 101, 34;
+  --accent-2-rgb: 20, 18, 17;
+  --warn-rgb: 196, 122, 16;
+  --danger-rgb: 180, 35, 24;
+  --line: rgba(20, 18, 17, 0.10);
+  --line-strong: rgba(20, 18, 17, 0.16);
+  --cta: #F26522;
+  --cta-fg: #FAF9F6;
+  --cta-dim: rgba(var(--cta-rgb), 0.10);
+  --danger: #b42318;
+  --warn: #c47a10;
+  --ok: #0a7b6f;
+  --unread: #141211;
+  --accent-2: #141211;
+  --sidebar: #050505;
+  --sidebar-fg: #FAF9F6;
+  --sidebar-dim: #a8a29e;
   --sidebar-active: rgba(255, 255, 255, 0.08);
-  --radius: 8px;
-  --shadow: 0 1px 2px rgba(20, 20, 19, 0.04), 0 12px 32px rgba(20, 20, 19, 0.06);
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(20, 18, 17, 0.04), 0 12px 32px rgba(20, 18, 17, 0.06);
   --grid-line: transparent;
   --scan: transparent;
-  --mark-ink: #f7f6f3;
-  --mark-flap: #1c6e5c;
-  --font-ui: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mark-ink: #FAF9F6;
+  --mark-flap: #F26522;
+  --font-ui: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-family: var(--font-ui);
   color: var(--fg);
   background: var(--bg);
@@ -79,9 +84,9 @@ html.app-locked #root {
 }
 body {
   background:
-    radial-gradient(ellipse 70% 45% at 12% -5%, rgba(var(--cta-rgb), 0.07), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 95% 0%, rgba(var(--accent-2-rgb), 0.05), transparent 50%),
-    linear-gradient(180deg, #faf9f7 0%, var(--bg) 40%),
+    radial-gradient(ellipse 70% 45% at 12% -5%, rgba(var(--cta-rgb), 0.08), transparent 55%),
+    radial-gradient(ellipse 50% 35% at 95% 0%, rgba(20, 18, 17, 0.03), transparent 50%),
+    linear-gradient(180deg, #FAF9F6 0%, var(--bg) 40%),
     var(--bg);
   color: var(--fg);
 }

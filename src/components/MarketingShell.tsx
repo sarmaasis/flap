@@ -40,6 +40,9 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
         </a>
         <nav className="hidden items-center gap-5 text-sm md:flex">
           <a href="/#pricing" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
+          <a href="/for" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/for"); }}>For</a>
+          <a href="/vs" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/vs"); }}>Compare</a>
+          <a href="/security" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/security"); }}>Security</a>
           <a href="/about" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
           <a href="/docs" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
           <a href="/tools" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>

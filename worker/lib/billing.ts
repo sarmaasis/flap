@@ -429,7 +429,7 @@ export function registerBillingRoutes(app: Hono<App>) {
     const body = (await c.req.json().catch(() => ({}))) as { plan?: string; interval?: string };
     const plan = normalizePlanId((body.plan || "").toLowerCase());
     if (plan === "free" || !PAID_PLAN_IDS.includes(plan)) {
-      return c.json({ error: "Choose solo, builder, or studio." }, 400);
+      return c.json({ error: "Choose solo, pro, team, or scale." }, 400);
     }
     const interval = body.interval === "year" ? "year" as const : "month" as const;
     const productId = productIdForPlan(plan, c.env, interval) || productIdForPlan(plan, c.env, "month");
@@ -671,7 +671,7 @@ async function applyBillingEvent(c: Context<App>, type: string, data: Record<str
       .first<{ plan_id: string; status: string }>();
     const payloadStatus = typeof data.status === "string" ? data.status : "active";
     const status = payloadStatus === "on_hold" ? "on_hold" : "active";
-    const effectivePlan = planId === "free" ? "builder" : planId;
+    const effectivePlan = planId === "free" ? "pro" : planId;
     await c.env.DB.prepare(
       `UPDATE subscriptions SET plan_id = ?, status = ?, dodo_subscription_id = COALESCE(?, dodo_subscription_id),
        dodo_customer_id = COALESCE(?, dodo_customer_id), dodo_product_id = COALESCE(?, dodo_product_id),

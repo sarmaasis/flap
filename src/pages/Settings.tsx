@@ -2039,19 +2039,19 @@ export default function Settings() {
                 <p>
                   {teamInfo?.teams_unlocked
                     ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
-                    : "Upgrade to Studio to invite members and share mailboxes. Free, Solo, and Builder stay solo."}
+                    : "Upgrade to Team to invite members and share mailboxes. Free and Solo stay solo; Pro includes up to 5 seats."}
                 </p>
               </div>
               <Badge variant={teamInfo?.teams_unlocked ? "default" : "secondary"}>
-                {teamInfo?.teams_unlocked ? "Studio plan" : "Solo"}
+                {teamInfo?.teams_unlocked ? "Team plan" : "Solo"}
               </Badge>
             </div>
 
             {!teamInfo?.teams_unlocked ? (
               <div className="deferred-banner">
-                Team seats unlock on the Studio plan ($39/mo). You can still manage your own mailboxes on Free, Solo, or Builder.
+                Team seats unlock on Pro (up to 5) and Team (unlimited). You can still manage your own mailboxes on Free or Solo.
                 <div style={{ marginTop: 12 }}>
-                  <Button size="sm" onClick={() => setTab("billing")}>View Studio plan</Button>
+                  <Button size="sm" onClick={() => setTab("billing")}>View Team plan</Button>
                 </div>
               </div>
             ) : null}
@@ -2189,7 +2189,7 @@ export default function Settings() {
 
             <h3 style={{ marginTop: 28, marginBottom: 12 }}>Shared mailboxes</h3>
             <p className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
-              Mark support@ or hello@ as shared so invitees can access them. Requires Studio plan.
+              Mark support@ or hello@ as shared so invitees can access them. Requires Team plan.
             </p>
             {mailboxes.length ? (
               <table className="table">

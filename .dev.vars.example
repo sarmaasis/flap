@@ -62,7 +62,7 @@ GITHUB_CLIENT_SECRET=
 #
 # LOCAL TEST CHECKOUT (required for Upgrade buttons to work):
 #   1. Dashboard in Test Mode
-#   2. Create Solo / Builder / Studio subscription products → copy pdt_… ids
+#   2. Create Solo / Pro / Team / Scale subscription products → copy pdt_… ids
 #   3. Create a test API key (often prefixed dodo_test_…)
 #   4. Keep ENVIRONMENT=test_mode  (hits https://test.dodopayments.com)
 #   5. Restart `npm run dev` after editing this file
@@ -75,8 +75,11 @@ DODO_PAYMENTS_WEBHOOK_KEY=
 DODO_PAYMENTS_ENVIRONMENT=test_mode
 # Product IDs from the SAME mode as the API key (subscription products)
 DODO_PRODUCT_SOLO=
-DODO_PRODUCT_BUILDER=
-DODO_PRODUCT_STUDIO=
+DODO_PRODUCT_PRO=
+# Legacy: DODO_PRODUCT_BUILDER=
+DODO_PRODUCT_TEAM=
+DODO_PRODUCT_SCALE=
+# Legacy: DODO_PRODUCT_STUDIO=
 # Legacy aliases (still accepted):
 # DODO_PRODUCT_STARTER → Solo, DODO_PRODUCT_PRO → Builder
 # DODO_PRODUCT_TEAM / DODO_PRODUCT_BUSINESS → Studio

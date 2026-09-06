@@ -16,7 +16,7 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "One-shot newsletter requires Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "One-shot newsletter requires Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as {
       domain_id?: string;
       subject?: string;
@@ -55,7 +55,7 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "MCP light requires Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "MCP light requires Pro or Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { method?: string; params?: Record<string, unknown> };
     const method = body.method || "list_domains";
     if (method === "list_domains") {
@@ -96,7 +96,7 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "API v2 requires Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "API v2 requires Pro or Team." }, 402);
     const rows = await c.env.DB.prepare("SELECT id, name, color FROM labels WHERE user_id = ?")
       .bind(ctx.workspaceId)
       .all();
@@ -120,7 +120,7 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Custom webhook hosts require Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Custom webhook hosts require Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { hostname?: string };
     const hostname = (body.hostname || "").toLowerCase().trim();
     if (!hostname) return c.json({ error: "hostname required." }, 400);
@@ -143,10 +143,10 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const plan = await getEffectivePlan(c.env.DB, user.id);
     return c.json({
-      available: planAtLeast(plan.plan_id, "studio"),
+      available: planAtLeast(plan.plan_id, "team"),
       providers: ["google_workspace_oidc", "okta_saml"],
       status: "configure_in_dashboard",
-      note: "SSO wiring for Studio orgs. Contact support to enable IdP metadata.",
+      note: "SSO wiring for Team orgs. Contact support to enable IdP metadata.",
     });
   });
 
@@ -170,7 +170,7 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "Quarantine requires Builder+.", items: [] }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Quarantine requires Pro+.", items: [] }, 402);
     const rows = await c.env.DB.prepare(
       "SELECT id, subject, from_addr, virus_status, created_at FROM messages WHERE user_id = ? AND virus_status = 'quarantine' ORDER BY created_at DESC LIMIT 50",
     )
@@ -231,13 +231,130 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
   // --- SLA copy (P2#14) honest ---
   app.get("/api/support/sla", (c) =>
     c.json({
-      studio: {
+      team: {
         response_target: "1 business day",
         channel: "support@useflap.online",
-        note: "Studio priority support target. Not a contractual uptime SLA yet.",
+        note: "Team priority support target. Not a contractual uptime SLA yet.",
       },
       others: { channel: "support@useflap.online", note: "Best-effort email support." },
     }),
   );
 
+  // --- Booking pages (CalDAV Partial; public request stub) ---
+  app.get("/api/booking/:slug", async (c) => {
+    const slug = c.req.param("slug").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64);
+    const row = await c.env.DB.prepare(
+      "SELECT slug, title, mailbox_id FROM booking_pages WHERE slug = ? AND enabled = 1",
+    )
+      .bind(slug)
+      .first<{ slug: string; title: string; mailbox_id: string }>()
+      .catch(() => null);
+    return c.json({
+      slug,
+      title: row?.title || `Book with ${slug}`,
+      status: row ? "configured" : "demo",
+      caldav: {
+        status: "partial",
+        note: "CalDAV/CardDAV sync is Partial. Public booking accepts requests via API; live free/busy ships with calendar protocol work.",
+      },
+    });
+  });
+
+  app.post("/api/booking/:slug", async (c) => {
+    const slug = c.req.param("slug").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      name?: string;
+      email?: string;
+      note?: string;
+    };
+    const email = (body.email || "").trim().toLowerCase();
+    const name = (body.name || "").trim().slice(0, 120);
+    if (!email || !email.includes("@")) return c.json({ error: "Valid email required." }, 400);
+    const id = randomId("book");
+    await c.env.DB.prepare(
+      `INSERT INTO booking_requests (id, slug, name, email, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(id, slug, name, email, (body.note || "").slice(0, 2000), nowMs())
+      .run()
+      .catch(() => undefined);
+    return c.json({
+      ok: true,
+      id,
+      message: "Request received. The host will confirm by email when the mailbox is live.",
+    }, 201);
+  });
+
+  app.post("/api/booking-pages", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    if (!planAtLeast(plan.plan_id, "solo")) return c.json({ error: "Booking pages require Solo or higher." }, 402);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      slug?: string;
+      title?: string;
+      mailbox_id?: string;
+    };
+    const slug = (body.slug || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 64);
+    if (!slug) return c.json({ error: "slug required." }, 400);
+    const id = randomId("bpage");
+    await c.env.DB.prepare(
+      `INSERT INTO booking_pages (id, user_id, slug, title, mailbox_id, enabled, created_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+    )
+      .bind(id, ctx.workspaceId, slug, (body.title || slug).slice(0, 120), body.mailbox_id || "", nowMs())
+      .run()
+      .catch(() => undefined);
+    return c.json({ page: { id, slug, url: `/book/${slug}` } }, 201);
+  });
+
+  // --- Newsletter list + editor stubs (hard caps; not cold ESP) ---
+  app.get("/api/newsletters", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    const rows = await c.env.DB.prepare(
+      "SELECT id, subject, status, capped_count, created_at FROM newsletter_blasts WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+    )
+      .bind(ctx.workspaceId)
+      .all()
+      .catch(() => ({ results: [] }));
+    return c.json({
+      items: rows.results ?? [],
+      caps: {
+        sends_per_month: plan.limits.newsletter_sends_per_month ?? 0,
+        subscribers: plan.limits.newsletter_subscribers ?? 0,
+      },
+      note: "Newsletters are hard-capped and double opt-in. Not a cold-outbound ESP.",
+    });
+  });
+
+  // --- IMAP/SMTP credential stubs (honest Partial) ---
+  app.get("/api/mailboxes/:id/client-credentials", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    if (!planAtLeast(plan.plan_id, "pro")) {
+      return c.json({
+        status: "scheduled",
+        available: false,
+        target_date: "2026-10-15",
+        note: "IMAP/SMTP app passwords target Pro+. Until then use webmail and PWA.",
+      });
+    }
+    return c.json({
+      status: "scheduled",
+      available: false,
+      target_date: "2026-10-15",
+      imap: { host: "imap.useflap.online", port: 993, tls: true },
+      smtp: { host: "smtp.useflap.online", port: 587, starttls: true },
+      jmap: { status: "deferred", note: "Evaluate after IMAP MVP." },
+      caldav: { status: "partial", path: "/dav/calendars/" },
+      carddav: { status: "partial", path: "/dav/contacts/" },
+      note: "Connection settings are shown for planning. Credentials are not issued until the protocol path ships. Nothing here means Connected.",
+    });
+  });
 }

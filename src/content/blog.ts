@@ -31,7 +31,7 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/custom-domain-email-without-google-workspace",
     title: "Custom domain email without Google Workspace | Flap Blog",
     description:
-      "How founders get you@yourdomain.com without a Google Workspace subscription per project — inbox vs forwarding, DNS, and when Flap fits.",
+      "How founders get you@yourdomain.com without a Google Workspace subscription per project - inbox vs forwarding, DNS, and when Flap fits.",
     h1: "Custom domain email without Google Workspace",
     definition:
       "You can run custom domain email without Google Workspace by using a hosted mailbox product (such as Flap) or a forwarder. Flap hosts a real inbox for multiple project domains at useflap.online; Workspace remains the better choice when you need Google’s full productivity suite.",
@@ -65,7 +65,7 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         q: "Is Flap free?",
-        a: `Yes — a Free plan exists to prove MX on up to ${PLANS.free.limits.domains} domains with limited sends. Paid Solo/Builder/Studio add domains and limits.`,
+        a: `Yes - a Free plan exists to prove MX on up to ${PLANS.free.limits.domains} domains with limited sends. Paid Solo/Pro/Team add domains and limits.`,
       },
       {
         q: "Do I delete my Google account?",
@@ -84,11 +84,11 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/cost-of-google-workspace-multiple-domains",
     title: "Cost of Google Workspace across multiple domains | Flap Blog",
     description:
-      "How Google Workspace cost scales when each project gets its own setup — and how Flap’s domain-first plans compare. Includes calculator link.",
+      "How Google Workspace cost scales when each project gets its own setup - and how Flap’s domain-first plans compare. Includes calculator link.",
     h1: "The cost of Google Workspace across multiple domains",
     definition:
       "Google Workspace cost across multiple domains scales primarily with seats and how many separate environments you provision. Founders who buy Workspace per side project pay roughly seats × domains × list price; Flap prices mainly by domain count on one account.",
-    lede: "Serial founders often underestimate the “one Workspace per idea” tax. Here is a clear cost model and a calculator — with honest caveats.",
+    lede: "Serial founders often underestimate the “one Workspace per idea” tax. Here is a clear cost model and a calculator - with honest caveats.",
     published: UPDATED,
     updated: UPDATED,
     tags: ["pricing", "Google Workspace", "multi-domain"],
@@ -99,7 +99,7 @@ export const BLOG_POSTS: BlogPost[] = [
         subheads: [
           {
             h3: "Example",
-            body: `8 projects × 1 user → about $56/month on that model. Flap Builder is $${PLANS.builder.price_monthly}/month for up to ${PLANS.builder.limits.domains} domains — savings depend on your real provisioning habits.`,
+            body: `8 projects × 1 user → about $56/month on that model. Flap Pro is $${PLANS.pro.price_monthly}/month for up to ${PLANS.pro.limits.domains} domains - savings depend on your real provisioning habits.`,
           },
         ],
       },
@@ -109,7 +109,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Flap’s domain-first pricing",
-        body: `Solo $${PLANS.solo.price_monthly} (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly} (${PLANS.builder.limits.domains}), Studio $${PLANS.studio.price_monthly} (${PLANS.studio.limits.domains}), plus a Free plan. Team seats appear on Studio. The product wedge is multi-domain inbox — not undercutting every Workspace SKU.`,
+        body: `Solo $${PLANS.solo.price_monthly} (${PLANS.solo.limits.domains} domains), Pro $${PLANS.pro.price_monthly} (${PLANS.pro.limits.domains}), Team $${PLANS.team.price_monthly} (${PLANS.team.limits.domains}), plus a Free plan. Team seats appear on Team. The product wedge is multi-domain inbox - not undercutting every Workspace SKU.`,
       },
       {
         heading: "When paying for Workspace is still right",
@@ -123,19 +123,19 @@ export const BLOG_POSTS: BlogPost[] = [
         ["1", "$7", "Free or Solo"],
         ["3", "$21", `Solo $${PLANS.solo.price_monthly}`],
         ["5", "$35", `Solo $${PLANS.solo.price_monthly}`],
-        ["8", "$56", `Builder $${PLANS.builder.price_monthly}`],
-        ["10", "$70", `Builder $${PLANS.builder.price_monthly}`],
-        ["20", "$140", `Builder $${PLANS.builder.price_monthly}`],
+        ["8", "$56", `Pro $${PLANS.pro.price_monthly}`],
+        ["10", "$70", `Pro $${PLANS.pro.price_monthly}`],
+        ["20", "$140", `Pro $${PLANS.pro.price_monthly}`],
       ],
     },
     faqs: [
       {
         q: "Where is the interactive calculator?",
-        a: "https://useflap.online/tools/google-workspace-cost-calculator — adjust domains and users per domain.",
+        a: "https://useflap.online/tools/google-workspace-cost-calculator - adjust domains and users per domain.",
       },
       {
         q: "Are these official Google prices?",
-        a: "No — Flap uses a published illustrative list figure for education. Confirm current Google pricing for your region.",
+        a: "No - Flap uses a published illustrative list figure for education. Confirm current Google pricing for your region.",
       },
     ],
     related: [
@@ -150,7 +150,7 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/mx-spf-dmarc-setup-checklist",
     title: "MX, SPF, and DMARC setup checklist | Flap Blog",
     description:
-      "A founder-friendly checklist for MX, SPF, DKIM, and DMARC when setting up custom-domain email — including Flap via Amazon SES.",
+      "A founder-friendly checklist for MX, SPF, DKIM, and DMARC when setting up custom-domain email - including Flap via Amazon SES.",
     h1: "MX / SPF / DMARC setup checklist for custom-domain email",
     definition:
       "MX routes inbound mail; SPF lists allowed senders; DKIM signs messages; DMARC tells receivers how to handle failures. Flap’s inbound path uses Amazon SES MX/SPF/DKIM values → SES → Flap ingest.",
@@ -165,7 +165,7 @@ export const BLOG_POSTS: BlogPost[] = [
         bullets: [
           "Confirm nameservers",
           "Remove conflicting MX from old hosts",
-          "Plan one SPF TXT (merge includes — do not create two SPF records)",
+          "Plan one SPF TXT (merge includes - do not create two SPF records)",
         ],
       },
       {
@@ -178,7 +178,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "DKIM checklist",
-        body: "Publish the Easy DKIM CNAME records Flap shows after SES identity provisioning. Copy exact tokens from Settings → Setup — do not invent selectors.",
+        body: "Publish the Easy DKIM CNAME records Flap shows after SES identity provisioning. Copy exact tokens from Settings → Setup - do not invent selectors.",
       },
       {
         heading: "DMARC checklist",
@@ -211,7 +211,7 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/self-host-vs-hosted-email-startups",
     title: "Self-host vs hosted email for startups | Flap Blog",
     description:
-      "Self-hosted mail vs hosted inbox for early startups and indie hackers — deliverability, ops cost, and when Flap’s hosted multi-domain inbox fits.",
+      "Self-hosted mail vs hosted inbox for early startups and indie hackers - deliverability, ops cost, and when Flap’s hosted multi-domain inbox fits.",
     h1: "Self-host vs hosted email for startups",
     definition:
       "Self-hosted email means you run MTA/IMAP yourself; hosted email means a vendor operates the mailbox. Most early startups choose hosted for deliverability and ops. Flap is hosted custom-domain email aimed at multi-domain founders.",
@@ -230,7 +230,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "Where Flap sits",
-        body: "Flap is hosted inbox for founders with many domains — not a self-host control panel, not a full Google suite. Inbound uses Amazon SES; you manage domains and identities in one product.",
+        body: "Flap is hosted inbox for founders with many domains - not a self-host control panel, not a full Google suite. Inbound uses Amazon SES; you manage domains and identities in one product.",
       },
       {
         heading: "Decision rule",
@@ -265,7 +265,7 @@ export const BLOG_POSTS: BlogPost[] = [
     path: "/blog/catchall-aliases-indie-founders",
     title: "Catch-all and aliases for indie founders | Flap Blog",
     description:
-      "How catch-all and aliases help indie founders run many project domains — without mailbox sprawl. What Flap supports on Free vs paid plans.",
+      "How catch-all and aliases help indie founders run many project domains - without mailbox sprawl. What Flap supports on Free vs paid plans.",
     h1: "Catch-all and aliases for indie founders",
     definition:
       "An alias is an extra address that delivers to a mailbox you already have. Catch-all accepts any local-part on a domain. Flap supports aliases on all plans (with Free limits) and catch-all on paid plans, which helps founders absorb launch@ and typo traffic without endless mailbox creation.",
@@ -284,7 +284,7 @@ export const BLOG_POSTS: BlogPost[] = [
       },
       {
         heading: "DNS and routing still matter",
-        body: "Catch-all in Flap is a product setting on paid plans. With Amazon SES inbound, mail for unknown local-parts is delivered according to Flap catch-all — you do not configure a separate Cloudflare Email Routing wildcard. Product toggle ≠ inventing DNS records.",
+        body: "Catch-all in Flap is a product setting on paid plans. With Amazon SES inbound, mail for unknown local-parts is delivered according to Flap catch-all - you do not configure a separate Cloudflare Email Routing wildcard. Product toggle ≠ inventing DNS records.",
       },
       {
         heading: "Hygiene tips",
@@ -294,7 +294,7 @@ export const BLOG_POSTS: BlogPost[] = [
     faqs: [
       {
         q: "Does Free include catch-all?",
-        a: "No — catch-all is on paid Flap plans. Free still includes a limited number of aliases.",
+        a: "No - catch-all is on paid Flap plans. Free still includes a limited number of aliases.",
       },
       {
         q: "Is catch-all bad for deliverability?",

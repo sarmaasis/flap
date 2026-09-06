@@ -32,22 +32,22 @@ const FEATURES = [
   {
     icon: Layers,
     title: "Many domains, one inbox",
-    body: `Connect up to ${PLANS.studio.limits.domains} domains on Studio. Read and reply as each brand without juggling separate mailboxes.`,
+    body: `Connect up to ${PLANS.team.limits.domains} domains on Team. Read and reply as each brand without juggling separate mailboxes.`,
   },
   {
     icon: Inbox,
     title: "Filters & aliases",
-    body: "Route with rules, catch-all, and disposable aliases — keep support@ and founder@ tidy across every project domain.",
+    body: "Route with rules, catch-all, and disposable aliases - keep support@ and founder@ tidy across every project domain.",
   },
   {
     icon: Zap,
     title: "API keys & inbound webhooks",
-    body: "Send transactional mail with API keys and react to mail.received events on paid plans — delivery logs in Settings.",
+    body: "Send transactional mail with API keys and react to mail.received events on paid plans - delivery logs in Settings.",
   },
   {
     icon: Shield,
-    title: "Studio seats when you grow",
-    body: "Solo and Builder stay solo. Studio adds seats, shared inboxes, and delegation without a Workspace-per-brand tax.",
+    title: "Team seats when you grow",
+    body: "Pro includes up to 5 seats. Team adds unlimited seats, shared inboxes, and delegation without a Workspace-per-brand tax.",
   },
 ];
 
@@ -62,7 +62,7 @@ const USE_CASES = [
   },
   {
     title: "Small studios",
-    body: "Studio plan adds seats and shared inboxes when a second person joins the thread.",
+    body: "Team plan adds seats and shared inboxes when a second person joins the thread.",
   },
   {
     title: "Agencies / brand managers",
@@ -77,19 +77,19 @@ const FAQS = [
   },
   {
     q: "Is Flap just cheap business email?",
-    a: "No. The product is built around one inbox for many startup domains — fast setup and multiple identities — not competing solely on price with full productivity suites.",
+    a: "No. The product is built around one inbox for many startup domains - fast setup and multiple identities - not competing solely on price with full productivity suites.",
   },
   {
     q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}. Referrals can add bonus domain slots permanently.`,
+    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Pro ${PLANS.pro.limits.domains}, Team ${PLANS.team.limits.domains}. Referrals can add bonus domain slots permanently.`,
   },
   {
     q: "Do you support teams?",
-    a: "Studio unlocks up to 10 seats, shared mailboxes, and delegation. Free, Solo, and Builder stay solo.",
+    a: "Team unlocks up to 10 seats, shared mailboxes, and delegation. Free and Solo stay solo; Pro adds seats.",
   },
   {
     q: "How does DNS / delivery work?",
-    a: "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar — add the MX/SPF/DKIM Flap shows, create a mailbox, then Check DNS. Your domain does not need to be a Cloudflare zone.",
+    a: "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar - add the MX/SPF/DKIM Flap shows, create a mailbox, then Check DNS. Your domain does not need to be a Cloudflare zone.",
   },
   {
     q: "Can I export my data?",
@@ -188,7 +188,7 @@ export default function Landing() {
             </Button>
           </div>
           <p className="mt-5 text-xs text-[var(--muted)]">
-            {MARKETING.microcopy.replace("Multiple domains", `Up to ${PLANS.builder.limits.domains} domains on Builder`)}
+            {MARKETING.microcopy.replace("Multiple domains", `Up to ${PLANS.pro.limits.domains} domains on Pro`)}
           </p>
           <div className="demo-domain-chips mt-8 flex flex-wrap gap-2" aria-hidden>
             {[
@@ -277,7 +277,7 @@ export default function Landing() {
         </div>
         <ol className="landing-steps grid gap-10 md:grid-cols-3 md:gap-12">
           {[
-            { n: "01", title: "Add every project domain", body: "Connect the domains you already own — side projects, SaaS brands, client sites." },
+            { n: "01", title: "Add every project domain", body: "Connect the domains you already own - side projects, SaaS brands, client sites." },
             { n: "02", title: "Point DNS once per domain", body: "Copy MX/SPF. Flap checks records and tells you exactly what is missing." },
             { n: "03", title: "Send & receive as each brand", body: "Create addresses, open one inbox, reply as the right identity." },
           ].map((s) => (
@@ -359,7 +359,7 @@ export default function Landing() {
             Domain-first pricing
           </h2>
           <p className="mt-4 text-base text-[var(--muted)] md:text-lg">
-            Scale by how many projects you run — not by how many Workspace seats you fake.
+            Scale by how many projects you run - not by how many Workspace seats you fake.
           </p>
         </div>
         <div className="mb-6 inline-flex rounded-lg border border-[var(--line)] p-1 text-sm">

@@ -29,6 +29,35 @@ export const MARKETING_HTML_PREFIXES = [
   "/docs",
   "/guides",
   "/blog",
+  "/security",
+  "/for",
+  "/vs",
+  "/research",
+  "/book",
+] as const;
+
+
+export const FOR_PATHS = [
+  "/for/indie-hackers",
+  "/for/startups",
+  "/for/freelancers",
+  "/for/developers",
+  "/for/agencies",
+  "/for/ecommerce",
+  "/for/creators",
+] as const;
+
+export const VS_PATHS = [
+  "/vs/google-workspace",
+  "/vs/microsoft-365",
+  "/vs/zoho-mail",
+  "/vs/shipmail",
+  "/vs/hydra",
+  "/vs/folio",
+  "/vs/cloudflare-email-routing",
+  "/vs/migadu",
+  "/vs/fastmail",
+  "/vs/improvmx",
 ] as const;
 
 export const SEO_PATHS = [
@@ -108,6 +137,10 @@ const MARKETING_EXACT = [
   "/docs/api",
   "/guides",
   "/blog",
+  "/security",
+  "/for",
+  "/vs",
+  "/research",
 ] as const;
 
 const KNOWN_CLIENT_PATHS = new Set<string>([
@@ -116,6 +149,13 @@ const KNOWN_CLIENT_PATHS = new Set<string>([
   ...BLOG_PATHS,
   ...DNS_TOOL_PATHS,
   ...GUIDE_PATHS,
+  ...FOR_PATHS,
+  ...VS_PATHS,
+  "/for",
+  "/vs",
+  "/security",
+  "/research",
+  "/book",
 ]);
 
 export function normalizePathname(pathname: string): string {

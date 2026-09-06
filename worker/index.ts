@@ -155,6 +155,15 @@ app.get("/settings/referrals", (c) => serveSpaShell(c));
 
 app.get("/about", (c) => servePrerenderOrSpa(c));
 app.get("/pricing", (c) => servePrerenderOrSpa(c));
+app.get("/book/*", (c) => servePrerenderOrSpa(c));
+app.get("/book", (c) => servePrerenderOrSpa(c));
+app.get("/research/*", (c) => servePrerenderOrSpa(c));
+app.get("/research", (c) => servePrerenderOrSpa(c));
+app.get("/vs/*", (c) => servePrerenderOrSpa(c));
+app.get("/vs", (c) => servePrerenderOrSpa(c));
+app.get("/for/*", (c) => servePrerenderOrSpa(c));
+app.get("/for", (c) => servePrerenderOrSpa(c));
+app.get("/security", (c) => servePrerenderOrSpa(c));
 app.get("/support", (c) => servePrerenderOrSpa(c));
 app.get("/status", (c) => servePrerenderOrSpa(c));
 app.get("/terms", (c) => servePrerenderOrSpa(c));

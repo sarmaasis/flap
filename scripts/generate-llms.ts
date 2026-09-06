@@ -43,7 +43,7 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 ## Product
 
 - [Home](${SITE_URL}/): Product overview, features, FAQ, and pricing section
-- [Pricing](${SITE_URL}/pricing): ${pricingOneLiner()}. Annual −20%.
+- [Pricing](${SITE_URL}/pricing): ${pricingOneLiner()}. Annual = 10× monthly.
 - [About](${SITE_URL}/about): What Flap is, who operates it, infrastructure overview
 - [Signup](${SITE_URL}/signup): Create a Flap account
 - [Support](${SITE_URL}/support): ${SUPPORT_EMAIL}

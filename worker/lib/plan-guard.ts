@@ -1,7 +1,7 @@
 import type { PlanId } from "./plans";
 import { nowMs, randomId } from "./ids";
 
-const PLAN_ORDER: PlanId[] = ["free", "solo", "builder", "studio"];
+const PLAN_ORDER: PlanId[] = ["free", "solo", "pro", "team", "scale"];
 
 export function planAtLeast(plan: PlanId, min: PlanId): boolean {
   return PLAN_ORDER.indexOf(plan) >= PLAN_ORDER.indexOf(min);

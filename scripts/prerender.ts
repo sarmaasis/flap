@@ -135,7 +135,7 @@ const HOME_FAQS = [
   },
   {
     q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}.`,
+    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.pro.limits.domains}, Studio ${PLANS.team.limits.domains}.`,
   },
   {
     q: "How does DNS / delivery work?",
@@ -166,7 +166,7 @@ function buildPages(): Page[] {
         },
         {
           heading: "Pricing",
-          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo (${PLANS.studio.limits.domains} domains, team seats).`,
+          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, team seats).`,
         },
       ],
       faqs: HOME_FAQS,
@@ -389,7 +389,7 @@ function buildPages(): Page[] {
             ...WEBHOOK_DOCS.events.map((e) => `${e.name}: ${e.description}`),
             ...WEBHOOK_DOCS.headers.map((h) => `${h.name}: ${h.value}`),
             ...WEBHOOK_DOCS.notes,
-            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.builder.limits.api_keys}/${PLANS.builder.limits.webhooks}; Studio ${PLANS.studio.limits.api_keys}/${PLANS.studio.limits.webhooks}.`,
+            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.pro.limits.api_keys}/${PLANS.pro.limits.webhooks}; Studio ${PLANS.team.limits.api_keys}/${PLANS.team.limits.webhooks}.`,
           ],
         },
       ],
@@ -439,7 +439,7 @@ function buildPages(): Page[] {
   pages.push({
     path: "/pricing",
     title: "Pricing | Flap — domain-first custom-domain email",
-    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo. Annual −20%.`,
+    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo. Annual −20%.`,
     bodyHtml: articleShell({
       eyebrow: "Pricing",
       h1: "Domain-first plans",

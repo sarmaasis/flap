@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import RequireVerified from "./components/RequireVerified";
 import { SEO_PATHS } from "./content/seo-paths";
+import { FOR_PATHS, VS_PATHS } from "./content/hubs";
 import { BLOG_PATHS } from "./content/blog-paths";
 import { DNS_TOOL_PATHS as DNS_TOOL_PATH_LIST, GUIDE_PATHS as GUIDE_PATH_LIST } from "./content/tool-guide-paths";
 import { normalizePathname } from "./content/public-routes";
@@ -29,6 +30,11 @@ const SupportPage = lazy(() => import("./pages/SupportPage"));
 const StatusPage = lazy(() => import("./pages/StatusPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const SecurityPage = lazy(() => import("./pages/SecurityPage"));
+const HubIndexPage = lazy(() => import("./pages/HubIndexPage"));
+const HubPage = lazy(() => import("./pages/HubPage"));
+const BookingPage = lazy(() => import("./pages/BookingPage"));
+const ResearchPage = lazy(() => import("./pages/ResearchPage"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -38,6 +44,8 @@ const SEO_PATH_SET = new Set<string>(SEO_PATHS);
 const DNS_TOOL_PATHS = new Set<string>(DNS_TOOL_PATH_LIST);
 const GUIDE_PATHS = new Set<string>(GUIDE_PATH_LIST);
 const BLOG_PATH_SET = new Set<string>(BLOG_PATHS);
+const FOR_PATH_SET = new Set<string>(FOR_PATHS);
+const VS_PATH_SET = new Set<string>(VS_PATHS);
 
 export default function App() {
   const [path, setPath] = useState(() => normalizePathname(window.location.pathname));
@@ -86,6 +94,19 @@ export default function App() {
     );
   }
 
+
+  if (path === "/security") return <Screen><SecurityPage /></Screen>;
+  if (path === "/for") return <Screen><HubIndexPage kind="for" /></Screen>;
+  if (path === "/vs") return <Screen><HubIndexPage kind="vs" /></Screen>;
+  if (FOR_PATH_SET.has(path) || VS_PATH_SET.has(path)) {
+    return <Screen><HubPage path={path} /></Screen>;
+  }
+  if (path === "/research" || path.startsWith("/research/")) {
+    return <Screen><ResearchPage path={path} /></Screen>;
+  }
+  if (path.startsWith("/book/") || path === "/book") {
+    return <Screen><BookingPage path={path} /></Screen>;
+  }
   if (path === "/pricing") return <Screen><PricingPage /></Screen>;
   if (path === "/docs") return <Screen><DocsIndexPage /></Screen>;
   if (path === "/docs/api") return <Screen><DocsApiPage /></Screen>;

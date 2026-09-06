@@ -11,7 +11,7 @@
   <circle cx="1040" cy="120" r="180" fill="#f0efeb" fill-opacity="0.06"/>
   <circle cx="160" cy="520" r="220" fill="#f0efeb" fill-opacity="0.05"/>
   <text x="72" y="88" fill="#d8f3ec" font-family="Georgia, 'Times New Roman', serif" font-size="28" font-weight="600" letter-spacing="0.12em">BLOG</text>
-  <text x="72" y="224" fill="#f7f6f2" font-family="Georgia, 'Times New Roman', serif" font-size="54" font-weight="700"><tspan x="72" dy="0">MX / SPF / DMARC setup checklist</tspan><tspan x="72" dy="52">for custom-domain email</tspan></text>
+  <text x="72" y="224" fill="#f7f6f2" font-family="Georgia, 'Times New Roman', serif" font-size="54" font-weight="700"><tspan x="72" dy="0">MX / SPF / DMARC setup checklist for</tspan><tspan x="72" dy="52">custom-domain email</tspan></text>
   <text x="72" y="560" fill="#f7f6f2" font-family="Georgia, 'Times New Roman', serif" font-size="36" font-weight="700">Flap</text>
   <text x="72" y="598" fill="#d8f3ec" font-family="ui-sans-serif, system-ui, sans-serif" font-size="22">useflap.online · one inbox for every startup</text>
 </svg>

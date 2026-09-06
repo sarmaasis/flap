@@ -1,13 +1,29 @@
-# IMAP decision (P1#10)
+# IMAP / SMTP / JMAP decision
 
-**Status:** Dated defer  
+**Status:** Partial (UI + docs stubs) / protocol stack deferred  
 **Publish / target date:** **2026-10-15**  
-**Decision:** Do not market IMAP as available until credentials path ships.
+**Updated:** 2026-09-07 (Shipmail-inspired redesign)
+
+## Decision
+
+Do not market IMAP, SMTP, JMAP, CalDAV, or CardDAV as **Connected** until credentials issue and protocol servers exist.
 
 Until then:
 
 - Supported clients: Flap web inbox + installable PWA
-- Settings → Privacy shows the dated defer note
-- No homepage or pricing copy claims IMAP/Apple Mail/Thunderbird support
+- Settings → Privacy / Clients shows connection hostnames as **scheduled**, with target date
+- `GET /api/mailboxes/:id/client-credentials` returns honest stubs (no fake passwords)
+- Homepage and pricing do not claim Apple Mail / Thunderbird live support
+- CalDAV/CardDAV: booking page + API stubs only; live free/busy later
+- JMAP: evaluate after IMAP MVP (may slip to later)
 
-When shipping: app passwords per mailbox identity, docs for Apple Mail / Thunderbird, Builder+ gate.
+## When shipping (Pro+)
+
+1. App passwords per mailbox identity (hashed at rest)
+2. Docs for Apple Mail / Outlook / Thunderbird
+3. Rate limits + lockout on auth spray
+4. Flip marketing copy only after a real round-trip test
+
+## Why Partial in this redesign
+
+A full IMAP/JMAP stack on Workers is Heavy. Shipmail markets protocols day one; Flap keeps SES webmail primary and stays honest about the dated path.

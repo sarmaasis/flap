@@ -16,7 +16,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ viewers: [] });
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ viewers: [] });
     const threadKey = c.req.param("threadKey").slice(0, 200);
     const display = (user.email || "Teammate").split("@")[0];
     await c.env.DB.prepare(
@@ -40,7 +40,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Audit log requires Studio.", entries: [] }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Audit log requires Team.", entries: [] }, 402);
     const rows = await c.env.DB.prepare(
       "SELECT id, actor_user_id, action, target, meta_json, created_at FROM audit_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 200",
     )
@@ -55,7 +55,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Client portals require Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Client portals require Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { name?: string; mailbox_ids?: string[] };
     const id = randomId("portal");
     const slug = randomId("cp").slice(-10);
@@ -73,7 +73,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "VA mode requires Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "VA mode requires Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { email?: string; mailbox_ids?: string[]; days?: number };
     const id = randomId("va");
     const token = randomId("vatoken");
@@ -91,7 +91,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const plan = await getEffectivePlan(c.env.DB, user.id);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ workspaces: [], note: "Multi-workspace requires Studio." });
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ workspaces: [], note: "Multi-workspace requires Team." });
     const rows = await c.env.DB.prepare("SELECT id, name, created_at FROM workspaces_extra WHERE owner_user_id = ?")
       .bind(user.id)
       .all();
@@ -102,7 +102,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const plan = await getEffectivePlan(c.env.DB, user.id);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Multi-workspace requires Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Multi-workspace requires Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { name?: string };
     const id = randomId("hold");
     await c.env.DB.prepare(

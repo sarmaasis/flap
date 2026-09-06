@@ -54,10 +54,10 @@ export default function DocsApiPage() {
             Solo — {PLANS.solo.limits.api_keys} API keys, {PLANS.solo.limits.webhooks} webhooks
           </li>
           <li>
-            Builder — {PLANS.builder.limits.api_keys} API keys, {PLANS.builder.limits.webhooks} webhooks
+            Pro — {PLANS.pro.limits.api_keys} API keys, {PLANS.pro.limits.webhooks} webhooks
           </li>
           <li>
-            Studio — {PLANS.studio.limits.api_keys} API keys, {PLANS.studio.limits.webhooks} webhooks
+            Team — {PLANS.team.limits.api_keys} API keys, {PLANS.team.limits.webhooks} webhooks
           </li>
         </ul>
 
