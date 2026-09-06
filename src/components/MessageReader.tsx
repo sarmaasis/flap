@@ -44,6 +44,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 
 type TeamMember = { user_id: string; email: string };
 
+/** Soften HTML email canvas so dark chrome isn't blasted by pure white. */
+function emailSrcDoc(html: string): string {
+  const dark =
+    typeof document !== "undefined" &&
+    (document.documentElement.classList.contains("dark") ||
+      document.documentElement.dataset.theme === "dark");
+  const bg = dark ? "#ebe8e0" : "#f3f1eb";
+  const softHead =
+    '<meta name="color-scheme" content="light only" />' +
+    `<style>html,body{background:${bg}!important;}</style>`;
+  if (/<head[\s>]/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
+  }
+  if (/<html[\s>]/i.test(html)) {
+    return html.replace(/<html([^>]*)>/i, `<html$1><head>${softHead}</head>`);
+  }
+  return `<!DOCTYPE html><html><head>${softHead}</head><body>${html}</body></html>`;
+}
+
 export type MessageReaderProps = {
   message: MailFull;
   folder: string;
@@ -148,7 +167,7 @@ export default function MessageReader({
   return (
     <TooltipProvider delayDuration={250}>
       <article
-        className="message-reader mx-auto w-full max-w-[820px] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+        className="message-reader mx-auto w-full max-w-[820px] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--bg-elevated)]"
         style={
           {
             borderLeftWidth: 3,
@@ -330,16 +349,16 @@ export default function MessageReader({
           </div>
         ) : null}
 
-        <div className="px-1 sm:px-2">
+        <div className="message-body">
           {message.html_body ? (
             <iframe
               title="Message body"
               sandbox=""
-              srcDoc={message.html_body}
-              className="message-frame min-h-[360px] w-full rounded-none border-0 bg-white"
+              srcDoc={emailSrcDoc(message.html_body)}
+              className="message-frame min-h-[320px] w-full border-0"
             />
           ) : (
-            <div className="body-text whitespace-pre-wrap px-5 py-4 text-[15px] leading-[1.55] text-[var(--fg)] sm:px-6">
+            <div className="body-text whitespace-pre-wrap px-4 py-3 text-[15px] leading-[1.55] text-[var(--fg)] sm:px-5">
               {message.text_body || ""}
             </div>
           )}

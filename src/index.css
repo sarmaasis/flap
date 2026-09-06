@@ -984,7 +984,7 @@ textarea { min-height: 160px; resize: vertical; }
 .thread-item:hover, .thread-item.active {
   border-color: rgba(var(--cta-rgb), 0.35);
   color: var(--fg);
-  background: #fff;
+  background: var(--surface);
 }
 .thread-item strong { display: block; color: inherit; font-weight: 600; }
 .label-chip {
@@ -1216,11 +1216,16 @@ textarea { min-height: 160px; resize: vertical; }
 .compose-hint { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
 .compose-action-buttons { display: flex; gap: 8px; }
 
+/* Full-page settings: fills AppShell main pane (sibling of sidebar).
+   Header, tabs, banners, and tab bodies all share that pane width. */
 .settings {
-  padding: 44px 36px 64px;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
+  padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1228,64 +1233,229 @@ textarea { min-height: 160px; resize: vertical; }
   -webkit-overflow-scrolling: touch;
 }
 
-.settings h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.03em; text-transform: uppercase; }
-.settings .lede { color: var(--muted); margin: 0; max-width: 57ch; }
+.settings-shell {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px clamp(20px, 2.5vw, 36px) 56px;
+  box-sizing: border-box;
+}
+
+/* Tab bodies share the full main-pane width (shell padding only — no artificial gutters). */
+.settings-measure {
+  width: 100%;
+  max-width: none;
+}
+
+.settings-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-transform: none;
+  font-family: var(--font-display);
+  color: var(--fg);
+}
+.settings .lede {
+  color: var(--muted);
+  margin: 0;
+  max-width: 62ch;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
 .eyebrow {
-  color: var(--cta);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: .12em;
-  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  margin: 0 0 4px;
   text-transform: uppercase;
   font-family: var(--font-mono);
 }
-.settings-intro { margin-bottom: 24px; }
 
 .setup-steps {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   list-style: none;
   padding: 0;
-  margin: 0 0 28px;
+  margin: 0 0 16px;
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
 }
-.setup-steps li { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-right: 1px solid var(--line); color: var(--muted); }
+.setup-steps li { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-right: 1px solid var(--line); color: var(--muted); }
 .setup-steps li:last-child { border-right: 0; }
 .setup-steps span {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
   border-radius: 4px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
   font-family: var(--font-mono);
 }
 .setup-steps strong, .setup-steps small { display: block; }
-.setup-steps strong { color: var(--fg); font-size: 13px; }
-.setup-steps small { margin-top: 2px; font-size: 12px; line-height: 1.35; }
+.setup-steps strong { color: var(--fg); font-size: 12px; font-weight: 600; }
+.setup-steps small { margin-top: 2px; font-size: 11px; line-height: 1.35; }
 .setup-steps .current { background: rgba(var(--cta-rgb), 0.05); color: var(--fg); }
 .setup-steps .current span { background: var(--cta); color: var(--cta-fg); }
 .setup-steps .complete span { background: rgba(var(--cta-rgb), 0.18); color: var(--cta); }
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+/* Developers (and similar): 2-col grid that stretches across the full measure */
+.settings-panel--split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+}
+/* ~900px content + 248px sidebar ≈ 1148px viewport */
+@media (min-width: 1150px) {
+  .settings-panel--split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 .settings-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 20px;
-  margin-top: 16px;
+  padding: 16px 18px;
+  margin: 0;
   box-shadow: none;
-  border-top: 2px solid var(--cta);
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
-.section-heading h2 { margin: 0; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
-.section-heading p { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
-.empty-state { color: var(--muted); font-size: 13px; margin: 14px 0 2px; }
+.settings-card .table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.section-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
+.section-heading p { color: var(--muted); font-size: 12.5px; margin: 3px 0 0; line-height: 1.4; }
+.empty-state { color: var(--muted); font-size: 12.5px; margin: 10px 0 2px; }
+
+/* Compact controls inside settings */
+.settings .row-form { margin: 8px 0 12px; gap: 6px; align-items: center; }
+.settings .row-form input,
+.settings .row-form select,
+.settings .stack-form input,
+.settings .stack-form select,
+.settings .stack-form textarea,
+.settings .field input,
+.settings .field select,
+.settings .field textarea {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.settings .stack-form { gap: 8px; margin: 8px 0 12px; }
+/* Grid forms stretch children by default — keep primary actions compact */
+.settings .stack-form > button,
+.settings .stack-form > [type="submit"] {
+  justify-self: start;
+  width: auto;
+  max-width: max-content;
+}
+.settings .row-form > button,
+.settings .row-form > [type="submit"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+.settings .table { font-size: 13px; }
+.settings .table th,
+.settings .table td { padding: 7px 6px; }
+.settings .table tr.is-selected td {
+  background: rgba(var(--cta-rgb), 0.07);
+}
+.settings .muted { font-size: 12.5px; }
+
+.dns-domain-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.dns-domain-bar label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.dns-domain-bar select {
+  min-height: 32px;
+  min-width: min(280px, 100%);
+  max-width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.settings-tabs-root {
+  margin-bottom: 16px;
+  width: 100%;
+}
+.settings-tabs-list {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  width: 100%;
+  max-width: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  background: var(--surface-2) !important;
+  border-color: var(--line) !important;
+}
+.settings-tabs-list::-webkit-scrollbar {
+  height: 4px;
+}
+.settings-tabs-list::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
 .text-button {
   color: var(--fg);
   font: inherit;
@@ -1345,7 +1515,7 @@ textarea { min-height: 160px; resize: vertical; }
 
 @media (max-width: 860px) {
   .grid-3 { grid-template-columns: 1fr; }
-  .settings { padding: 28px 18px 48px; }
+  .settings-shell { padding: 24px 18px 48px; }
   .setup-steps { grid-template-columns: 1fr; }
   .setup-steps li { border-right: 0; border-bottom: 1px solid var(--line); }
   .setup-steps li:last-child { border-bottom: 0; }
@@ -1567,12 +1737,13 @@ textarea { min-height: 160px; resize: vertical; }
   .compose-actions { align-items: flex-end; flex-direction: column; }
   .compose-hint { width: 100%; }
   .settings {
-    padding: 24px 14px 40px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .settings-card { padding: 16px; }
+  .settings-shell { padding: 20px 14px 40px; }
+  .settings-header { margin-bottom: 14px; padding-bottom: 12px; }
+  .settings-card { padding: 12px 14px; }
   .table td:last-child, .table th:last-child { text-align: right; }
 }
 
@@ -1668,14 +1839,16 @@ textarea { min-height: 160px; resize: vertical; }
 }
 .message-frame {
   width: 100%;
-  min-height: 360px;
+  min-height: 320px;
   border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: #fff;
+  border-radius: 8px;
+  background: var(--reader-html-bg, #f3f1eb);
+}
+.message-reader .message-body {
+  padding: 4px 12px 14px;
 }
 .message-reader .message-frame {
-  border-top: 1px solid var(--line);
+  border: 1px solid var(--line);
 }
 .mail-toast {
   position: fixed;
@@ -2166,15 +2339,15 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border: 1px solid rgba(var(--cta-rgb), 0.28);
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: linear-gradient(120deg, rgba(var(--cta-rgb), 0.1), rgba(var(--accent-2-rgb), 0.05));
+  background: var(--surface);
 }
-.onboarding-banner strong { display: block; font-size: 14px; }
-.onboarding-banner p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.onboarding-banner strong { display: block; font-size: 13px; font-weight: 600; }
+.onboarding-banner p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
 .inbox-onboarding {
   margin: 12px 12px 0;
   flex-shrink: 0;
@@ -2511,4 +2684,28 @@ html[data-theme="dark"] .settings-card {
 html.dark .mail-main,
 html[data-theme="dark"] .mail-main {
   background: var(--bg);
+}
+
+html.dark .message-reader,
+html[data-theme="dark"] .message-reader {
+  background: var(--bg-elevated);
+  border-color: var(--line);
+}
+
+html.dark .message-reader .body-text,
+html[data-theme="dark"] .message-reader .body-text {
+  color: var(--fg);
+}
+
+/* Soft warm island for HTML mail — not pure #fff against dark chrome */
+html.dark,
+html[data-theme="dark"] {
+  --reader-html-bg: #ebe8e0;
+}
+
+html.dark .message-reader .message-frame,
+html[data-theme="dark"] .message-reader .message-frame {
+  background: var(--reader-html-bg);
+  border-color: rgba(244, 244, 243, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
