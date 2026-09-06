@@ -38,13 +38,13 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
           <BrandMark />
           Flap
         </a>
-        <nav className="hidden items-center gap-5 text-sm text-[var(--muted)] md:flex">
-          <a href="/#pricing" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
-          <a href="/docs" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
-          <a href="/tools" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
-          <a href="/guides" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
-          <a href="/blog" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
-          <a href="/login" className="hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
+        <nav className="hidden items-center gap-5 text-sm md:flex">
+          <a href="/#pricing" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
+          <a href="/docs" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
+          <a href="/tools" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
+          <a href="/guides" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
+          <a href="/blog" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
+          <a href="/login" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
           <Button
             size="sm"
             asChild

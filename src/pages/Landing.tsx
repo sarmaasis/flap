@@ -363,8 +363,8 @@ export default function Landing() {
           </p>
         </div>
         <div className="mb-6 inline-flex rounded-lg border border-[var(--line)] p-1 text-sm">
-          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "month" ? "bg-[var(--cta)] text-white" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("month")}>Monthly</button>
-          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "year" ? "bg-[var(--cta)] text-white" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("year")}>Annual (-20%)</button>
+          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "month" ? "bg-[var(--cta)] text-[var(--cta-fg)]" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("month")}>Monthly</button>
+          <button type="button" className={`rounded-md px-3 py-1.5 ${billingInterval === "year" ? "bg-[var(--cta)] text-[var(--cta-fg)]" : "text-[var(--muted)]"}`} onClick={() => setBillingInterval("year")}>Annual (-20%)</button>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => (

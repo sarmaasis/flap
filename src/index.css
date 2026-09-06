@@ -85,7 +85,8 @@ body {
     var(--bg);
   color: var(--fg);
 }
-a { color: inherit; }
+/* Avoid unlayered `a { color: inherit }` — it overrides Tailwind @layer utilities
+   on Button asChild links (CTA text inherits muted/fg and disappears on teal). */
 button, input, textarea, select { font: inherit; }
 
 .page {
