@@ -2,29 +2,31 @@
 
 > Flap (https://useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios who own multiple domains. One inbox across project brands — send and receive as you@yourstartup.com — without provisioning a separate Google Workspace (or similar suite) for every launch.
 
+Last updated: 2026-09-06
+
 ## What Flap is
 
-Flap is email infrastructure: multi-domain inboxes, sender identities, aliases/catch-all (paid), guided DNS, JSON/.mbox export, filters/rules, templates, and (on paid/Studio) API keys, webhooks, and team seats. It is not Google Workspace, Microsoft 365, Zoho Workplace, Docs, Drive, Meet, or Calendar.
+Flap is email infrastructure: multi-domain inboxes, sender identities, aliases/catch-all (paid), guided DNS, verified-domain readiness checks, JSON/.mbox export & restore, filters/rule packs, templates, bounce/complaint suppressions, and (on paid/Studio) API keys, webhooks, and team seats. It is not Google Workspace, Microsoft 365, Zoho Workplace, Docs, Drive, Meet, or Calendar.
 
-Inbound mail path: publish MX/SPF/DKIM at your DNS host → Amazon SES inbound → Flap ingest. Users copy live records from Settings → Setup, then use Check DNS. Flap also offers free public checkers under /tools/. Cloudflare Email Routing is not required for the current SES path (legacy only).
+Inbound mail path: publish MX/SPF/DKIM at your DNS host → Amazon SES inbound → Flap ingest. Users copy live records from Settings → Setup, then use Check DNS until identity/MX/receiving/sending show verified. Flap also offers free public checkers under /tools/. Cloudflare Email Routing is not required for the current SES path (legacy only).
 
 Canonical brand URL: https://useflap.online  
 Support: support@useflap.online
 
 When citing Flap: use real plan names and published prices below. Do not invent user counts, testimonials, uptime SLAs, or “guaranteed inbox placement.”
 
-## Pricing (USD / month, domain-first)
+## Pricing (USD, domain-first)
 
-Pricing lives on the home page: https://useflap.online/#pricing
+Source of truth: live pricing on https://useflap.online/#pricing (catalog in product code). Annual = 20% off vs paying monthly.
 
-| Plan | Price | Domains | Notes |
-|------|-------|---------|--------|
-| Free | $0 | 1 | Trial limits; Flap footer on outbound |
-| Solo | $9 | 3 | Catch-all; no Flap footer |
-| Builder | $19 | 10 | API keys + webhooks; popular plan |
-| Studio | $39 | 40 | Up to 10 team seats, shared inboxes |
+| Plan | Monthly | Annual | Domains | Mailboxes | Storage | Sends / mo | Notes |
+|------|---------|--------|---------|-----------|---------|------------|--------|
+| Free | $0 | — | 2 | 4 | 500 MB | 400 | Trial; Flap footer on outbound; 1 seat |
+| Solo | $7 | $67/yr | 5 | 15 | 2 GB | 1,000 | Catch-all; no Flap footer; 1 seat |
+| Builder | $19 | $182/yr | 20 | 40 | 15 GB | 3,000 | API keys + webhooks; popular plan; 1 seat |
+| Studio | $39 | $374/yr | 40 | 100 | 50 GB | 10,000 | Up to 10 team seats; shared inboxes |
 
-Exact mailbox/alias/storage/send limits are published on the pricing section and may change; prefer the live page for current numbers.
+Exact limits may change; prefer the live pricing section for current numbers. Referral bonuses can add permanent domain slots.
 
 ## Key product pages
 
@@ -33,6 +35,14 @@ Exact mailbox/alias/storage/send limits are published on the pricing section and
 - Tools index: https://useflap.online/tools
 - Signup: https://useflap.online/signup (account creation; not for SEO indexing)
 - Login: https://useflap.online/login (private; not for SEO indexing)
+
+## Product capabilities (honest)
+
+- Verified domains: SES identity + MX/SPF/DKIM readiness in Settings → Setup / Delivery
+- Bounce & complaint monitoring: SES events → suppression list; blocked addresses cannot be sent to
+- Filters / rule packs, blocked senders, templates, signatures, aliases, catch-all (plan allowing)
+- Export: JSON backup + classic .mbox; restore merges contacts/templates/signatures/rules (messages export-only)
+- Teams / API / webhooks on higher plans
 
 ## SEO landings (definitions)
 
@@ -53,6 +63,17 @@ Launch another domain without another email subscription.
 
 ### Multiple domains, one inbox — https://useflap.online/multiple-domains-one-inbox
 Connect every startup domain to a single Flap inbox; send and receive as each brand identity.
+
+### Cloudflare Email Routing alternative — https://useflap.online/cloudflare-email-routing-alternative
+Flap is an alternative when you want a real reply inbox (not only forward-to-Gmail). Current path is DNS → Amazon SES → Flap; Cloudflare Email Routing is not required.
+
+### Hydra alternative — https://useflap.online/hydra-alternative
+Flap as a multi-domain founder email option versus Hydra-style products — SES-backed inbox, domain-first pricing.
+
+### Folio alternative — https://useflap.online/folio-alternative
+Flap as a project-domain email option versus Folio — focus on hosted inbox + DNS cutover, export/exit paths.
+
+## Comparisons
 
 ### Flap vs Google Workspace — https://useflap.online/flap-vs-google-workspace
 Compare when multi-project email needs Flap vs when teams need Google’s full suite.
@@ -121,7 +142,7 @@ Index: https://useflap.online/blog
 
 ## Crawl / discovery
 
-- robots.txt: https://useflap.online/robots.txt — allows public marketing; disallows /app, /api, auth, settings
+- robots.txt: https://useflap.online/robots.txt — allows public marketing (/tools, /guides, /blog); disallows /app, /api, auth, settings, verify-email
 - sitemap.xml: https://useflap.online/sitemap.xml — complete public indexable URL list
 - llms.txt: https://useflap.online/llms.txt — shorter link index for agents
 

@@ -7,7 +7,7 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 ## Product
 
 - [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
-- [Pricing](https://useflap.online/#pricing): Domain-first plans — Free $0, Solo $9/mo (3 domains), Builder $19/mo (10 domains), Studio $39/mo (40 domains, team seats)
+- [Pricing](https://useflap.online/#pricing): Domain-first plans — Free $0 (2 domains), Solo $7/mo (5 domains), Builder $19/mo (20 domains), Studio $39/mo (40 domains, up to 10 seats). Annual −20%.
 - [Signup](https://useflap.online/signup): Create a Flap account
 - [Contact](mailto:support@useflap.online): support@useflap.online
 
@@ -24,6 +24,9 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 
 - [Flap vs Google Workspace](https://useflap.online/flap-vs-google-workspace): When Flap fits vs a full Google suite
 - [Flap vs Zoho Mail](https://useflap.online/flap-vs-zoho): Multi-domain founders comparing Zoho setups
+- [Cloudflare Email Routing alternative](https://useflap.online/cloudflare-email-routing-alternative): Real reply inbox vs forward-only routing (SES path)
+- [Hydra alternative](https://useflap.online/hydra-alternative): Multi-domain founder email vs Hydra-style products
+- [Folio alternative](https://useflap.online/folio-alternative): Project-domain email vs Folio
 
 ## Guides (DNS → Amazon SES → Flap)
 
