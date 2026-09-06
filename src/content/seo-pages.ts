@@ -855,4 +855,5 @@ export function getSeoPage(path: string): SeoPageDef | null {
   return SEO_PAGE_DEFS[path] ?? null;
 }
 
+/** @deprecated Prefer path-only import from `./seo-paths` in App to keep bodies out of the main chunk. */
 export const SEO_PATHS = Object.keys(SEO_PAGE_DEFS);

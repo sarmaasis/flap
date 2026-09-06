@@ -489,51 +489,53 @@ export async function folderCounts(
             sql: ` AND mailbox_id IN (${mailboxIds.map(() => "?").join(", ")})`,
             binds: [...mailboxIds] as unknown[],
           };
-  const rows = await db
-    .prepare(
-      `SELECT folder,
-              COUNT(*) AS total,
-              SUM(CASE WHEN unread = 1 THEN 1 ELSE 0 END) AS unread
-       FROM (
-         SELECT folder, unread,
-                ROW_NUMBER() OVER (
-                  PARTITION BY user_id, ${MSG_DEDUP_KEY}
-                  ORDER BY date_ms ASC, created_at ASC
-                ) AS rn
-         FROM messages
-         WHERE user_id = ?${access.sql} AND (snooze_until IS NULL OR snooze_until <= ?)
-       )
-       WHERE rn = 1
-       GROUP BY folder`,
-    )
-    .bind(workspaceId, ...access.binds, now)
-    .all<{ folder: string; total: number; unread: number }>();
+  const [rows, starred, snoozed] = await Promise.all([
+    db
+      .prepare(
+        `SELECT folder,
+                COUNT(*) AS total,
+                SUM(CASE WHEN unread = 1 THEN 1 ELSE 0 END) AS unread
+         FROM (
+           SELECT folder, unread,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY user_id, ${MSG_DEDUP_KEY}
+                    ORDER BY date_ms ASC, created_at ASC
+                  ) AS rn
+           FROM messages
+           WHERE user_id = ?${access.sql} AND (snooze_until IS NULL OR snooze_until <= ?)
+         )
+         WHERE rn = 1
+         GROUP BY folder`,
+      )
+      .bind(workspaceId, ...access.binds, now)
+      .all<{ folder: string; total: number; unread: number }>(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT 1
+           FROM messages
+           WHERE user_id = ?${access.sql} AND starred = 1 AND folder NOT IN ('trash', 'spam')
+           GROUP BY ${MSG_DEDUP_KEY}
+         )`,
+      )
+      .bind(workspaceId, ...access.binds)
+      .first<{ n: number }>(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT 1
+           FROM messages
+           WHERE user_id = ?${access.sql} AND snooze_until > ?
+           GROUP BY ${MSG_DEDUP_KEY}
+         )`,
+      )
+      .bind(workspaceId, ...access.binds, now)
+      .first<{ n: number }>(),
+  ]);
   const counts: Record<string, { total: number; unread: number }> = {};
   for (const row of rows.results ?? []) {
     counts[row.folder] = { total: Number(row.total), unread: Number(row.unread) };
   }
-  const starred = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM (
-         SELECT 1
-         FROM messages
-         WHERE user_id = ?${access.sql} AND starred = 1 AND folder NOT IN ('trash', 'spam')
-         GROUP BY ${MSG_DEDUP_KEY}
-       )`,
-    )
-    .bind(workspaceId, ...access.binds)
-    .first<{ n: number }>();
-  const snoozed = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM (
-         SELECT 1
-         FROM messages
-         WHERE user_id = ?${access.sql} AND snooze_until > ?
-         GROUP BY ${MSG_DEDUP_KEY}
-       )`,
-    )
-    .bind(workspaceId, ...access.binds, now)
-    .first<{ n: number }>();
   counts.starred = { total: Number(starred?.n ?? 0), unread: 0 };
   counts.snoozed = { total: Number(snoozed?.n ?? 0), unread: 0 };
   return counts;
@@ -590,8 +592,8 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const now = nowMs();
-    await flushScheduled(c.env).catch((error) => console.warn("flushScheduled", error));
-    const [mailboxes, signatures, templates, contacts, settings] = await Promise.all([
+    // Scheduled sends are flushed by cron (* * * * *) — do not block bootstrap on them.
+    const [mailboxes, signatures, templates, contacts, settings, counts, domain_unread] = await Promise.all([
       listAccessibleMailboxes(c.env.DB, ctx),
       c.env.DB.prepare("SELECT id, name, html_body, text_body, is_default, created_at FROM signatures WHERE user_id = ? ORDER BY is_default DESC, created_at ASC")
         .bind(ctx.workspaceId)
@@ -603,8 +605,6 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
         .bind(ctx.workspaceId)
         .all(),
       loadSettings(c.env.DB, ctx.workspaceId),
-    ]);
-    const [counts, domain_unread] = await Promise.all([
       folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
       domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
     ]);
@@ -632,7 +632,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    await flushScheduled(c.env).catch(() => undefined);
+    // Cron flushes scheduled sends; keep this path read-only and fast.
     const [counts, domain_unread] = await Promise.all([
       folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
       domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),

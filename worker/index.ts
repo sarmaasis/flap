@@ -191,12 +191,14 @@ app.get("/api/me", async (c) => {
   if (!user) return c.json({ user: null }, 401);
   const preferred = getCookie(c, "flap_ws") || undefined;
   const ctx = await resolveWorkspace(c.env.DB, user.id, preferred);
-  const mailboxes = await listAccessibleMailboxes(c.env.DB, ctx);
-  const credential = await c.env.DB.prepare(
-    `SELECT id FROM account WHERE userId = ? AND providerId = 'credential' AND password IS NOT NULL AND password != ''`,
-  )
-    .bind(user.id)
-    .first<{ id: string }>();
+  const [mailboxes, credential] = await Promise.all([
+    listAccessibleMailboxes(c.env.DB, ctx),
+    c.env.DB.prepare(
+      `SELECT id FROM account WHERE userId = ? AND providerId = 'credential' AND password IS NOT NULL AND password != ''`,
+    )
+      .bind(user.id)
+      .first<{ id: string }>(),
+  ]);
   return c.json({
     user: {
       id: user.id,
@@ -581,7 +583,7 @@ app.get("/api/mail", async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-  await flushScheduled(c.env).catch(() => undefined);
+  // Scheduled sends are flushed by cron — keep list reads free of send-side work.
   const folder = (c.req.query("folder") ?? "inbox").toLowerCase();
   if (!FOLDERS.has(folder) && !VIRTUAL_FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
   const mailboxId = c.req.query("mailbox");

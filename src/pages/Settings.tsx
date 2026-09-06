@@ -250,14 +250,13 @@ export default function Settings() {
       const me = await api.me();
       setEmail(me.user.email);
       setEmailVerified(me.user.email_verified !== false);
-      const [d, m, p, act] = await Promise.all([
+      setMailboxes(me.mailboxes);
+      const [d, p, act] = await Promise.all([
         api.domains(),
-        api.mailboxes(),
         api.prefs(),
         api.activation().catch(() => null),
       ]);
       setDomains(d.domains);
-      setMailboxes(m.mailboxes);
       setPrefs(p.settings);
       if (act) {
         setActivation(act);

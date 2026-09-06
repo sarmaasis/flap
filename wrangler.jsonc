@@ -6,6 +6,12 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	// Place the Worker near back-ends (D1/R2/SES) based on observed latency.
+	// Helps users far from the D1 primary (e.g. US vs India) without pinning a region.
+	// Docs: https://developers.cloudflare.com/workers/configuration/placement/
+	"placement": {
+		"mode": "smart"
+	},
 	"assets": {
 		"not_found_handling": "404-page",
 		"binding": "ASSETS",

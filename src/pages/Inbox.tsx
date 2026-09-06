@@ -83,7 +83,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const lastUnreadRef = useRef<number | null>(null);
-  const pollBusyRef = useRef(false);
+  const countsBusyRef = useRef(false);
   /** When true, selected id is for draft/scheduled compose — do not load the reader. */
   const openInComposeRef = useRef(false);
   const [openingDraft, setOpeningDraft] = useState(false);
@@ -113,6 +113,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setMailboxes(data.mailboxes);
     setCounts(data.counts);
     setDomainUnread(data.domain_unread ?? {});
+    lastUnreadRef.current = data.counts.inbox?.unread ?? 0;
     setContacts(data.contacts);
     setTemplates(data.templates);
     setSignatures(data.signatures);
@@ -163,6 +164,49 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => ac.abort();
   }, [loadList]);
 
+  /** Event-based badge refresh (focus/visibility + mail actions). No interval polling. */
+  const refreshCounts = useCallback(async (opts?: { reloadListOnNew?: boolean }) => {
+    if (countsBusyRef.current) return;
+    countsBusyRef.current = true;
+    try {
+      const d = await api.counts();
+      const inboxUnread = d.counts.inbox?.unread ?? 0;
+      const prev = lastUnreadRef.current ?? 0;
+      if (lastUnreadRef.current !== null && inboxUnread > prev) {
+        const added = inboxUnread - prev;
+        setToast({
+          title: added === 1 ? "New email" : `${added} new emails`,
+          body: "Your inbox was updated.",
+        });
+        if (opts?.reloadListOnNew !== false && folder === "inbox" && qDebounced.length < 2) {
+          void loadList();
+        }
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          try {
+            new Notification("Flap", {
+              body: added === 1 ? "You have a new message." : `You have ${added} new messages.`,
+              tag: "flap-mail",
+            });
+          } catch {
+            /* ignore */
+          }
+        } else if (notifyBrowser && typeof Notification !== "undefined" && Notification.permission === "default") {
+          void Notification.requestPermission();
+        }
+      }
+      lastUnreadRef.current = inboxUnread;
+      setCounts(d.counts);
+      if (d.domain_unread) setDomainUnread(d.domain_unread);
+    } catch {
+      /* ignore transient count failures */
+    } finally {
+      countsBusyRef.current = false;
+    }
+  }, [folder, loadList, notifyBrowser, qDebounced.length]);
+
+  const refreshCountsRef = useRef(refreshCounts);
+  refreshCountsRef.current = refreshCounts;
+
   useEffect(() => {
     if (!selected) {
       setMessage(null);
@@ -184,9 +228,11 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setNoteDraft("");
     api.message(selected, ac.signal)
       .then(async (d) => {
+        const wasUnread = d.message.unread;
         setMessage(d.message);
         setAtts(d.attachments);
         setList((prev) => prev.map((m) => (m.id === selected ? { ...m, unread: 0 } : m)));
+        if (wasUnread) void refreshCountsRef.current({ reloadListOnNew: false });
         void api.messageNotes(selected).then((n) => { if (!ac.signal.aborted) setNotes(n.notes); }).catch(() => setNotes([]));
         try {
           const t = await api.thread(selected, ac.signal);
@@ -221,56 +267,27 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setShowCompose(true);
   }, [composeOpen]);
 
+  // Counts: refetch on tab focus / visibility (no 3.5s polling).
+  // Slow visible-only backup (~60s) catches inbound mail while the tab stays focused.
+  // SSE/WebSocket deferred — not present yet; would need a Durable Object fan-out on Workers.
   useEffect(() => {
-    const poll = () => {
-      if (pollBusyRef.current || document.visibilityState === "hidden") return;
-      pollBusyRef.current = true;
-      void api.counts()
-        .then((d) => {
-          const inboxUnread = d.counts.inbox?.unread ?? 0;
-          const prev = lastUnreadRef.current ?? counts.inbox?.unread ?? 0;
-          if (lastUnreadRef.current !== null && inboxUnread > prev) {
-            const added = inboxUnread - prev;
-            setToast({
-              title: added === 1 ? "New email" : `${added} new emails`,
-              body: "Your inbox was updated.",
-            });
-            if (folder === "inbox" && qDebounced.length < 2) void loadList();
-            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-              try {
-                new Notification("Flap", {
-                  body: added === 1 ? "You have a new message." : `You have ${added} new messages.`,
-                  tag: "flap-mail",
-                });
-              } catch {
-                /* ignore */
-              }
-            } else if (notifyBrowser && typeof Notification !== "undefined" && Notification.permission === "default") {
-              void Notification.requestPermission();
-            }
-          }
-          lastUnreadRef.current = inboxUnread;
-          setCounts(d.counts);
-          if (d.domain_unread) setDomainUnread(d.domain_unread);
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          pollBusyRef.current = false;
-        });
-    };
-    const id = window.setInterval(poll, 3500);
     const onVis = () => {
-      if (document.visibilityState === "visible") poll();
+      if (document.visibilityState === "visible") void refreshCounts();
     };
-    const onFocus = () => poll();
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void refreshCounts();
+    };
+    const backupId = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshCounts();
+    }, 60_000);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onFocus);
     return () => {
-      window.clearInterval(id);
+      window.clearInterval(backupId);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onFocus);
     };
-  }, [counts.inbox?.unread, folder, loadList, notifyBrowser, qDebounced.length]);
+  }, [refreshCounts]);
 
   useEffect(() => {
     if (!toast) return;
@@ -546,6 +563,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         void api.flags(ctx.message.id, { unread: true }).then(() => {
           setList((prev) => prev.map((item) => (item.id === ctx.message!.id ? { ...item, unread: 1 } : item)));
           setMessage((prev) => (prev ? { ...prev, unread: 1 } : prev));
+          void refreshCountsRef.current({ reloadListOnNew: false });
         });
       }
     }
@@ -857,6 +875,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                       void api.flags(message.id, { unread: true }).then(() => {
                         setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, unread: 1 } : item)));
                         setMessage({ ...message, unread: 1 });
+                        void refreshCounts({ reloadListOnNew: false });
                       });
                     }}
                     onSnooze={(until) => void snooze(message.id, until)}
@@ -968,7 +987,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               setUndoToast(null);
               void api.undoSend(id).then(() => {
                 setFolder("drafts");
-                return loadList();
+                return Promise.all([loadList(), refreshCounts({ reloadListOnNew: false })]);
               }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not undo."));
             }}
           >

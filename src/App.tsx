@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import Landing from "./pages/Landing";
 import RequireVerified from "./components/RequireVerified";
-import { GUIDE_PAGES, TOOL_PAGES } from "./content/marketing";
-import { SEO_PATHS } from "./content/seo-pages";
-import { BLOG_POSTS } from "./content/blog";
+import { SEO_PATHS } from "./content/seo-paths";
+import { BLOG_PATHS } from "./content/blog-paths";
+import { DNS_TOOL_PATHS as DNS_TOOL_PATH_LIST, GUIDE_PATHS as GUIDE_PATH_LIST } from "./content/tool-guide-paths";
 import { normalizePathname } from "./content/public-routes";
 
+const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
@@ -34,17 +34,9 @@ function Screen({ children }: { children: ReactNode }) {
 }
 
 const SEO_PATH_SET = new Set<string>(SEO_PATHS);
-
-const DNS_TOOL_PATHS = new Set<string>(
-  TOOL_PAGES.filter(
-    (t) =>
-      t.path !== "/tools/google-workspace-cost-calculator" &&
-      t.path !== "/tools/flap-vs-workspace-share",
-  ).map((t) => t.path),
-);
-
-const GUIDE_PATHS = new Set<string>(GUIDE_PAGES.map((g) => g.path));
-const BLOG_PATHS = new Set<string>(BLOG_POSTS.map((p) => p.path));
+const DNS_TOOL_PATHS = new Set<string>(DNS_TOOL_PATH_LIST);
+const GUIDE_PATHS = new Set<string>(GUIDE_PATH_LIST);
+const BLOG_PATH_SET = new Set<string>(BLOG_PATHS);
 
 export default function App() {
   const [path, setPath] = useState(() => normalizePathname(window.location.pathname));
@@ -115,14 +107,14 @@ export default function App() {
   if (path === "/blog") {
     return <Screen><BlogIndex /></Screen>;
   }
-  if (BLOG_PATHS.has(path)) {
+  if (BLOG_PATH_SET.has(path)) {
     return <Screen><BlogPost path={path} /></Screen>;
   }
   if (SEO_PATH_SET.has(path)) {
     return <Screen><SeoLanding path={path} /></Screen>;
   }
   if (path === "/") {
-    return <Landing />;
+    return <Screen><Landing /></Screen>;
   }
 
   return <Screen><NotFoundPage /></Screen>;

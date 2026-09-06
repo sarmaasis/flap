@@ -20,9 +20,11 @@ export async function ensureFlapUser(
   opts?: { referralCode?: string | null },
 ): Promise<void> {
   const email = baUser.email.trim().toLowerCase();
-  const byId = await env.DB.prepare("SELECT id, email FROM users WHERE id = ?")
+  const byId = await env.DB.prepare(
+    "SELECT id, email, name, email_verified_at FROM users WHERE id = ?",
+  )
     .bind(baUser.id)
-    .first<{ id: string; email: string }>();
+    .first<{ id: string; email: string; name: string | null; email_verified_at: number | null }>();
 
   if (byId) {
     if (byId.email !== email) {
@@ -33,18 +35,23 @@ export async function ensureFlapUser(
         .bind(baUser.name.slice(0, 120), baUser.id)
         .run();
     }
-    if (baUser.emailVerified) await markEmailVerified(env.DB, baUser.id);
+    // Only write + referral scans when verification is newly set (hot-path skip for verified users).
+    if (baUser.emailVerified && !byId.email_verified_at) {
+      await markEmailVerified(env.DB, baUser.id);
+    }
     return;
   }
 
-  const byEmail = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+  const byEmail = await env.DB.prepare("SELECT id, email_verified_at FROM users WHERE email = ?")
     .bind(email)
-    .first<{ id: string }>();
+    .first<{ id: string; email_verified_at: number | null }>();
 
   if (byEmail) {
     // Should not happen after id-preserving migration; log and attach product state to BA id only if empty.
     console.warn("Flap user email exists with different id than Better Auth user", email);
-    if (baUser.emailVerified) await markEmailVerified(env.DB, byEmail.id);
+    if (baUser.emailVerified && !byEmail.email_verified_at) {
+      await markEmailVerified(env.DB, byEmail.id);
+    }
     return;
   }
 

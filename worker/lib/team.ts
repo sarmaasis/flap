@@ -31,8 +31,6 @@ export async function resolveWorkspace(
   userId: string,
   preferredWorkspaceId?: string | null,
 ): Promise<WorkspaceCtx> {
-  await ensureOwnerMembership(db, userId);
-
   const memberships = await db
     .prepare(
       `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? ORDER BY
@@ -41,7 +39,20 @@ export async function resolveWorkspace(
     .bind(userId)
     .all<{ workspace_id: string; role: string }>();
 
-  const rows = memberships.results ?? [];
+  let rows = memberships.results ?? [];
+  // Avoid INSERT OR IGNORE on every request — only provision self-membership when missing.
+  if (!rows.some((r) => r.workspace_id === userId)) {
+    await ensureOwnerMembership(db, userId);
+    const again = await db
+      .prepare(
+        `SELECT workspace_id, role FROM workspace_members WHERE user_id = ? ORDER BY
+           CASE WHEN workspace_id = user_id THEN 0 ELSE 1 END, created_at ASC`,
+      )
+      .bind(userId)
+      .all<{ workspace_id: string; role: string }>();
+    rows = again.results ?? [];
+  }
+
   let pick = rows.find((r) => r.workspace_id === preferredWorkspaceId) ?? rows[0];
   if (!pick) {
     pick = { workspace_id: userId, role: "owner" };
