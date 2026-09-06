@@ -145,6 +145,25 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     return c.json({ ok: true });
   });
 
+  app.delete("/api/mail/:id/label", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
+    const messageId = c.req.param("id");
+    const msg = await c.env.DB.prepare(
+      `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+    )
+      .bind(messageId, ctx.workspaceId, ...access.binds)
+      .first();
+    if (!msg) return c.json({ error: "Message not found." }, 404);
+    await c.env.DB.prepare("DELETE FROM message_labels WHERE message_id = ?").bind(messageId).run();
+    await c.env.DB.prepare("UPDATE messages SET label = '' WHERE id = ? AND user_id = ?")
+      .bind(messageId, ctx.workspaceId)
+      .run();
+    return c.json({ ok: true });
+  });
+
   app.get("/api/mail/:id/notes", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
@@ -173,10 +192,6 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    const { limits } = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (limits.team_seats <= 1) {
-      return c.json({ error: "Internal notes are available on Studio." }, 403);
-    }
     const access = mailboxAccessClause(ctx);
     const messageId = c.req.param("id");
     const body = await c.req.json().catch(() => ({})) as { body?: string };
@@ -195,7 +210,9 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     )
       .bind(id, messageId, user.id, text, created)
       .run();
-    return c.json({ note: { id, body: text, created_at: created, user_id: user.id } }, 201);
+    return c.json({
+      note: { id, body: text, created_at: created, user_id: user.id, author_email: user.email },
+    }, 201);
   });
 
   app.post("/api/mail/:id/assign", async (c) => {

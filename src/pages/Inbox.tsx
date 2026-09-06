@@ -107,7 +107,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setNotifyBrowser(Boolean(data.settings.notify_browser));
     const domains = await api.domains().catch(() => ({ domains: [] as import("../lib/api").Domain[] }));
     setDomains(domains.domains);
-    void api.labels().then((r) => setLabels(r.labels)).catch(() => undefined);
+    void api.labels().then((r) => setLabels(r.labels)).catch((ex) => {
+      setErr(ex instanceof Error ? ex.message : "Could not load labels. Apply migration 0014 if this persists.");
+    });
     void api.team().then((t) => {
       setTeamsUnlocked(Boolean(t.teams_unlocked));
       setTeamMembers((t.members || []).map((m) => ({ user_id: m.user_id, email: m.email })));
@@ -808,7 +810,6 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 </div>
               </div>
               {copyNotice ? <p className="muted" style={{ margin: "8px 0 0" }}>{copyNotice}</p> : null}
-              {message.label ? <div className="label-chip">{message.label}</div> : null}
               {thread.length > 1 ? (
                 <div className="thread-rail" aria-label="Conversation">
                   <div className="thread-rail-title">Thread · {thread.length}</div>
@@ -880,11 +881,43 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               ) : null}
               <div className="collab-panel">
                 <h3>Organize</h3>
-                <div className="list-toolbar" style={{ marginTop: 0 }}>
+                {message.label ? (
+                  <div className="label-chip-row">
+                    <span className="label-chip">{message.label}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => {
+                        void api.clearMessageLabel(message.id).then(() => {
+                          setMessage({ ...message, label: "" });
+                          setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: "" } : item)));
+                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not clear label."));
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : null}
+                <form
+                  className="row-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = e.currentTarget;
+                    const input = form.elements.namedItem("newlabel") as HTMLInputElement;
+                    const name = (input?.value || "").trim();
+                    if (!name) return;
+                    void api.addMessageLabel(message.id, { name }).then((r) => {
+                      setMessage({ ...message, label: r.name });
+                      setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: r.name } : item)));
+                      input.value = "";
+                      return api.labels().then((l) => setLabels(l.labels));
+                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not label."));
+                  }}
+                >
                   <select
                     id="message-label-select"
                     aria-label="Add label"
-                    defaultValue=""
+                    value=""
                     onChange={(e) => {
                       const name = e.target.value;
                       e.target.value = "";
@@ -896,12 +929,18 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                       }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not label."));
                     }}
                   >
-                    <option value="">Add label…</option>
-                    {labels.map((l) => <option key={l.id} value={l.name}>{l.name}</option>)}
-                    <option value="Follow-up">Follow-up</option>
-                    <option value="Customer">Customer</option>
+                    <option value="">Add existing…</option>
+                    {labels.map((l) => (
+                      <option key={l.id} value={l.name}>{l.name}</option>
+                    ))}
+                    {!labels.some((l) => l.name === "Follow-up") ? <option value="Follow-up">Follow-up</option> : null}
+                    {!labels.some((l) => l.name === "Customer") ? <option value="Customer">Customer</option> : null}
                   </select>
-                  {teamsUnlocked ? (
+                  <input name="newlabel" placeholder="New label" maxLength={48} />
+                  <button className="btn" type="submit">Apply</button>
+                </form>
+                {teamsUnlocked ? (
+                  <div className="list-toolbar" style={{ marginTop: 10 }}>
                     <select
                       aria-label="Assign"
                       value={message.assignee_user_id || ""}
@@ -917,40 +956,40 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                         <option key={m.user_id} value={m.user_id}>{m.email}</option>
                       ))}
                     </select>
-                  ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>Assignment on Studio</span>
-                  )}
-                </div>
-                {message.plus_tag ? <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>Plus-tag: +{message.plus_tag}</p> : null}
-                <h3 style={{ marginTop: 14 }}>Internal notes</h3>
-                {teamsUnlocked ? (
-                  <>
-                    <ul className="note-list">
-                      {notes.map((n) => (
-                        <li key={n.id}>
-                          <div>{n.body}</div>
-                          <div className="muted">{n.author_email || "teammate"} · {new Date(n.created_at).toLocaleString()}</div>
-                        </li>
-                      ))}
-                    </ul>
-                    <form
-                      className="row-form"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (!noteDraft.trim()) return;
-                        void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
-                          setNotes((prev) => [...prev, r.note]);
-                          setNoteDraft("");
-                        }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
-                      }}
-                    >
-                      <input placeholder="Private note (not emailed)" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
-                      <button className="btn" type="submit">Add note</button>
-                    </form>
-                  </>
+                  </div>
                 ) : (
-                  <p className="muted" style={{ fontSize: 12 }}>Private team notes are on Studio.</p>
+                  <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+                    Need teammates on a thread?{" "}
+                    <button type="button" className="text-button" onClick={() => go("/app/settings?tab=billing")}>
+                      Assignment is on Studio
+                    </button>
+                  </p>
                 )}
+                {message.plus_tag ? <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>Plus-tag: +{message.plus_tag}</p> : null}
+                <h3 style={{ marginTop: 14 }}>Notes</h3>
+                <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>Private to your workspace — never emailed.</p>
+                <ul className="note-list">
+                  {notes.map((n) => (
+                    <li key={n.id}>
+                      <div>{n.body}</div>
+                      <div className="muted">{n.author_email || "you"} · {new Date(n.created_at).toLocaleString()}</div>
+                    </li>
+                  ))}
+                </ul>
+                <form
+                  className="row-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!noteDraft.trim()) return;
+                    void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
+                      setNotes((prev) => [...prev, r.note]);
+                      setNoteDraft("");
+                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
+                  }}
+                >
+                  <input placeholder="Add a private note" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} />
+                  <button className="btn" type="submit">Add</button>
+                </form>
               </div>
               </article>
             </>

@@ -325,6 +325,8 @@ export const api = {
     }),
   removeMessageLabel: (messageId: string, labelId: string) =>
     req<{ ok: boolean }>(`/api/mail/${messageId}/labels/${labelId}`, { method: "DELETE" }),
+  clearMessageLabel: (messageId: string) =>
+    req<{ ok: boolean }>(`/api/mail/${messageId}/label`, { method: "DELETE" }),
   messageNotes: (messageId: string) => req<{ notes: MessageNote[] }>(`/api/mail/${messageId}/notes`),
   addMessageNote: (messageId: string, body: string) =>
     req<{ note: MessageNote }>(`/api/mail/${messageId}/notes`, { method: "POST", body: JSON.stringify({ body }) }),

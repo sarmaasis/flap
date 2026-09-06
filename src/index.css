@@ -897,6 +897,24 @@ textarea { min-height: 160px; resize: vertical; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+.label-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.label-chip-row .label-chip { margin: 0; }
+.collab-panel .row-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.collab-panel .row-form select,
+.collab-panel .row-form input {
+  min-width: 0;
+  flex: 1 1 120px;
+}
 
 .modal-back {
   position: fixed;
