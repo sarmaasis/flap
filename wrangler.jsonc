@@ -58,7 +58,16 @@
 			"/folio-alternative",
 			"/justemails-alternative",
 			"/migadu-alternative",
-			"/improvmx-alternative"
+			"/improvmx-alternative",
+			"/security",
+			"/for",
+			"/for/*",
+			"/vs",
+			"/vs/*",
+			"/research",
+			"/research/*",
+			"/book",
+			"/book/*"
 		]
 	},
 	// InboxHub: WebSocket hibernation fan-out (idle connections do not accrue DO duration).
