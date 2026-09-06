@@ -623,6 +623,12 @@ function main() {
     process.exit(1);
   }
   const template = readFileSync(templatePath, "utf8");
+  // Preserve a blank SPA shell for Worker serveSpaShell (/app, /login, …).
+  // Prerender overwrites index.html with Landing HTML; Assets also 307s
+  // /index.html → /, so the Worker must not fetch /index.html for SPA routes.
+  writeFileSync(join(clientDir, "spa-shell.html"), template);
+  console.log("Wrote dist/client/spa-shell.html (SPA shell for /app)");
+
   const pages = buildPages();
   for (const page of pages) {
     const html = injectPage(template, page);

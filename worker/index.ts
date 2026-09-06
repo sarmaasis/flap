@@ -32,6 +32,9 @@ import {
 import { isAddressSuppressed } from "./lib/inbound-webhook";
 import { domainIsSendingReady, loadDomain } from "./lib/domain-readiness";
 import { trackServerEvent } from "./lib/analytics";
+import { InboxHub } from "./inbox-hub";
+
+export { InboxHub };
 
 function applySetCookies(c: { header: (name: string, value: string, opts?: { append?: boolean }) => void }, headers: Headers) {
   const cookies =
@@ -63,17 +66,44 @@ app.use("*", async (c, next) => {
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   c.header(
     "Content-Security-Policy",
-    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: cid:; frame-src 'self'",
+    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: cid:; frame-src 'self'; connect-src 'self'",
   );
 });
 
-/** SPA shells for app/auth paths (Assets uses 404-page for unknown marketing URLs). */
+/**
+ * SPA shells for app/auth paths.
+ *
+ * Critical: never forward Assets responses for `/index.html` — default
+ * `html_handling: auto-trailing-slash` returns 307 Location:/ for that path,
+ * which bounced hard-refresh of `/app` to the marketing homepage.
+ * Serve the dedicated `/spa-shell` asset (or `/` body) with a forced 200.
+ */
 async function serveSpaShell(c: { env: Env; req: { raw: Request; url: string } }) {
-  const url = new URL(c.req.url);
-  return c.env.ASSETS.fetch(new Request(new URL("/index.html", url.origin), c.req.raw));
+  const origin = new URL(c.req.url).origin;
+  const tryUrls = ["/spa-shell", "/", "/index.html"];
+  let body: ReadableStream | null = null;
+  for (const path of tryUrls) {
+    const res = await c.env.ASSETS.fetch(new Request(new URL(path, origin), { redirect: "follow" }));
+    if (res.ok && res.body) {
+      body = res.body;
+      break;
+    }
+  }
+  if (!body) {
+    return new Response("Flap SPA shell unavailable", { status: 500, headers: { "content-type": "text/plain" } });
+  }
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-flap-shell": "spa",
+    },
+  });
 }
 
 app.get("/app", (c) => serveSpaShell(c));
+app.get("/app/", (c) => serveSpaShell(c));
 app.get("/app/*", (c) => serveSpaShell(c));
 app.get("/signup", (c) => serveSpaShell(c));
 app.get("/login", (c) => serveSpaShell(c));
@@ -93,6 +123,23 @@ app.get("/api/health", (c) =>
     time: Date.now(),
   }),
 );
+
+/** Authenticated SSE stream — Durable Object fan-out per workspace. */
+app.get("/api/events", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  if (!c.env.INBOX_HUB) return c.json({ error: "Realtime unavailable." }, 503);
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  const id = c.env.INBOX_HUB.idFromName(ctx.workspaceId);
+  const stub = c.env.INBOX_HUB.get(id);
+  return stub.fetch("https://inbox-hub/subscribe", {
+    headers: {
+      Accept: "text/event-stream",
+      Cookie: c.req.header("cookie") || "",
+    },
+    signal: c.req.raw.signal,
+  });
+});
 
 app.get("/api/setup/status", async (c) => {
   const n = await userCount(c.env.DB);

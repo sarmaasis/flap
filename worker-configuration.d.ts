@@ -1,6 +1,8 @@
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  /** Per-workspace SSE fan-out for inbox realtime. */
+  INBOX_HUB?: DurableObjectNamespace;
   ATTACHMENTS?: R2Bucket;
   /** Optional: Cloudflare Email Sending for useflap.online system mail (legacy + dual-path). */
   SEB?: SendEmail;

@@ -30,6 +30,20 @@
 			"/settings/referrals"
 		]
 	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "INBOX_HUB",
+				"class_name": "InboxHub"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1-inbox-hub",
+			"new_sqlite_classes": ["InboxHub"]
+		}
+	],
 	"d1_databases": [
 		// {
 		// 	"binding": "DB",

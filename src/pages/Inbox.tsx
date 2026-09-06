@@ -164,15 +164,15 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     return () => ac.abort();
   }, [loadList]);
 
-  /** Event-based badge refresh (focus/visibility + mail actions). No interval polling. */
-  const refreshCounts = useCallback(async (opts?: { reloadListOnNew?: boolean }) => {
+  /** Event-based badge refresh (focus/visibility + mail actions + SSE). */
+  const refreshCounts = useCallback(async (opts?: { reloadListOnNew?: boolean; skipToast?: boolean }) => {
     if (countsBusyRef.current) return;
     countsBusyRef.current = true;
     try {
       const d = await api.counts();
       const inboxUnread = d.counts.inbox?.unread ?? 0;
       const prev = lastUnreadRef.current ?? 0;
-      if (lastUnreadRef.current !== null && inboxUnread > prev) {
+      if (!opts?.skipToast && lastUnreadRef.current !== null && inboxUnread > prev) {
         const added = inboxUnread - prev;
         setToast({
           title: added === 1 ? "New email" : `${added} new emails`,
@@ -206,6 +206,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
 
   const refreshCountsRef = useRef(refreshCounts);
   refreshCountsRef.current = refreshCounts;
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+  const folderRef = useRef(folder);
+  folderRef.current = folder;
+  const qDebouncedRef = useRef(qDebounced);
+  qDebouncedRef.current = qDebounced;
+  const notifyBrowserRef = useRef(notifyBrowser);
+  notifyBrowserRef.current = notifyBrowser;
 
   useEffect(() => {
     if (!selected) {
@@ -267,9 +275,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setShowCompose(true);
   }, [composeOpen]);
 
-  // Counts: refetch on tab focus / visibility (no 3.5s polling).
-  // Slow visible-only backup (~60s) catches inbound mail while the tab stays focused.
-  // SSE/WebSocket deferred — not present yet; would need a Durable Object fan-out on Workers.
+  // Counts: refetch on tab focus / visibility. Realtime updates via SSE (/api/events).
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") void refreshCounts();
@@ -277,17 +283,81 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     const onFocus = () => {
       if (document.visibilityState === "visible") void refreshCounts();
     };
-    const backupId = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refreshCounts();
-    }, 60_000);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onFocus);
     return () => {
-      window.clearInterval(backupId);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onFocus);
     };
   }, [refreshCounts]);
+
+  // Durable Object–backed SSE: immediate list + counts + toast on mail.received.
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let closed = false;
+    let retryMs = 1_000;
+    let retryTimer: number | undefined;
+
+    const onMailReceived = (raw: MessageEvent) => {
+      retryMs = 1_000;
+      let title = "New email";
+      let body = "Your inbox was updated.";
+      try {
+        const data = JSON.parse(String(raw.data || "{}")) as {
+          message?: { subject?: string; from?: string; folder?: string };
+        };
+        const subject = (data.message?.subject || "").trim();
+        const from = (data.message?.from || "").trim();
+        if (subject) body = subject;
+        else if (from) body = `From ${from}`;
+      } catch {
+        /* keep defaults */
+      }
+      setToast({ title, body });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("Flap", { body, tag: "flap-mail" });
+        } catch {
+          /* ignore */
+        }
+      } else if (
+        notifyBrowserRef.current &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "default"
+      ) {
+        void Notification.requestPermission();
+      }
+      void refreshCountsRef.current({ reloadListOnNew: false, skipToast: true });
+      if (folderRef.current === "inbox" && qDebouncedRef.current.length < 2) {
+        void loadListRef.current();
+      }
+    };
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource("/api/events");
+      es.addEventListener("mail.received", onMailReceived as EventListener);
+      es.addEventListener("ping", () => {
+        retryMs = 1_000;
+      });
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        if (closed) return;
+        retryTimer = window.setTimeout(() => {
+          retryMs = Math.min(retryMs * 2, 30_000);
+          connect();
+        }, retryMs);
+      };
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+      es?.close();
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;

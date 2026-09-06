@@ -13,6 +13,7 @@ import {
   resolveThreadId,
   touchContact,
 } from "./lib/workspace";
+import { broadcastInboxEvent } from "./inbox-hub";
 
 type MailboxRow = {
   id: string;
@@ -279,6 +280,20 @@ export async function ingestRawEmail(
     folder: policy.folder,
     label: policy.label,
   }).catch((error) => console.warn("webhook", error));
+
+  // Fan-out to open inbox SSE sessions (Durable Object). Failures must not block ingest.
+  await broadcastInboxEvent(env, userId, {
+    type: "mail.received",
+    at: now,
+    message: {
+      id,
+      from: parsed.from,
+      to: recipients.join(", ") || envelopeRecipients[0] || "",
+      subject: parsed.subject,
+      folder: policy.folder,
+      label: policy.label,
+    },
+  }).catch((error) => console.warn("inbox hub", error));
 
   await markFirstEmailReceived(env.DB, userId).catch(() => undefined);
 
