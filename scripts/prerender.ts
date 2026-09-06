@@ -29,6 +29,7 @@ import {
   TOOL_PAGES,
 } from "../src/content/marketing.ts";
 import { SEO_PAGE_DEFS } from "../src/content/seo-pages.ts";
+import { FOR_PAGES, VS_PAGES } from "../src/content/hubs.ts";
 import {
   LEGAL_PAGES,
   buildSitemapEntries,
@@ -543,6 +544,171 @@ function buildPages(): Page[] {
     }),
   });
 
+
+
+  // Shipmail-inspired marketing hubs (/security, /for, /vs, /research + children)
+  pages.push({
+    path: "/security",
+    title: "Security | Flap",
+    description:
+      "How Flap handles privacy, export, TLS, and mail infrastructure. Amazon SES for your domains. Cloudflare for the app.",
+    bodyHtml: articleShell({
+      eyebrow: "Security",
+      h1: "Privacy and security",
+      lede: "Short promises we can keep. Amazon SES for your domains. Cloudflare for the app.",
+      definition:
+        "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare.",
+      sections: [
+        {
+          heading: "We do not read your email for ads",
+          body: "Flap does not scan customer mail to sell ads or build advertising profiles.",
+        },
+        {
+          heading: "We do not sell behavioral mail data",
+          body: "Message content is not sold. Product analytics use aggregate product events, not inbox contents.",
+        },
+        {
+          heading: "Your data stays yours",
+          body: "Export JSON or .mbox anytime from Settings. After cancel, paid accounts keep a 30-day export window.",
+        },
+        {
+          heading: "How deliverability is configured",
+          body: "You publish MX, SPF, and DKIM for Amazon SES at your DNS host. DMARC is recommended. Flap shows exact records in the DNS wizard.",
+        },
+        {
+          heading: "Portability",
+          body: "Today: webmail, PWA, and export. IMAP/SMTP app passwords are scheduled for 2026-10-15. We will not market client protocols as live before they ship.",
+        },
+        {
+          heading: "Concrete controls",
+          body: "TLS in transit to the app and to SES. Encryption at rest via Cloudflare D1/R2 and SES storage. Auth rate limits on magic links. HMAC-signed inbound and outbound webhooks.",
+        },
+        {
+          heading: "Infrastructure honesty",
+          body: `${MAIL_ARCHITECTURE.app_host}. Customer mail: ${MAIL_ARCHITECTURE.inbound_provider} inbound and outbound. System mail for useflap.online uses Cloudflare Email Sending. Flap is not an EU Rust MTA and does not claim Proton-style end-to-end encryption.`,
+        },
+      ],
+    }),
+    jsonLd: webPageLd({
+      path: "/security",
+      title: "Security | Flap",
+      description: "Honest security and privacy commitments for Flap custom-domain email.",
+      dateModified: "2026-09-07",
+    }),
+  });
+
+  pages.push({
+    path: "/for",
+    title: "Flap for your role | Flap",
+    description:
+      "ICP pages for indie hackers, startups, freelancers, developers, agencies, ecommerce, and creators.",
+    bodyHtml: articleShell({
+      eyebrow: "For",
+      h1: "Flap for your role",
+      lede: "Pick the page that matches how you work.",
+      sections: [
+        {
+          heading: "Roles",
+          body: "Dedicated landing pages for each ICP.",
+          bullets: FOR_PAGES.map((p) => `${p.h1} (${p.path})`),
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Flap for your role",
+      url: `${SITE_URL}/for`,
+    },
+  });
+
+  pages.push({
+    path: "/vs",
+    title: "Compare Flap | Flap",
+    description:
+      "Compare Flap with Google Workspace, Shipmail, Hydra, Folio, Zoho, and more.",
+    bodyHtml: articleShell({
+      eyebrow: "Compare",
+      h1: "Compare Flap",
+      lede: "Honest comparisons for multi-domain founders.",
+      sections: [
+        {
+          heading: "Comparisons",
+          body: "Side-by-side pages vs common alternatives.",
+          bullets: VS_PAGES.map((p) => `${p.h1} (${p.path})`),
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Compare Flap",
+      url: `${SITE_URL}/vs`,
+    },
+  });
+
+  pages.push({
+    path: "/research",
+    title: "Business email cost research | Flap",
+    description:
+      "Methodology and 2026 cost table for Workspace, Shipmail sticker prices, and Flap plans.",
+    bodyHtml: articleShell({
+      eyebrow: "Research",
+      h1: "Business email cost, 2026",
+      lede:
+        "Illustrative USD list prices for founders comparing suites vs email-only hosts. Shipmail figures cited from shipmail.to/pricing (verified 2026-09-07). Flap figures from shared/plans.ts.",
+      sections: [
+        {
+          heading: "Entry paid sticker prices",
+          body: "Compare sticker prices only. Deliverability, protocol support, and suite apps change total cost of ownership.",
+          bullets: [
+            "Google Workspace — ~$7/user/mo (scales by seats × environments)",
+            "Shipmail Solo — $4/mo (2 mailboxes; up to 50 domains)",
+            `Flap Solo — $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains, ${PLANS.solo.limits.mailboxes} mailboxes)`,
+            `Flap Pro — $${PLANS.pro.price_monthly}/mo (highlighted; ${PLANS.pro.limits.team_seats} seats)`,
+            `Flap Team — $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, shared inboxes)`,
+          ],
+        },
+        {
+          heading: "Methodology",
+          body: "Compare sticker prices only. Flap does not claim Shipmail's IMAP/newsletter surface until those flags flip. Use /tools/google-workspace-cost-calculator for interactive math.",
+        },
+      ],
+    }),
+    jsonLd: webPageLd({
+      path: "/research",
+      title: "Business email cost research | Flap",
+      description: "2026 cost table comparing Workspace, Shipmail sticker prices, and Flap plans.",
+      dateModified: "2026-09-07",
+    }),
+  });
+
+  for (const hub of [...FOR_PAGES, ...VS_PAGES]) {
+    pages.push({
+      path: hub.path,
+      title: hub.title,
+      description: hub.description,
+      bodyHtml: articleShell({
+        eyebrow: hub.path.startsWith("/for") ? "For" : "Compare",
+        h1: hub.h1,
+        lede: hub.description,
+        definition: hub.body[0],
+        sections: [
+          {
+            heading: "Why Flap",
+            body: hub.body.slice(1).join(" ") || hub.body[0],
+            bullets: hub.body,
+          },
+        ],
+      }),
+      jsonLd: webPageLd({
+        path: hub.path,
+        title: hub.title,
+        description: hub.description,
+        dateModified: "2026-09-07",
+      }),
+    });
+  }
 
   pages.push({
     path: "/about",
