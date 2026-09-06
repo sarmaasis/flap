@@ -365,16 +365,23 @@ export function parseStoredSesDns(
   domain: string,
   region: string,
 ): FlapDnsBundle {
-  if (!raw) return defaultSesDnsRecords(domain, region);
+  const defaults = defaultSesDnsRecords(domain, region);
+  if (!raw) return defaults;
   try {
     const parsed = JSON.parse(raw) as FlapDnsBundle;
     if (parsed?.mx?.length && parsed.spf) {
-      return { ...parsed, provider: parsed.provider || "ses", region: parsed.region || region };
+      return {
+        ...parsed,
+        provider: parsed.provider || "ses",
+        region: parsed.region || region,
+        // Older stored bundles may omit DMARC — always return a copyable row.
+        dmarc: parsed.dmarc ?? defaults.dmarc,
+      };
     }
   } catch {
     /* ignore */
   }
-  return defaultSesDnsRecords(domain, region);
+  return defaults;
 }
 
 /** Map generic DNS rows (tests / tooling) into SES bundle shape. */

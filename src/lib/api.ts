@@ -539,8 +539,9 @@ export const api = {
       spf_ok: boolean;
       verified: boolean;
       issues: string[];
+      recommendations?: string[];
       guide_path: string | null;
-      records: { mx: string[]; spf: string[] };
+      records: { mx: string[]; spf: string[]; dmarc?: string[] };
       identity_status?: string;
       dkim_status?: string;
       error?: string;

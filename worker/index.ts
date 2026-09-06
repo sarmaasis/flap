@@ -1093,10 +1093,18 @@ async function saveOutboundAttachments(env: Env, messageId: string, attachments:
 }
 
 function toClientDnsRecords(bundle: ReturnType<typeof defaultCustomerDnsRecords>) {
+  const domain = bundle.spf?.name || "";
   const primaryDkim = bundle.dkim[0] ?? {
     type: "TXT",
-    name: `one._domainkey.${bundle.spf.name}`,
+    name: `one._domainkey.${domain}`,
     value: "Provision the domain in Flap to load exact DKIM values.",
+  };
+  const dmarc = bundle.dmarc ?? {
+    type: "TXT",
+    name: domain ? `_dmarc.${domain}` : "_dmarc",
+    value: domain
+      ? `v=DMARC1; p=none; rua=mailto:dmarc@${domain}`
+      : "v=DMARC1; p=none",
   };
   return {
     provider: bundle.provider,
@@ -1106,7 +1114,7 @@ function toClientDnsRecords(bundle: ReturnType<typeof defaultCustomerDnsRecords>
     dkim: primaryDkim,
     dkim_records: bundle.dkim,
     verification: bundle.verification ?? [],
-    dmarc: bundle.dmarc,
+    dmarc,
     worker_rule: bundle.worker_rule,
     send_note: bundle.send_note,
     region: bundle.region,

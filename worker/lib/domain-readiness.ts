@@ -51,11 +51,13 @@ export type ReadinessReport = {
     sending_ready: boolean;
   };
   issues: string[];
+  /** Non-blocking setup tips (e.g. missing DMARC). Never blocks verified/receiving/sending. */
+  recommendations: string[];
   verified: boolean;
   guide_path: string | null;
   dns_provider: string;
   nameservers: string[];
-  records: { mx: string[]; spf: string[] };
+  records: { mx: string[]; spf: string[]; dmarc: string[] };
   identity_status?: string;
   dkim_status?: string;
 };
@@ -126,15 +128,18 @@ export async function checkDomainSetup(
   const provider = (row.mail_provider || "ses").toLowerCase();
   const region = row.provider_region || sesRegion(env);
   const issues: string[] = [];
+  const recommendations: string[] = [];
 
-  const [mx, spf, ns] = await Promise.all([
+  const [mx, spf, ns, dmarc] = await Promise.all([
     dohQuery(row.name, "MX"),
     dohQuery(row.name, "TXT"),
     dohQuery(row.name, "NS"),
+    dohQuery(`_dmarc.${row.name}`, "TXT"),
   ]);
   const mxParsed = parseMx(mx.Answer);
   const mxRecords = mxParsed.map((r) => `${r.priority} ${r.exchange}`);
   const spfRecords = txtValues(spf.Answer).filter((t) => /^v=spf1\b/i.test(t));
+  const dmarcRecords = txtValues(dmarc.Answer).filter((t) => /^v=DMARC1\b/i.test(t));
   const nameservers = (ns.Answer ?? [])
     .filter((a) => a.type === 2)
     .map((a) => a.data.replace(/\.$/, "").toLowerCase());
@@ -150,6 +155,9 @@ export async function checkDomainSetup(
   if (!spfRecords.length) issues.push("Add the SPF TXT record (or merge include:amazonses.com into your existing SPF)");
   else if (!spfOk) {
     issues.push("Update SPF so it includes amazonses.com (keep a single SPF TXT on the root)");
+  }
+  if (!dmarcRecords.length) {
+    recommendations.push("Add a DMARC TXT at _dmarc (start with p=none)");
   }
 
   let identityVerified = Boolean(row.identity_verified_at);
@@ -259,11 +267,12 @@ export async function checkDomainSetup(
       sending_ready: sendingReady,
     },
     issues,
+    recommendations,
     verified,
     guide_path: opts?.guidePath?.(dnsProvider) ?? null,
     dns_provider: dnsProvider,
     nameservers,
-    records: { mx: mxRecords, spf: spfRecords },
+    records: { mx: mxRecords, spf: spfRecords, dmarc: dmarcRecords },
     identity_status: identityStatus,
     dkim_status: dkimStatus,
   };

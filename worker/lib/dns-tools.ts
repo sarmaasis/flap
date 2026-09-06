@@ -426,6 +426,7 @@ export function registerDnsToolRoutes(app: Hono<App>) {
         spf_ok: report.records.spf.some((t) => isFlapSpf(t, report.provider)),
         verified: report.verified,
         issues: report.issues,
+        recommendations: report.recommendations,
         guide_path: report.guide_path,
         nameservers: report.nameservers,
         records: report.records,

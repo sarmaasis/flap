@@ -524,7 +524,10 @@ export function parseStoredDnsJson(
     if (!raw) return defaultMailgunDnsRecords(domain);
     try {
       const parsed = JSON.parse(raw) as FlapDnsBundle;
-      if (parsed?.mx?.length && parsed.spf) return { ...parsed, provider: "mailgun" };
+      if (parsed?.mx?.length && parsed.spf) {
+        const defaults = defaultMailgunDnsRecords(domain);
+        return { ...parsed, provider: "mailgun", dmarc: parsed.dmarc ?? defaults.dmarc };
+      }
     } catch {
       /* ignore */
     }

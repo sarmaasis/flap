@@ -130,15 +130,20 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
     hint: "Merge into your existing SPF if you already have one (only one SPF TXT on @)",
     copyable: true,
   });
-  if (dns.dmarc) {
-    rows.push({
-      type: dns.dmarc.type,
-      host: dnsHostField(dns.dmarc.name, domain),
-      value: dns.dmarc.value,
-      hint: "Recommended",
-      copyable: true,
-    });
-  }
+  const dmarc = dns.dmarc ?? {
+    type: "TXT",
+    name: domain ? `_dmarc.${domain}` : "_dmarc",
+    value: domain
+      ? `v=DMARC1; p=none; rua=mailto:dmarc@${domain}`
+      : "v=DMARC1; p=none",
+  };
+  rows.push({
+    type: dmarc.type,
+    host: dnsHostField(dmarc.name, domain),
+    value: dmarc.value,
+    hint: "Recommended — prevents spoofing; start with p=none",
+    copyable: true,
+  });
   return rows;
 }
 
@@ -210,6 +215,7 @@ export default function Settings() {
   const [dnsStatus, setDnsStatus] = useState<{
     verified: boolean;
     issues: string[];
+    recommendations?: string[];
     provider: string;
     guide_path: string | null;
     mx_ok: boolean;
@@ -1056,6 +1062,16 @@ export default function Settings() {
                       </ul>
                     </>
                   ) : null}
+                  {dnsStatus.recommendations?.length ? (
+                    <>
+                      <p className="dns-step-title" style={{ marginTop: 12 }}>Recommended</p>
+                      <ul style={{ margin: "0 0 4px", paddingLeft: 18 }}>
+                        {dnsStatus.recommendations.map((tip) => (
+                          <li key={tip}>{tip}</li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
                   {dnsStatus.guide_path ? (
                     <p style={{ marginTop: 10 }}>
                       <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
@@ -1116,7 +1132,14 @@ export default function Settings() {
                                 </td>
                                 <td>
                                   <code>{r.value}</code>
-                                  {r.hint ? <p className="dns-step-help" style={{ marginTop: 4 }}>{r.hint}</p> : null}
+                                  {r.hint ? (
+                                    <p
+                                      className={`dns-step-help${r.hint.startsWith("Recommended") ? " dns-hint-recommended" : ""}`}
+                                      style={{ marginTop: 4 }}
+                                    >
+                                      {r.hint}
+                                    </p>
+                                  ) : null}
                                 </td>
                                 <td>
                                   {r.copyable ? (

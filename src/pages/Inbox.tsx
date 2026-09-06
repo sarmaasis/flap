@@ -24,7 +24,13 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import type { ComposeDraft } from "./Compose";
-import { Search } from "lucide-react";
+import { Search, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 
 const Compose = lazy(() => import("./Compose"));
 
@@ -609,7 +615,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         ) : null}
       <div className="workspace">
         <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
-          <div className="list-head space-y-3">
+          <div className="list-head">
             <div className="list-title-row">
               <div>
                 <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
@@ -619,19 +625,61 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 {loadingList ? "…" : headerCount}
               </Badge>
             </div>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
-                aria-hidden
-              />
-              <Input
-                id="mail-search"
-                className="h-10 !pl-10"
-                placeholder="Search mail"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                aria-label="Search mail"
-              />
+            <div className="list-controls">
+              <div className="list-search relative min-w-0 flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                  aria-hidden
+                />
+                <Input
+                  id="mail-search"
+                  className="h-10 !pl-10"
+                  placeholder="Search mail"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  aria-label="Search mail"
+                />
+              </div>
+              {!qDebounced ? (
+                <>
+                  <div className="list-toolbar list-toolbar-desktop flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={unreadOnly ? "default" : "outline"}
+                      onClick={() => setUnreadOnly((v) => !v)}
+                    >
+                      {unreadOnly ? "Showing unread" : "Unread only"}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => void markFolderRead()}>
+                      Mark all read
+                    </Button>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="list-toolbar-more"
+                        aria-label="List filters"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem
+                        onSelect={() => setUnreadOnly((v) => !v)}
+                      >
+                        {unreadOnly ? "Show all mail" : "Unread only"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void markFolderRead()}>
+                        Mark all read
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : null}
             </div>
             {mailboxes.length > 1 ? (
               <select
@@ -648,21 +696,6 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                   <option key={m.id} value={m.id}>{m.address}</option>
                 ))}
               </select>
-            ) : null}
-            {!qDebounced ? (
-              <div className="list-toolbar flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={unreadOnly ? "default" : "outline"}
-                  onClick={() => setUnreadOnly((v) => !v)}
-                >
-                  {unreadOnly ? "Showing unread" : "Unread only"}
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => void markFolderRead()}>
-                  Mark all read
-                </Button>
-              </div>
             ) : null}
           </div>
           {err ? <div className="err" style={{ margin: 12 }}>{err}</div> : null}
