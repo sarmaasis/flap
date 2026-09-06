@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { api, type Contact, type Domain, type Mailbox, type Signature, type Template } from "../lib/api";
 import { htmlToText } from "../lib/format";
 import type { EditorHandle } from "../components/RichTextEditor";
@@ -84,9 +84,18 @@ export default function Compose({
   }, []);
 
   useEffect(() => {
-    if (from && sendableMailboxes.some((m) => m.address === from)) return;
+    if (from && (sendableMailboxes.some((m) => m.address === from) || mailboxes.some((m) => m.address === from))) return;
     if (sendableMailboxes[0]) setFrom(sendableMailboxes[0].address);
     else if (!from && mailboxes[0]) setFrom(mailboxes[0].address);
+  }, [from, mailboxes, sendableMailboxes]);
+
+  const identityLocked = (draft?.mode === "reply" || draft?.mode === "forward") && Boolean(draft?.from);
+  const fromMailbox = mailboxes.find((m) => m.address === from) ?? sendableMailboxes.find((m) => m.address === from);
+  const fromDomain = domains.find((d) => d.id === fromMailbox?.domain_id);
+  const fromOptions = useMemo(() => {
+    if (!from || sendableMailboxes.some((m) => m.address === from)) return sendableMailboxes;
+    const extra = mailboxes.find((m) => m.address === from);
+    return extra ? [extra, ...sendableMailboxes] : sendableMailboxes;
   }, [from, mailboxes, sendableMailboxes]);
 
   const suggestions = useMemo(() => {
@@ -245,20 +254,44 @@ export default function Compose({
           <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but this domain’s sending DNS is not verified yet. Finish Setup → DNS records, then try again.</p>
         </div>
       ) : (
-        <div className="compose-from-row">
+        <div
+          className={`compose-from-row${identityLocked ? " compose-from-identity" : ""}`}
+          style={identityLocked && fromDomain?.color ? ({ ["--domain-color"]: fromDomain.color } as CSSProperties) : undefined}
+        >
           <div className="field" style={{ marginBottom: 0, flex: 1 }}>
             <label htmlFor="from">From</label>
-            <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }}>
-              {sendableMailboxes.map((m) => {
-                const d = domains.find((x) => x.id === m.domain_id);
-                const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
-                return (
-                  <option key={m.id} value={m.address}>
-                    {d?.name ? `${label} (${d.name})` : label}
-                  </option>
-                );
-              })}
-            </select>
+            {identityLocked ? (
+              <div className="compose-from-pill">
+                <span
+                  className="domain-swatch"
+                  aria-hidden
+                  style={{ background: fromDomain?.color || "var(--muted)" }}
+                />
+                <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }} aria-label="From address">
+                  {fromOptions.map((m) => {
+                    const d = domains.find((x) => x.id === m.domain_id);
+                    const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
+                    return (
+                      <option key={m.id} value={m.address}>
+                        {d?.name ? `${label} (${d.name})` : label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            ) : (
+              <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }}>
+                {sendableMailboxes.map((m) => {
+                  const d = domains.find((x) => x.id === m.domain_id);
+                  const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
+                  return (
+                    <option key={m.id} value={m.address}>
+                      {d?.name ? `${label} (${d.name})` : label}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
           </div>
           <button type="button" className="text-button" onClick={() => setShowCc((v) => !v)}>{showCc ? "Hide Cc/Bcc" : "Cc/Bcc"}</button>
         </div>

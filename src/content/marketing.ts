@@ -22,11 +22,13 @@ export const MARKETING = {
   key_features: [
     "Multiple domains in one inbox",
     "Send as any project identity",
-    "Catch-all and aliases",
+    "Catch-all, aliases, and filters",
     "Guided DNS setup",
-    "Team seats on Studio",
-    "API keys and webhooks on paid plans",
+    "API keys and inbound webhooks",
+    "Studio seats for small teams",
   ],
+  architecture_line:
+    "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar.",
 } as const;
 
 export const ICP_LINES = [

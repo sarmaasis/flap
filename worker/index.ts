@@ -6,7 +6,7 @@ import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
 import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
-import { assertWithinLimit, assertSendRoom, assertStorageRoom, ensureSubscription, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
+import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
 import { registerInboundWebhookRoutes } from "./lib/inbound-webhook";
@@ -18,12 +18,10 @@ import {
   parseStoredDnsJson,
   provisionCustomerDomain,
 } from "./lib/mail-provider";
-import { ensureReferralCode, markEmailVerified } from "./lib/referrals";
 import { afterDomainAdded, markFirstEmailSent } from "./lib/activation";
 import { ensureFlapUser } from "./lib/flap-user";
 import {
   assertMailboxAccess,
-  ensureOwnerMembership,
   listAccessibleMailboxes,
   mailboxAccessClause,
   resolveWorkspace,
@@ -51,7 +49,6 @@ const app = new Hono<App>();
 const FOLDERS = new Set(["inbox", "sent", "drafts", "spam", "trash", "archive", "scheduled"]);
 const VIRTUAL_FOLDERS = new Set(["starred", "snoozed"]);
 const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
-const MAX_PASSWORD_LENGTH = 1_024;
 const MAX_OUTBOUND_ATTACHMENTS = 10;
 const MAX_OUTBOUND_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 type OutboundAttachment = { filename?: string; content_type?: string; data?: string };
@@ -87,43 +84,31 @@ app.post("/api/setup", async (c) => {
   if ((await userCount(c.env.DB)) > 0) {
     return c.json({ error: "Setup is already complete. Sign in or create an account instead." }, 409);
   }
-  const body = await c.req.json().catch(() => ({})) as { email?: string; password?: string };
+  const body = await c.req.json().catch(() => ({})) as { email?: string };
   const email = (body.email ?? "").trim().toLowerCase();
-  const password = body.password ?? "";
   if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
-  if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
-    return c.json({ error: "Password must be between 8 and 1,024 characters." }, 400);
-  }
 
-  const auth = createAuth(c.env, c.executionCtx);
+  const id = randomId("usr");
+  const nowIso = new Date().toISOString();
   try {
-    await auth.api.signUpEmail({
-      body: { email, password, name: "Admin" },
-      headers: c.req.raw.headers,
-    });
-
-    const baUser = await c.env.DB.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
-    if (!baUser) {
-      return c.json({ error: "Could not create the administrator account." }, 500);
-    }
-
-    await c.env.DB.prepare(`UPDATE "user" SET emailVerified = 1 WHERE id = ?`).bind(baUser.id).run();
-    await ensureFlapUser(c.env, { id: baUser.id, email, name: "Admin", emailVerified: true });
-    await ensureSubscription(c.env.DB, baUser.id);
-    await ensureOwnerMembership(c.env.DB, baUser.id);
-    await markEmailVerified(c.env.DB, baUser.id);
-    await ensureReferralCode(c.env.DB, baUser.id);
-    await c.env.DB.prepare("INSERT OR IGNORE INTO setup_state (id, user_id, created_at) VALUES (1, ?, ?)")
-      .bind(baUser.id, nowMs())
+    await c.env.DB.prepare(
+      `INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+    )
+      .bind(id, "Admin", email, nowIso, nowIso)
       .run();
 
-    const signedIn = await auth.api.signInEmail({
-      body: { email, password },
+    await ensureFlapUser(c.env, { id, email, name: "Admin", emailVerified: true });
+
+    const auth = createAuth(c.env, c.executionCtx);
+    await auth.api.signInMagicLink({
+      body: {
+        email,
+        callbackURL: "/app/settings?tab=setup&onboarding=1",
+      },
       headers: c.req.raw.headers,
-      returnHeaders: true,
     });
-    applySetCookies(c, signedIn.headers);
-    return c.json({ ok: true, user: { id: baUser.id, email } });
+
+    return c.json({ ok: true, magic_sent: true, email });
   } catch (error) {
     console.error("Failed to create the initial Flap administrator", error);
     if ((await userCount(c.env.DB)) > 0) {
@@ -137,19 +122,19 @@ app.post("/api/setup", async (c) => {
 app.post("/api/signup", (c) =>
   c.json(
     {
-      error: "Signup moved to Better Auth. Use the signup form (email/password or magic link).",
-      path: "/api/auth/sign-up/email",
+      error: "Signup moved to Better Auth. Use magic link or Google/GitHub on /signup.",
+      path: "/api/auth/sign-in/magic-link",
     },
     410,
   ),
 );
 
-/** @deprecated Use Better Auth client (`/api/auth/sign-in/email` or magic link). */
+/** @deprecated Use Better Auth client (`/api/auth/sign-in/magic-link`). */
 app.post("/api/login", (c) =>
   c.json(
     {
-      error: "Login moved to Better Auth. Use the sign-in form (email/password or magic link).",
-      path: "/api/auth/sign-in/email",
+      error: "Login moved to Better Auth. Use magic link or Google/GitHub on /login.",
+      path: "/api/auth/sign-in/magic-link",
     },
     410,
   ),
@@ -580,9 +565,15 @@ app.get("/api/mail", async (c) => {
   const folder = (c.req.query("folder") ?? "inbox").toLowerCase();
   if (!FOLDERS.has(folder) && !VIRTUAL_FOLDERS.has(folder)) return c.json({ error: "Unknown folder." }, 400);
   const mailboxId = c.req.query("mailbox");
+  const domainId = c.req.query("domain");
   if (mailboxId) {
     const access = await assertMailboxAccess(c.env.DB, ctx, mailboxId);
     if (!access.ok) return c.json({ error: "Mailbox not found." }, 404);
+  } else if (domainId) {
+    const domain = await c.env.DB.prepare("SELECT id FROM domains WHERE id = ? AND user_id = ?")
+      .bind(domainId, ctx.workspaceId)
+      .first();
+    if (!domain) return c.json({ error: "Domain not found." }, 404);
   }
   const now = nowMs();
   const access = mailboxAccessClause(ctx);
@@ -603,6 +594,9 @@ app.get("/api/mail", async (c) => {
   if (mailboxId) {
     sql += " AND mailbox_id = ?";
     binds.push(mailboxId);
+  } else if (domainId) {
+    sql += " AND mailbox_id IN (SELECT id FROM mailboxes WHERE domain_id = ? AND user_id = ?)";
+    binds.push(domainId, ctx.workspaceId);
   }
   sql += " ORDER BY date_ms DESC LIMIT 200";
   const rows = await c.env.DB.prepare(sql).bind(...binds).all();

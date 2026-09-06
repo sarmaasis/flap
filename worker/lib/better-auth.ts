@@ -11,7 +11,6 @@ import {
 } from "./auth-email-rate-limit";
 import {
   magicLinkEmail,
-  resetPasswordEmail,
   verifyEmailContent,
 } from "./auth-email-templates";
 
@@ -70,33 +69,14 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
         trustedProviders: ["google", "github"],
       },
     },
+    // Password auth is off — magic link + OAuth only (public UI and APIs).
     emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: true,
-      // Explicit: never mint a session on email/password signup until verified.
-      autoSignIn: false,
-      minPasswordLength: 8,
-      maxPasswordLength: 128,
-      sendResetPassword: async ({ user, url }) => {
-        const mail = resetPasswordEmail(url);
-        await sendSystemEmail(
-          env,
-          {
-            to: user.email,
-            subject: mail.subject,
-            text: mail.text,
-            html: mail.html,
-          },
-          execCtx,
-        );
-      },
+      enabled: false,
     },
     emailVerification: {
-      sendOnSignUp: true,
-      // Resend when an unverified user tries password sign-in.
-      sendOnSignIn: true,
+      sendOnSignUp: false,
+      sendOnSignIn: false,
       autoSignInAfterVerification: true,
-      // Match Settings copy + verify-email template.
       expiresIn: 48 * 60 * 60,
       sendVerificationEmail: async ({ user, url }, request) => {
         await assertAuthEmailRateLimit(env.DB, {
@@ -121,7 +101,7 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         const path = ctx.path || "";
-        if (!signupOpen(env) && (path === "/sign-up/email" || path === "/sign-in/magic-link")) {
+        if (!signupOpen(env) && path === "/sign-in/magic-link") {
           const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>();
           if (Number(row?.n ?? 0) > 0) {
             throw new APIError("FORBIDDEN", {
@@ -130,9 +110,6 @@ export function createAuth(env: Env, execCtx?: { waitUntil?: (promise: Promise<u
           }
         }
 
-        // Magic-link: gate before verification token is written (fail closed → 429).
-        // Verify-email: gated inside sendVerificationEmail (covers resend + sendOnSignUp).
-        // Limits: see AUTH_EMAIL_RATE_LIMITS in auth-email-rate-limit.ts
         if (path === "/sign-in/magic-link") {
           const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
           await assertAuthEmailRateLimit(env.DB, {

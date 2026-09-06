@@ -12,7 +12,7 @@
     "flap"
   ],
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "Ashish Sharma",
   "scripts": {
     "dev": "vite",

@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from "react";
-import type { FolderCounts } from "../lib/api";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
+import type { Domain, FolderCounts } from "../lib/api";
 import { go } from "../lib/nav";
 import BrandMark from "./BrandMark";
 
@@ -20,6 +20,10 @@ export default function AppShell({
   counts,
   folder,
   current,
+  domains,
+  domainUnread,
+  domainFilter,
+  onDomainFilter,
   onFolder,
   onCompose,
   onLogout,
@@ -29,6 +33,10 @@ export default function AppShell({
   counts?: FolderCounts;
   folder?: string;
   current: "mail" | "settings";
+  domains?: Domain[];
+  domainUnread?: Record<string, number>;
+  domainFilter?: string;
+  onDomainFilter?: (domainId: string) => void;
   onFolder?: (id: string) => void;
   onCompose?: () => void;
   onLogout: () => void;
@@ -38,6 +46,8 @@ export default function AppShell({
     document.documentElement.classList.add("app-locked");
     return () => document.documentElement.classList.remove("app-locked");
   }, []);
+
+  const showDomainRail = current === "mail" && domains && domains.length > 0 && onDomainFilter;
 
   return (
     <div className="app-shell">
@@ -78,6 +88,36 @@ export default function AppShell({
             );
           })}
         </nav>
+        {showDomainRail ? (
+          <nav className="domain-rail" aria-label="Domains">
+            <span className="sidebar-section">Domains</span>
+            <button
+              type="button"
+              className={`side-btn domain-rail-btn${!domainFilter ? " active" : ""}`}
+              onClick={() => onDomainFilter("")}
+            >
+              <span>All domains</span>
+            </button>
+            {domains.map((d) => {
+              const unread = domainUnread?.[d.id] ?? 0;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`side-btn domain-rail-btn${domainFilter === d.id ? " active" : ""}`}
+                  onClick={() => onDomainFilter(d.id)}
+                  style={d.color ? ({ ["--domain-color"]: d.color } as CSSProperties) : undefined}
+                >
+                  <span className="domain-rail-label">
+                    <span className="domain-swatch domain-rail-swatch" aria-hidden style={d.color ? { background: d.color } : undefined} />
+                    {d.name}
+                  </span>
+                  {unread > 0 ? <span className="side-count">{unread}</span> : null}
+                </button>
+              );
+            })}
+          </nav>
+        ) : null}
         <div className="side-foot">
           <button type="button" className={`side-btn${current === "settings" ? " active" : ""}`} onClick={() => go("/app/settings")}>
             Settings

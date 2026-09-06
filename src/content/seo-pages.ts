@@ -515,6 +515,188 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       { href: "/tools/google-workspace-cost-calculator", label: "Cost calculator" },
     ],
   },
+  "/cloudflare-email-routing-alternative": {
+    path: "/cloudflare-email-routing-alternative",
+    title: "Cloudflare Email Routing alternative with a real reply inbox | Flap",
+    description:
+      "Outgrown Cloudflare Email Routing forwards? Flap is the upgrade path when you need a real custom-domain inbox to reply from — Amazon SES mail, app on Cloudflare, DNS at any registrar.",
+    h1: "Cloudflare Email Routing alternative when you need a real inbox",
+    definition:
+      "Cloudflare Email Routing is excellent for forwarding and Worker hooks. Flap is a hosted custom-domain mailbox (send + receive) for founders who need to reply as hello@theirbrand.com from one inbox across many domains.",
+    lede: "Keep Cloudflare for DNS or the website if you want. When forwards are no longer enough — you need threads, send-as identities, and a product inbox — Flap is the upgrade path without inventing a ship date for IMAP or claiming Cloudflare is “bad.”",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "What Email Routing is great at",
+        body: "Forwarding to Gmail, simple address rules, and Worker-based ingest. Many founders start there for a single project. It is not trying to be a full multi-domain founder mailbox with compose, filters, and plan-based quotas.",
+        bullets: [
+          "Stay on Email Routing if forwarding-only is enough",
+          "Move on when you need to reply from the custom domain in a dedicated inbox",
+        ],
+      },
+      {
+        heading: "What Flap adds",
+        body: "Flap stores mail in your account, lets you compose as project identities, and prices primarily by domain count. Customer mail runs on Amazon SES; the Flap app runs on Cloudflare Workers. Your DNS can stay at Cloudflare, Namecheap, Porkbun, GoDaddy, or anywhere else.",
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "Email Routing is free for many forwarding use cases and deeply integrated with Cloudflare zones. Flap is a paid product (with a free trial tier) focused on multi-domain inboxes — not a Cloudflare dashboard replacement, not Docs/Drive, and IMAP/SMTP client access is not available yet (use the web app and PWA).",
+      },
+      {
+        heading: "How the switch looks",
+        body: "Add the domain in Flap, publish the MX/SPF/DKIM records Flap shows (SES inbound), create mailboxes, then Check setup. If you previously pointed MX at route*.mx.cloudflare.net for Email Routing, replace those with Flap’s SES MX values — pick one inbound provider per domain.",
+      },
+    ],
+    table: {
+      caption: "Email Routing vs Flap",
+      headers: ["Dimension", "Cloudflare Email Routing", "Flap"],
+      rows: [
+        ["Primary job", "Forward / Worker ingest", "Multi-domain founder inbox"],
+        ["Reply from custom domain", "Usually via Gmail/other", "In-product compose"],
+        ["Many project domains", "Per-zone rules", "One account, domain-first plans"],
+        ["Where DNS lives", "Often Cloudflare", "Any registrar"],
+        ["Mail transport", "Cloudflare routing", "Amazon SES + Flap app"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Do I need to leave Cloudflare DNS?",
+        a: "No. Publish Flap’s SES MX/SPF/DKIM at Cloudflare DNS (DNS-only for mail records). You do not need Email Routing Worker rules for the current Flap path.",
+      },
+      {
+        q: "Can I keep some domains on Email Routing?",
+        a: "Yes. Move only the domains that need a real reply inbox. Each domain should have one clear inbound MX target.",
+      },
+      {
+        q: "Is Flap “better” than Email Routing?",
+        a: "Different jobs. Routing wins for free forwards. Flap wins when you need a product inbox across startups.",
+      },
+    ],
+    related: [
+      { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare DNS guide for Flap" },
+      { href: "/custom-domain-email", label: "Custom domain email" },
+      { href: "/signup", label: "Start free" },
+      { href: "/hydra-alternative", label: "Hydra alternative" },
+    ],
+  },
+  "/hydra-alternative": {
+    path: "/hydra-alternative",
+    title: "Hydra alternative for multi-domain founder email | Flap",
+    description:
+      "Looking beyond Hydra for custom-domain email across side projects? Flap offers one inbox, domain-first plans, SES mail, and Cloudflare app hosting — honest comparison without slam copy.",
+    h1: "Hydra alternative for multi-domain founders",
+    definition:
+      "Hydra is another custom-domain email option some founders consider. Flap (useflap.online) is built specifically for serial launchers who want one inbox across many project domains with transparent domain-first pricing.",
+    lede: "We respect that different mail products fit different workflows. If you evaluated Hydra and want a founder-focused inbox with clear limits, export, and SES-backed delivery, here is how Flap compares without trash-talk.",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "Where Flap focuses",
+        body: "Multi-domain setup guided by MX/SPF/DKIM checks, compose as each brand, filters/aliases, JSON and .mbox export, API keys and inbound webhooks on paid plans, Studio seats when a teammate joins.",
+      },
+      {
+        heading: "Architecture (no marketing fog)",
+        body: MARKETING.architecture_line + " You keep registrar control; Flap does not require moving nameservers to Cloudflare.",
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "Hydra may fit better if you already prefer its UX, pricing, or client story. Flap does not claim IMAP/SMTP today — use the web app and PWA until client access ships. Flap is not a full Google Workspace suite replacement.",
+      },
+      {
+        heading: "Try before you cut over",
+        body: "Start on Free with one domain, prove receiving, export anytime. Cancel keeps access through the paid period — download your mailbox before it ends.",
+      },
+    ],
+    table: {
+      caption: "Choosing a founder mail host",
+      headers: ["Ask", "Why it matters"],
+      rows: [
+        ["Domain-first pricing?", "Serial launchers hate seat×brand math"],
+        ["Export available?", "Trust requires exit"],
+        ["Real send + receive?", "Forwards-only is a different product"],
+        ["DNS stays put?", "Avoid forced registrar moves"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Flap a Hydra clone?",
+        a: "No. Flap is its own product aimed at multi-domain founders. Compare features and limits for your workflow instead of brand loyalty.",
+      },
+      {
+        q: "Can I migrate mail history automatically?",
+        a: "Not yet. Point DNS, create matching addresses, and import older mail manually if needed. Export from Flap as JSON or .mbox anytime.",
+      },
+      {
+        q: "Where does Flap run mail?",
+        a: "Customer domains use Amazon SES for send/receive. The app and storage control plane run on Cloudflare. System mail for useflap.online uses Cloudflare SEB.",
+      },
+    ],
+    related: [
+      { href: "/folio-alternative", label: "Folio alternative" },
+      { href: "/google-workspace-alternative", label: "Google Workspace alternative" },
+      { href: "/#pricing", label: "Pricing" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+  "/folio-alternative": {
+    path: "/folio-alternative",
+    title: "Folio alternative for project-domain email | Flap",
+    description:
+      "Considering Folio for founder email? Flap is a multi-domain inbox alternative with SES mail, Cloudflare app hosting, filters, webhooks, and export — compared honestly.",
+    h1: "Folio alternative for multi-project email",
+    definition:
+      "Folio is another hosted email option founders may evaluate. Flap focuses on one inbox across many startup domains, domain-first plans, and an explicit SES + Cloudflare architecture.",
+    lede: "Product taste differs. If Folio’s model does not match how you launch brands, Flap is built for the narrower job: professional addresses on every domain you own, without a Workspace per project.",
+    updated: UPDATED,
+    comparison: true,
+    sections: [
+      {
+        heading: "Flap’s bet",
+        body: "Domain count is the main scaling axis (Solo 3, Builder 10, Studio 40). Features like catch-all, filters, API keys, inbound webhooks, and Studio seats show up where plans unlock them — not as vague “priority support” badges.",
+      },
+      {
+        heading: "Trust and exit",
+        body: "Export JSON backups and .mbox downloads from Settings. After cancel, keep access through the paid period; download your mailbox before it ends.",
+      },
+      {
+        heading: "Honest tradeoffs",
+        body: "Choose Folio (or another host) if its clients, UI, or pricing fit you better. Flap does not offer IMAP/SMTP yet and is not a collaboration suite. Prefer Flap when multi-domain founder inbox + transparent architecture matter most.",
+      },
+    ],
+    table: {
+      caption: "Fit checklist",
+      headers: ["Need", "Flap"],
+      rows: [
+        ["Many domains, one login", "Yes — core design"],
+        ["Send as brand identities", "Yes"],
+        ["Desktop IMAP today", "Not yet — web/PWA"],
+        ["Export mailbox", "JSON + .mbox"],
+        ["Team seats", "Studio"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Will Flap slam Folio?",
+        a: "No. These pages explain Flap’s fit. Pick the product that matches your constraints.",
+      },
+      {
+        q: "Does Flap require Cloudflare Email Routing?",
+        a: "No for the current path. Publish SES MX/SPF/DKIM Flap shows; the app still runs on Cloudflare.",
+      },
+      {
+        q: "How do I try Flap?",
+        a: "Sign up free, add one domain, Check setup, create hello@, send a test. Upgrade only when domain count needs it.",
+      },
+    ],
+    related: [
+      { href: "/hydra-alternative", label: "Hydra alternative" },
+      { href: "/cloudflare-email-routing-alternative", label: "Cloudflare Email Routing alternative" },
+      { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
 };
 
 export function getSeoPage(path: string): SeoPageDef | null {

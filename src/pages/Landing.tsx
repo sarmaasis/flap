@@ -13,7 +13,7 @@ import WorkspaceCalculator from "../components/WorkspaceCalculator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { CREDIBILITY, ICP_LINES, MARKETING, TESTIMONIALS, planCards, SITE_URL } from "../content/marketing";
+import { CREDIBILITY, ICP_LINES, MARKETING, planCards, SITE_URL } from "../content/marketing";
 import { api } from "../lib/api";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
@@ -36,18 +36,18 @@ const FEATURES = [
   },
   {
     icon: Inbox,
-    title: "Multiple sender identities",
-    body: "hello@, support@, and aliases on every project domain — send from the identity that matches the product.",
+    title: "Filters & aliases",
+    body: "Route with rules, catch-all, and disposable aliases — keep support@ and founder@ tidy across every project domain.",
   },
   {
     icon: Zap,
-    title: "Setup in minutes",
-    body: "Add the domain, copy MX/SPF, create an address. Guided checklist — no Workspace admin maze per launch.",
+    title: "API keys & inbound webhooks",
+    body: "Send transactional mail with API keys and react to mail.received events on paid plans — delivery logs in Settings.",
   },
   {
     icon: Shield,
-    title: "Lower cost than Workspace×N",
-    body: "Domain-first plans. Stop paying a full suite subscription for every side project that needs a real inbox.",
+    title: "Studio seats when you grow",
+    body: "Solo and Builder stay solo. Studio adds seats, shared inboxes, and delegation without a Workspace-per-brand tax.",
   },
 ];
 
@@ -89,11 +89,11 @@ const FAQS = [
   },
   {
     q: "How does DNS / delivery work?",
-    a: "Add the domain in Flap, publish the MX/SPF/DKIM records Flap shows at any DNS host (Namecheap, GoDaddy, Cloudflare, Route 53, etc.), create a mailbox, then Check DNS. Your domain does not need to be a Cloudflare zone.",
+    a: "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar — add the MX/SPF/DKIM Flap shows, create a mailbox, then Check DNS. Your domain does not need to be a Cloudflare zone.",
   },
   {
     q: "Can I export my data?",
-    a: "Yes. Settings includes JSON backup and restore.",
+    a: "Yes. Settings includes JSON backup, .mbox mailbox download, and restore for workspace data.",
   },
 ];
 
@@ -286,7 +286,18 @@ export default function Landing() {
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
             Built for multi-domain founders
           </h2>
+          <p className="mt-4 text-base text-[var(--muted)] md:text-lg">
+            {MARKETING.architecture_line}
+          </p>
         </div>
+        <ul className="mb-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--muted)] md:text-[15px]">
+          {MARKETING.key_features.map((item) => (
+            <li key={item} className="flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0 text-[var(--cta)]" aria-hidden />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
         <div className="grid gap-8 md:grid-cols-2 md:gap-x-12 md:gap-y-10">
           {FEATURES.map((f) => (
             <div key={f.title} className="feature-row flex gap-4 border-t border-[var(--line)] pt-7">
@@ -387,16 +398,6 @@ export default function Landing() {
             </div>
           ))}
         </div>
-        {TESTIMONIALS.length > 0 ? (
-          <div className="mt-12 grid gap-8 md:grid-cols-2">
-            {TESTIMONIALS.map((t) => (
-              <blockquote key={t.name} className="border-l-2 border-[var(--cta)] pl-5">
-                <p className="text-base leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
-                <footer className="mt-3 text-sm text-[var(--muted)]">{t.name} · {t.role}</footer>
-              </blockquote>
-            ))}
-          </div>
-        ) : null}
       </section>
 
       <section id="faq" className="landing-section mx-auto max-w-3xl px-5 md:px-8">

@@ -8,7 +8,6 @@ import { authClient, authErrorMessage } from "../lib/auth-client";
 import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
-import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
 function OAuthButtons() {
   const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
@@ -36,18 +35,16 @@ function OAuthButtons() {
           Continue with GitHub
         </button>
       ) : null}
-      <div className="auth-divider"><span>or create with email</span></div>
+      <div className="auth-divider"><span>or email a magic link</span></div>
     </div>
   );
 }
 
 export default function Signup() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"magic" | "password">("magic");
   const [refCode, setRefCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,33 +76,9 @@ export default function Signup() {
     }
   }
 
-  async function onPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    setNotice("");
-    setBusy(true);
-    try {
-      const { error } = await authClient.signUp.email({
-        email,
-        password,
-        name: email.split("@")[0] || "Founder",
-        callbackURL: "/app/settings?tab=setup&onboarding=1&verify=ok",
-      });
-      if (error) throw error;
-      track("signup_completed", { method: "password", referred: Boolean(refCode) });
-      if (refCode) track("referral_signup");
-      storePendingVerifyEmail(email);
-      go(verifyEmailPath(email, "signup"));
-    } catch (error) {
-      setErr(authErrorMessage(error, "Could not create account."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="auth-shell">
-      <form className="auth-card" onSubmit={mode === "magic" ? onMagicLink : onPassword}>
+      <form className="auth-card" onSubmit={onMagicLink}>
         <a
           className="brand"
           href="/"
@@ -118,9 +91,7 @@ export default function Signup() {
         </a>
         <h1>Create your workspace</h1>
         <p className="muted">
-          {mode === "magic"
-            ? "Magic link signs you in and verifies your email in one step. Or use email & password — we’ll ask you to verify before opening the app."
-            : "Sign up with email & password, verify your email, then use Flap. Or switch to a magic link for one-click sign-in."}
+          Sign up with Google, GitHub, or a magic link — no password.
         </p>
         {refCode ? (
           <p className="muted text-xs">
@@ -135,41 +106,10 @@ export default function Signup() {
             <Label htmlFor="email">Work email</Label>
             <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          {mode === "password" ? (
-            <div className="stack gap-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          ) : null}
           <Button type="submit" disabled={busy} className="w-full">
-            {busy
-              ? mode === "magic"
-                ? "Sending link…"
-                : "Creating…"
-              : mode === "magic"
-                ? "Continue with magic link"
-                : "Create account & verify email"}
+            {busy ? "Sending link…" : "Email me a magic link"}
           </Button>
         </div>
-        <button
-          type="button"
-          className="auth-password-toggle"
-          onClick={() => {
-            setMode((m) => (m === "magic" ? "password" : "magic"));
-            setErr("");
-            setNotice("");
-          }}
-        >
-          {mode === "magic" ? "Continue with email & password" : "Use a magic link instead"}
-        </button>
         <p className="muted mt-4 text-xs leading-relaxed">
           By continuing you agree to the{" "}
           <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms</a>

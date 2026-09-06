@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
-import { authClient, authErrorMessage, handleUnverifiedSignIn } from "../lib/auth-client";
+import { authClient, authErrorMessage } from "../lib/auth-client";
 import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
@@ -33,23 +33,21 @@ function OAuthButtons({ invite }: { invite?: string }) {
           Continue with GitHub
         </button>
       ) : null}
-      <div className="auth-divider"><span>or use email</span></div>
+      <div className="auth-divider"><span>or email a magic link</span></div>
     </div>
   );
 }
 
 export default function Login() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"magic" | "password">("magic");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const oauthErr = params.get("error");
-    if (oauthErr) setErr("Sign-in failed. Try again or use email.");
+    if (oauthErr) setErr("Sign-in failed. Try again or use a magic link.");
     api.setupStatus().then((s) => {
       if (s.needs_setup) go("/setup");
     }).catch(() => undefined);
@@ -75,7 +73,7 @@ export default function Login() {
         errorCallbackURL: "/login?error=magic",
       });
       if (error) throw error;
-      setNotice("Check your email for a sign-in link. It expires in 15 minutes and verifies your email when you click.");
+      setNotice("Check your email for a sign-in link. It expires in 15 minutes.");
     } catch (ex) {
       setErr(authErrorMessage(ex, "Could not send magic link."));
     } finally {
@@ -83,41 +81,15 @@ export default function Login() {
     }
   }
 
-  async function onPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    setNotice("");
-    setBusy(true);
-    try {
-      const { error } = await authClient.signIn.email({
-        email,
-        password,
-        callbackURL: "/app",
-      });
-      if (error) {
-        if (handleUnverifiedSignIn(email, error)) return;
-        throw error;
-      }
-      go("/app");
-    } catch (ex) {
-      if (handleUnverifiedSignIn(email, ex)) return;
-      setErr(authErrorMessage(ex, "Email or password is incorrect."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="auth-shell">
-      <form className="auth-card" onSubmit={mode === "magic" ? onMagicLink : onPassword}>
+      <form className="auth-card" onSubmit={onMagicLink}>
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
           <BrandMark /> Flap
         </a>
         <h1>Sign in</h1>
         <p className="muted">
-          {mode === "magic"
-            ? "Magic link signs you in without a password. Email & password accounts must verify email before opening the app."
-            : "Password sign-in requires a verified email. Unverified accounts stay on the verify screen until you confirm."}
+          Use Google, GitHub, or a magic link — no password to remember.
         </p>
         {err ? <p className="error" role="alert">{err}</p> : null}
         {notice ? <p className="muted" role="status">{notice}</p> : null}
@@ -127,50 +99,10 @@ export default function Login() {
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          {mode === "password" ? (
-            <div className="stack gap-1.5">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                <Label htmlFor="password">Password</Label>
-                <a
-                  href="/forgot-password"
-                  className="muted"
-                  style={{ fontSize: 12 }}
-                  onClick={(e) => { e.preventDefault(); go("/forgot-password"); }}
-                >
-                  Forgot password?
-                </a>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          ) : null}
           <Button type="submit" disabled={busy} className="w-full">
-            {busy
-              ? mode === "magic"
-                ? "Sending link…"
-                : "Signing in…"
-              : mode === "magic"
-                ? "Continue with magic link"
-                : "Sign in with password"}
+            {busy ? "Sending link…" : "Email me a magic link"}
           </Button>
         </div>
-        <button
-          type="button"
-          className="auth-password-toggle"
-          onClick={() => {
-            setMode((m) => (m === "magic" ? "password" : "magic"));
-            setErr("");
-            setNotice("");
-          }}
-        >
-          {mode === "magic" ? "Sign in with email & password" : "Use a magic link instead"}
-        </button>
         <p className="muted mt-4 text-sm">
           New here?{" "}
           <a href="/signup" onClick={(e) => { e.preventDefault(); go("/signup"); }}>Create a free workspace</a>

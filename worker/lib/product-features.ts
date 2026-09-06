@@ -306,7 +306,10 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
       domains: domains.results ?? [],
       suppressions_active: Number(suppressions?.n) || 0,
       suppressions_by_reason: byReason,
-      imap: { status: "coming_soon", note: "IMAP/SMTP client access is on the roadmap. Use the web app for now." },
+      imap: {
+        status: "unavailable",
+        note: "IMAP/SMTP is not available yet. Use the web app and PWA. We'll announce when client access ships.",
+      },
     });
   });
 }

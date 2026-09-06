@@ -8,8 +8,8 @@ import { go } from "../lib/nav";
 
 export default function Setup() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -21,9 +21,14 @@ export default function Setup() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
+    setNotice("");
     setBusy(true);
     try {
-      await api.setup(email, password);
+      const res = await api.setup(email);
+      if (res.magic_sent) {
+        setNotice(`Check ${email} for a magic link to finish setup. It expires in 15 minutes.`);
+        return;
+      }
       go("/app/settings?tab=setup&onboarding=1");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Setup failed.");
@@ -39,27 +44,16 @@ export default function Setup() {
           <BrandMark /> Flap
         </a>
         <h1>Create your workspace</h1>
-        <p className="muted">First account on this deployment. More people can sign up when SaaS mode is on.</p>
+        <p className="muted">First account on this deployment. We’ll email a magic link — no password.</p>
         {err ? <p className="error" role="alert">{err}</p> : null}
+        {notice ? <p className="muted" role="status">{notice}</p> : null}
         <div className="stack gap-3">
           <div className="stack gap-1.5">
             <Label htmlFor="email">Work email</Label>
             <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <div className="stack gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <Button type="submit" disabled={busy} className="w-full">
-            {busy ? "Creating…" : "Create workspace"}
+          <Button type="submit" disabled={busy || Boolean(notice)} className="w-full">
+            {busy ? "Sending link…" : notice ? "Link sent" : "Email me a magic link"}
           </Button>
         </div>
         <p className="muted mt-4 text-xs leading-relaxed">

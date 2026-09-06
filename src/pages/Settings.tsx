@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Fragment } from "react";
 import {
   api,
   type Alias,
@@ -20,6 +20,7 @@ import {
   type TeamResponse,
   type Template,
   type Webhook,
+  type WebhookDelivery,
 } from "../lib/api";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
@@ -80,6 +81,76 @@ function dnsProviderGuideLabel(provider: string): string {
   return "your DNS host";
 }
 
+const REGISTRAR_DNS_TIPS = [
+  { name: "Cloudflare", tip: "DNS → select zone → DNS → Records" },
+  { name: "Porkbun", tip: "Domain → DNS Records / Authoritative nameservers" },
+  { name: "Namecheap", tip: "Domain List → Manage → Advanced DNS" },
+  { name: "GoDaddy", tip: "My Products → DNS / Manage DNS" },
+] as const;
+
+type DnsTableRow = { type: string; host: string; value: string; hint?: string; copyable: boolean };
+
+function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
+  const dkimRows = dns.dkim_records?.length ? dns.dkim_records : [dns.dkim];
+  const rows: DnsTableRow[] = [];
+  for (const r of dns.verification || []) {
+    rows.push({
+      type: r.type,
+      host: dnsHostField(r.name, domain),
+      value: r.value,
+      hint: "Proves you own the domain",
+      copyable: !isPlaceholderDnsValue(r.value),
+    });
+  }
+  for (const r of dkimRows) {
+    rows.push({
+      type: r.type,
+      host: dnsHostField(r.name, domain),
+      value: r.value,
+      hint: "Signs outgoing mail",
+      copyable: !isPlaceholderDnsValue(r.value),
+    });
+  }
+  for (const r of dns.mx) {
+    rows.push({
+      type: r.type,
+      host: dnsHostField(r.name, domain),
+      value: `${r.priority} ${r.value}`,
+      hint: "Receiving — do not proxy / keep DNS-only",
+      copyable: true,
+    });
+  }
+  rows.push({
+    type: dns.spf.type,
+    host: dnsHostField(dns.spf.name, domain),
+    value: dns.spf.value,
+    hint: "Merge into your existing SPF if you already have one (only one SPF TXT on @)",
+    copyable: true,
+  });
+  if (dns.dmarc) {
+    rows.push({
+      type: dns.dmarc.type,
+      host: dnsHostField(dns.dmarc.name, domain),
+      value: dns.dmarc.value,
+      hint: "Recommended",
+      copyable: true,
+    });
+  }
+  return rows;
+}
+
+function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
+  const lines = [
+    `# Flap DNS for ${domain}`,
+    `# Paste each row at your DNS host (Type / Host / Value).`,
+    "",
+  ];
+  for (const r of rows) {
+    lines.push(`${r.type}\t${r.host}\t${r.value}${r.hint ? `\t# ${r.hint}` : ""}`);
+  }
+  return lines.join("\n");
+}
+
 export default function Settings() {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [email, setEmail] = useState("");
@@ -112,6 +183,8 @@ export default function Settings() {
   const [deliveryInfo, setDeliveryInfo] = useState<Awaited<ReturnType<typeof api.deliverability>> | null>(null);
   const [newToken, setNewToken] = useState("");
   const [newWebhookSecret, setNewWebhookSecret] = useState("");
+  const [webhookDeliveries, setWebhookDeliveries] = useState<Record<string, WebhookDelivery[]>>({});
+  const [webhookExpanded, setWebhookExpanded] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingSubscription | null>(null);
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [checkoutBusy, setCheckoutBusy] = useState<string | null>(null);
@@ -473,6 +546,35 @@ export default function Settings() {
     void navigator.clipboard.writeText(value).then(() => setNotice("Copied to clipboard."));
   }
 
+  async function toggleWebhookDeliveries(id: string) {
+    if (webhookExpanded === id) {
+      setWebhookExpanded(null);
+      return;
+    }
+    setWebhookExpanded(id);
+    if (id in webhookDeliveries) return;
+    try {
+      const res = await api.webhookDeliveries(id);
+      setWebhookDeliveries((prev) => ({ ...prev, [id]: res.deliveries }));
+    } catch (ex) {
+      setWebhookDeliveries((prev) => ({ ...prev, [id]: [] }));
+      setErr(ex instanceof Error ? ex.message : "Could not load deliveries.");
+    }
+  }
+
+  function openSendTest() {
+    const addr = domainMailboxes[0]?.address || mailboxes[0]?.address;
+    if (!addr) {
+      setErr("Create a mailbox first, then send yourself a test.");
+      return;
+    }
+    const q = new URLSearchParams({
+      to: addr,
+      subject: "Flap delivery test",
+    });
+    go(`/app/compose?${q.toString()}`);
+  }
+
   async function logout() {
     await api.logout();
     go("/");
@@ -768,6 +870,44 @@ export default function Settings() {
                   </button>
                 </div>
               </div>
+              <div className="notice" style={{ marginBottom: 12, fontSize: 13 }} role="note">
+                <strong>Where to find DNS</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  {REGISTRAR_DNS_TIPS.map((t) => (
+                    <li key={t.name}><strong>{t.name}:</strong> {t.tip}</li>
+                  ))}
+                </ul>
+              </div>
+              {selectedDomain?.receiving_ready_at ? (
+                <div className="notice" role="status" style={{ marginBottom: 12 }}>
+                  <p style={{ margin: 0 }}>
+                    <strong>Receiving is ready for {selectedName}.</strong>{" "}
+                    {domainMailboxes.length === 0 && !hasMailbox
+                      ? "Create your first mailbox or alias to start using this domain."
+                      : domainMailboxes.length === 0
+                        ? "Add a mailbox on this domain, then send yourself a test."
+                        : "Send yourself a test from Flap to confirm end-to-end delivery."}
+                  </p>
+                  <div className="row-form" style={{ marginTop: 10, flexWrap: "wrap" }}>
+                    {domainMailboxes.length === 0 ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => {
+                          document.getElementById("local-part")?.focus();
+                          setNotice("Pick a local-part (e.g. hello) and add a mailbox.");
+                        }}
+                      >
+                        Create first mailbox/alias
+                      </button>
+                    ) : (
+                      <button type="button" className="btn" onClick={() => openSendTest()}>
+                        Send yourself a test
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
               {dnsPolling || dnsPollNote ? (
                 <p className="muted" role="status" style={{ marginBottom: 8 }}>
                   {dnsPolling ? "Auto-checking DNS with backoff…" : null}
@@ -826,54 +966,8 @@ export default function Settings() {
                   <p>{dns.note}</p>
                   {(() => {
                     const domain = selectedName || "";
-                    const dkimRows = dns.dkim_records?.length ? dns.dkim_records : [dns.dkim];
-                    const pendingValues =
-                      [...(dns.verification || []), ...dkimRows].some((r) => isPlaceholderDnsValue(r.value));
-                    type Row = { type: string; host: string; value: string; hint?: string; copyable: boolean };
-                    const rows: Row[] = [];
-                    for (const r of dns.verification || []) {
-                      rows.push({
-                        type: r.type,
-                        host: dnsHostField(r.name, domain),
-                        value: r.value,
-                        hint: "Proves you own the domain",
-                        copyable: !isPlaceholderDnsValue(r.value),
-                      });
-                    }
-                    for (const r of dkimRows) {
-                      rows.push({
-                        type: r.type,
-                        host: dnsHostField(r.name, domain),
-                        value: r.value,
-                        hint: "Signs outgoing mail",
-                        copyable: !isPlaceholderDnsValue(r.value),
-                      });
-                    }
-                    for (const r of dns.mx) {
-                      rows.push({
-                        type: r.type,
-                        host: dnsHostField(r.name, domain),
-                        value: `${r.priority} ${r.value}`,
-                        hint: "Receiving — do not proxy / keep DNS-only",
-                        copyable: true,
-                      });
-                    }
-                    rows.push({
-                      type: dns.spf.type,
-                      host: dnsHostField(dns.spf.name, domain),
-                      value: dns.spf.value,
-                      hint: "Merge into your existing SPF if you already have one (only one SPF TXT on @)",
-                      copyable: true,
-                    });
-                    if (dns.dmarc) {
-                      rows.push({
-                        type: dns.dmarc.type,
-                        host: dnsHostField(dns.dmarc.name, domain),
-                        value: dns.dmarc.value,
-                        hint: "Recommended",
-                        copyable: true,
-                      });
-                    }
+                    const rows = buildDnsTableRows(dns, domain);
+                    const pendingValues = rows.some((r) => !r.copyable && isPlaceholderDnsValue(r.value));
                     return (
                       <>
                         {pendingValues ? (
@@ -881,7 +975,19 @@ export default function Settings() {
                             Some values are still being prepared for this domain. Wait a minute, refresh this page, then copy the real tokens — do not publish the placeholder text.
                           </p>
                         ) : null}
-                        <p className="dns-step-title">Records to add</p>
+                        <div className="row-form" style={{ marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <p className="dns-step-title" style={{ margin: 0, flex: 1 }}>Records to add</p>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              copyText(formatDnsRecordsBlock(rows, domain));
+                              setNotice("All DNS records copied.");
+                            }}
+                          >
+                            Copy all records
+                          </button>
+                        </div>
                         <p className="dns-step-help">
                           In your DNS UI: set Type, set Host/Name to the Host column, paste Value. TTL can stay default.
                           After saving, click <strong>Check setup</strong> (propagation can take a few minutes).
@@ -1054,7 +1160,10 @@ export default function Settings() {
                   </table>
                   <div className="notice" style={{ marginTop: 16 }}>
                     <strong>IMAP / SMTP</strong>
-                    <p style={{ margin: "6px 0 0" }}>{deliveryInfo.imap?.note || "Coming soon."}</p>
+                    <p style={{ margin: "6px 0 0" }}>
+                      {deliveryInfo.imap?.note ||
+                        "IMAP/SMTP is not available yet. Use the web app and PWA. We'll announce when client access ships."}
+                    </p>
                   </div>
                 </>
               ) : <p className="muted">Loading…</p>}
@@ -1135,17 +1244,48 @@ export default function Settings() {
                 <button className="btn" type="submit">Add webhook</button>
               </form>
               {newWebhookSecret ? <div className="notice">Copy this signing secret now: <code>{newWebhookSecret}</code></div> : null}
-              {webhooks.length ? <table className="table"><thead><tr><th>Name</th><th>URL</th><th>Status</th><th /></tr></thead><tbody>
+              {webhooks.length ? <table className="table"><thead><tr><th>Name</th><th>URL</th><th>Last trigger</th><th>Status</th><th /></tr></thead><tbody>
                 {webhooks.map((w) => (
-                  <tr key={w.id}>
-                    <td>{w.name}</td>
-                    <td className="muted">{w.url}</td>
-                    <td>{w.enabled ? "On" : "Off"}</td>
-                    <td className="row-actions">
-                      <button type="button" className="text-button" onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
-                      <button type="button" className="btn btn-danger" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</button>
-                    </td>
-                  </tr>
+                  <Fragment key={w.id}>
+                    <tr>
+                      <td>{w.name}</td>
+                      <td className="muted">{w.url}</td>
+                      <td className="muted">{w.last_triggered_at ? new Date(w.last_triggered_at).toLocaleString() : "Never"}</td>
+                      <td>{w.enabled ? "On" : "Off"}</td>
+                      <td className="row-actions">
+                        <button type="button" className="text-button" onClick={() => void toggleWebhookDeliveries(w.id)}>
+                          {webhookExpanded === w.id ? "Hide deliveries" : "Deliveries"}
+                        </button>
+                        <button type="button" className="text-button" onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
+                        <button type="button" className="btn btn-danger" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</button>
+                      </td>
+                    </tr>
+                    {webhookExpanded === w.id ? (
+                      <tr>
+                        <td colSpan={5}>
+                          {!(w.id in webhookDeliveries) ? (
+                            <p className="muted" style={{ margin: 0 }}>Loading deliveries…</p>
+                          ) : webhookDeliveries[w.id].length ? (
+                            <table className="table" style={{ margin: 0 }}>
+                              <thead><tr><th>When</th><th>Event</th><th>Status</th><th>Result</th></tr></thead>
+                              <tbody>
+                                {webhookDeliveries[w.id].map((d) => (
+                                  <tr key={d.id}>
+                                    <td className="muted">{new Date(d.created_at).toLocaleString()}</td>
+                                    <td><code>{d.event}</code></td>
+                                    <td>{d.status_code ?? "—"}</td>
+                                    <td className="muted">{d.ok ? "OK" : (d.error || "Failed")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="muted" style={{ margin: 0 }}>No deliveries logged yet. They appear after the next inbound event.</p>
+                          )}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody></table> : <p className="empty-state">No webhooks yet.</p>}
             </section>
@@ -1223,9 +1363,10 @@ export default function Settings() {
               </tbody></table> : <p className="empty-state">Nobody is blocked.</p>}
             </section>
             <section className="settings-card">
-              <div className="section-heading"><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
-              <div className="row-form">
+              <div className="section-heading"><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON, or download a classic .mbox mailbox file. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
+              <div className="row-form" style={{ flexWrap: "wrap" }}>
                 <button type="button" className="btn" onClick={() => void api.exportBackup().catch((ex) => setErr(ex instanceof Error ? ex.message : "Export failed."))}>Download backup</button>
+                <button type="button" className="btn btn-ghost" onClick={() => void api.exportMbox().catch((ex) => setErr(ex instanceof Error ? ex.message : "Mbox export failed."))}>Download mailbox (.mbox)</button>
                 <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
                   Restore JSON
                   <input
@@ -1345,6 +1486,12 @@ export default function Settings() {
                   <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
                 </p>
               )}
+            </div>
+            <div className="notice" style={{ marginBottom: 16 }} role="note">
+              <strong>Cancel &amp; export</strong>
+              <p style={{ margin: "6px 0 0" }}>
+                You can export anytime. After cancel, keep access through the paid period; download your mailbox before it ends.
+              </p>
             </div>
             <div className="grid-2">
               {plans.filter((p) => p.id !== "free").map((plan) => {
@@ -1717,6 +1864,34 @@ function FilterForm({ onSave }: { onSave: (body: {
   const [forwardTo, setForwardTo] = useState("");
   const [label, setLabel] = useState("");
   const [catchAll, setCatchAll] = useState(false);
+  const [sampleFrom, setSampleFrom] = useState("alice@example.com");
+  const [sampleTo, setSampleTo] = useState("hello@yourdomain.com");
+  const [sampleSubject, setSampleSubject] = useState("Hello from Flap");
+  const [testResult, setTestResult] = useState("");
+
+  function previewMatch() {
+    if (catchAll) {
+      setTestResult("Catch-all: matches any mail that no earlier rule claimed.");
+      return;
+    }
+    const f = from.trim().toLowerCase();
+    const t = to.trim().toLowerCase();
+    const s = subject.trim().toLowerCase();
+    if (!f && !t && !s) {
+      setTestResult("Add at least one match condition (or mark catch-all).");
+      return;
+    }
+    const okFrom = !f || sampleFrom.toLowerCase().includes(f);
+    const okTo = !t || sampleTo.toLowerCase().includes(t);
+    const okSubject = !s || sampleSubject.toLowerCase().includes(s);
+    const matches = okFrom && okTo && okSubject;
+    setTestResult(
+      matches
+        ? `Would match → action “${action}”${label ? ` (${label})` : ""}${forwardTo ? ` → ${forwardTo}` : ""}.`
+        : "Would not match this sample (same rules as inbound: substring contains on from/to/subject).",
+    );
+  }
+
   return (
     <form className="stack-form" onSubmit={(e) => {
       e.preventDefault();
@@ -1737,6 +1912,7 @@ function FilterForm({ onSave }: { onSave: (body: {
         setForwardTo("");
         setLabel("");
         setCatchAll(false);
+        setTestResult("");
       });
     }}>
       <div className="row-form">
@@ -1759,6 +1935,20 @@ function FilterForm({ onSave }: { onSave: (body: {
       {action === "forward" ? <input placeholder="Forward to email" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} required /> : null}
       {action === "label" ? <input placeholder="Label name" value={label} onChange={(e) => setLabel(e.target.value)} required /> : null}
       <label className="check-row"><input type="checkbox" checked={catchAll} onChange={(e) => setCatchAll(e.target.checked)} /> Catch-all (apply when no other rule matches)</label>
+      <div className="notice" style={{ marginTop: 4 }}>
+        <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+          Test rule — preview against sample headers (client-side; same contains matching as inbound).
+        </p>
+        <div className="row-form">
+          <input aria-label="Sample from" placeholder="Sample from" value={sampleFrom} onChange={(e) => setSampleFrom(e.target.value)} />
+          <input aria-label="Sample to" placeholder="Sample to" value={sampleTo} onChange={(e) => setSampleTo(e.target.value)} />
+          <input aria-label="Sample subject" placeholder="Sample subject" value={sampleSubject} onChange={(e) => setSampleSubject(e.target.value)} />
+        </div>
+        <div className="row-form" style={{ marginTop: 8 }}>
+          <button type="button" className="btn btn-ghost" onClick={() => previewMatch()}>Test rule</button>
+          {testResult ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>{testResult}</p> : null}
+        </div>
+      </div>
       <button className="btn" type="submit">Add rule</button>
     </form>
   );

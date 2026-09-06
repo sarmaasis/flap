@@ -184,7 +184,7 @@ function PrivacyBody() {
       <h2>2. Information we collect</h2>
       <ul>
         <li>
-          <strong>Account data</strong> — email address, password hash, display name if provided, plan and
+          <strong>Account data</strong> — email address, display name if provided, plan and
           subscription identifiers.
         </li>
         <li>
@@ -234,7 +234,7 @@ function PrivacyBody() {
 
       <h2>6. Security</h2>
       <p>
-        We use industry-standard controls appropriate to a hosted mailbox (encrypted transport, hashed passwords,
+        We use industry-standard controls appropriate to a hosted mailbox (encrypted transport, session cookies,
         session cookies, access controls). No method of transmission or storage is perfectly secure. Report
         suspected vulnerabilities to{" "}
         <a href="mailto:support@useflap.online">support@useflap.online</a>.

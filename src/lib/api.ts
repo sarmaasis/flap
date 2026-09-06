@@ -101,6 +101,15 @@ export type Webhook = {
   last_triggered_at: number | null;
   secret?: string;
 };
+export type WebhookDelivery = {
+  id: string;
+  webhook_id: string;
+  event: string;
+  status_code: number | null;
+  ok: number;
+  error: string;
+  created_at: number;
+};
 export type Prefs = {
   vacation_enabled: number;
   vacation_body: string;
@@ -219,15 +228,18 @@ export type BillingSubscription = {
 
 export const api = {
   setupStatus: () => req<{ needs_setup: boolean; signup_open?: boolean }>("/api/setup/status"),
-  setup: (email: string, password: string) =>
-    req<{ ok: boolean; user: User }>("/api/setup", { method: "POST", body: JSON.stringify({ email, password }) }),
-  signup: (email: string, password: string, name?: string, referral_code?: string) =>
+  setup: (email: string) =>
+    req<{ ok: boolean; magic_sent?: boolean; email?: string; user?: User }>("/api/setup", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  signup: (email: string, _password?: string, name?: string, referral_code?: string) =>
     req<{ ok: boolean; user: User }>("/api/signup", {
       method: "POST",
-      body: JSON.stringify({ email, password, name, referral_code }),
+      body: JSON.stringify({ email, name, referral_code }),
     }),
-  login: (email: string, password: string) =>
-    req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: (email: string, _password?: string) =>
+    req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email }) }),
   logout: () => req<{ ok: boolean }>("/api/logout", { method: "POST" }),
   me: () => req<{ user: User; mailboxes: Mailbox[] }>("/api/me"),
   billingPlans: () => req<BillingPlansResponse>("/api/billing/plans"),
@@ -248,9 +260,11 @@ export const api = {
       contacts: Contact[];
       settings: Prefs;
       counts: FolderCounts;
+      domain_unread?: Record<string, number>;
       server_time: number;
     }>("/api/bootstrap"),
-  counts: (signal?: AbortSignal) => req<{ counts: FolderCounts; server_time: number }>("/api/counts", { signal }),
+  counts: (signal?: AbortSignal) =>
+    req<{ counts: FolderCounts; domain_unread?: Record<string, number>; server_time: number }>("/api/counts", { signal }),
   domains: () => req<{ domains: Domain[] }>("/api/domains"),
   createDomain: (name: string) =>
     req<{ domain: Domain; records?: DnsRecords }>("/api/domains", { method: "POST", body: JSON.stringify({ name }) }),
@@ -271,9 +285,13 @@ export const api = {
     req<{ ok: boolean }>(`/api/mailboxes/${id}`, { method: "PATCH", body: JSON.stringify({ display_name }) }),
   deleteMailbox: (id: string) => req<{ ok: boolean }>(`/api/mailboxes/${id}`, { method: "DELETE" }),
   dns: (domain: string) => req<{ records: DnsRecords }>(`/api/dns?domain=${encodeURIComponent(domain)}`),
-  mail: (folder: string, mailbox?: string, signal?: AbortSignal) =>
+  mail: (folder: string, mailbox?: string, signal?: AbortSignal, domain?: string) =>
     req<{ folder: string; messages: MailSummary[] }>(
-      `/api/mail?folder=${encodeURIComponent(folder)}${mailbox ? `&mailbox=${encodeURIComponent(mailbox)}` : ""}`,
+      `/api/mail?folder=${encodeURIComponent(folder)}${
+        mailbox ? `&mailbox=${encodeURIComponent(mailbox)}`
+          : domain ? `&domain=${encodeURIComponent(domain)}`
+            : ""
+      }`,
       { signal },
     ),
   message: (id: string, signal?: AbortSignal) => req<{ message: MailFull; attachments: Attachment[] }>(`/api/mail/${id}`, { signal }),
@@ -369,6 +387,8 @@ export const api = {
     req<{ webhook: Webhook }>("/api/webhooks", { method: "POST", body: JSON.stringify(body) }),
   toggleWebhook: (id: string) => req<{ ok: boolean; enabled: number }>(`/api/webhooks/${id}/toggle`, { method: "POST" }),
   deleteWebhook: (id: string) => req<{ ok: boolean }>(`/api/webhooks/${id}`, { method: "DELETE" }),
+  webhookDeliveries: (id: string) =>
+    req<{ deliveries: WebhookDelivery[] }>(`/api/webhooks/${id}/deliveries`),
   team: () => req<TeamResponse>("/api/team"),
   inviteTeam: (email: string, role?: string, mailbox_ids?: string[]) =>
     req<{ invite: TeamInvite; deferred: boolean }>("/api/team/invites", {
@@ -412,6 +432,17 @@ export const api = {
     const a = document.createElement("a");
     a.href = url;
     a.download = "flap-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  exportMbox: async () => {
+    const res = await fetch("/api/export?format=mbox", { credentials: "same-origin" });
+    if (!res.ok) throw new Error("Could not export mailbox as .mbox.");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "flap-mailbox.mbox";
     a.click();
     URL.revokeObjectURL(url);
   },

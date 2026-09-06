@@ -1288,6 +1288,18 @@ textarea { min-height: 160px; resize: vertical; }
   }
   .sidebar-section { display: none; }
   .folder-nav::-webkit-scrollbar { display: none; }
+  .domain-rail {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0 2px;
+    margin: 0;
+    border-top: 0;
+    scrollbar-width: none;
+  }
+  .domain-rail::-webkit-scrollbar { display: none; }
   .side-btn {
     width: auto;
     flex: 0 0 auto;
@@ -1506,6 +1518,165 @@ textarea { min-height: 160px; resize: vertical; }
 }
 .snooze-row { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 16px; }
 .compose-from-row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+.compose-from-identity {
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--domain-color, var(--cta)) 35%, var(--line));
+  background: color-mix(in srgb, var(--domain-color, var(--cta)) 8%, var(--surface));
+  box-shadow: inset 3px 0 var(--domain-color, var(--cta));
+}
+.compose-from-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.compose-from-pill select {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+  box-shadow: none;
+  min-width: 0;
+}
+.compose-from-pill .domain-swatch {
+  margin-right: 0;
+  flex: 0 0 auto;
+}
+.msg-sender-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.msg-via {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.msg-via-chip {
+  width: 8px;
+  height: 8px;
+  margin-right: 0;
+  border-radius: 2px;
+}
+.domain-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-y: auto;
+  max-height: 28vh;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+.domain-rail-btn {
+  gap: 8px;
+}
+.domain-rail-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.domain-rail-swatch {
+  margin-right: 8px;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.domain-rail-btn.active {
+  box-shadow: inset 2px 0 var(--domain-color, var(--cta));
+}
+.command-palette-back {
+  z-index: 80;
+  backdrop-filter: blur(2px);
+}
+.command-palette {
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(440px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.command-palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.command-palette-input-wrap input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  outline: none;
+  min-width: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+}
+.command-palette-group {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+.command-palette-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  padding: 9px 10px;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.command-palette-item:hover,
+.command-palette-item.active {
+  background: rgba(var(--cta-rgb), 0.1);
+}
+.command-palette-empty {
+  padding: 16px 12px;
+  font-size: 13px;
+}
 .compose-meta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .compose-select { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 180px; }
 .suggest-list {

@@ -63,8 +63,8 @@ export default function VerifyEmail() {
 
   const blurb =
     reason === "signin"
-      ? "Your password is correct, but this account still needs email verification before you can open Flap."
-      : "We created your account. Open the verification link we sent, then you can use the app.";
+      ? "This account still needs email verification before you can open Flap. Request a new link below, or sign in with a magic link."
+      : "Open the verification link we sent, then you can use the app. Prefer a magic link? Head back to sign in.";
 
   return (
     <div className="auth-shell">

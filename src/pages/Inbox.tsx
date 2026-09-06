@@ -16,6 +16,7 @@ import {
 import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/format";
 import { go } from "../lib/nav";
 import AppShell, { FOLDERS } from "../components/AppShell";
+import CommandPalette from "../components/CommandPalette";
 import type { ComposeDraft } from "./Compose";
 
 const Compose = lazy(() => import("./Compose"));
@@ -49,6 +50,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [teamMembers, setTeamMembers] = useState<Array<{ user_id: string; email: string }>>([]);
   const [teamsUnlocked, setTeamsUnlocked] = useState(false);
   const [mailbox, setMailbox] = useState("");
+  const [domainFilter, setDomainFilter] = useState("");
+  const [domainUnread, setDomainUnread] = useState<Record<string, number>>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [undoToast, setUndoToast] = useState<{ id: string; seconds: number } | null>(null);
   const [showCompose, setShowCompose] = useState(Boolean(composeOpen));
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | null>(null);
@@ -96,6 +100,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setEmail(data.user.email);
     setMailboxes(data.mailboxes);
     setCounts(data.counts);
+    setDomainUnread(data.domain_unread ?? {});
     setContacts(data.contacts);
     setTemplates(data.templates);
     setSignatures(data.signatures);
@@ -124,7 +129,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const loadList = useCallback(async (signal?: AbortSignal) => {
     setErr("");
     try {
-      const data = qDebounced.length >= 2 ? await api.search(qDebounced, signal) : await api.mail(folder, mailbox || undefined, signal);
+      const data = qDebounced.length >= 2
+        ? await api.search(qDebounced, signal)
+        : await api.mail(folder, mailbox || undefined, signal, domainFilter || undefined);
       if (signal?.aborted) return;
       setList(data.messages);
     } catch (ex) {
@@ -133,7 +140,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     } finally {
       if (!signal?.aborted) setLoadingList(false);
     }
-  }, [folder, mailbox, qDebounced]);
+  }, [folder, mailbox, domainFilter, qDebounced]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -185,6 +192,20 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }, [composeOpen]);
 
   useEffect(() => {
+    if (!composeOpen) return;
+    const params = new URLSearchParams(window.location.search);
+    const to = params.get("to");
+    const subject = params.get("subject");
+    if (!to && !subject) return;
+    setComposeDraft({
+      to: to || "",
+      subject: subject || "",
+      mode: "new",
+    });
+    setShowCompose(true);
+  }, [composeOpen]);
+
+  useEffect(() => {
     const poll = () => {
       if (pollBusyRef.current || document.visibilityState === "hidden") return;
       pollBusyRef.current = true;
@@ -214,6 +235,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           }
           lastUnreadRef.current = inboxUnread;
           setCounts(d.counts);
+          if (d.domain_unread) setDomainUnread(d.domain_unread);
         })
         .catch(() => undefined)
         .finally(() => {
@@ -387,6 +409,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     setSelected(row.id);
   }
 
+  function replyFromAddress(msg: MailFull): string | undefined {
+    const mb = mailboxes.find((m) => m.id === msg.mailbox_id);
+    if (mb?.address) return mb.address;
+    const to = extractEmail(msg.to_addr);
+    if (to && mailboxes.some((m) => m.address === to)) return to;
+    return to || undefined;
+  }
+
   function reply(all = false) {
     if (!message) return;
     const to = extractEmail(folder === "sent" ? message.to_addr : message.from_addr);
@@ -398,6 +428,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       subject: prefix,
       html: quoteHtml(message.from_addr, message.date_ms, message.html_body, message.text_body),
       inReplyTo: message.id,
+      from: replyFromAddress(message),
       mode: "reply",
     });
   }
@@ -407,6 +438,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     openCompose({
       subject: message.subject.toLowerCase().startsWith("fwd:") ? message.subject : `Fwd: ${message.subject || "(no subject)"}`,
       html: quoteHtml(message.from_addr, message.date_ms, message.html_body, message.text_body),
+      from: replyFromAddress(message),
       mode: "forward",
     });
   }
@@ -444,7 +476,18 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          event.preventDefault();
+          setPaletteOpen((v) => !v);
+        }
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
       const ctx = keyCtx.current;
       const editingSavedDraft = Boolean(ctx.showCompose && ctx.composeDraft?.mode === "draft" && ctx.composeDraft?.id);
       const deleteKey = event.key === "#" || event.key === "Delete" || event.key === "Backspace";
@@ -475,6 +518,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       if (event.key === "f") { event.preventDefault(); ctx.forward(); }
       if (event.key === "e") { event.preventDefault(); void ctx.move(ctx.message.id, "archive"); }
       if (event.key === "s") { event.preventDefault(); void ctx.toggleStar(ctx.message); }
+      if (event.key === "l") {
+        event.preventDefault();
+        document.getElementById("message-label-select")?.focus();
+      }
       if (event.key === "u") {
         event.preventDefault();
         void api.flags(ctx.message.id, { unread: true }).then(() => {
@@ -489,6 +536,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
 
   const editingDraft = showCompose && composeDraft?.mode === "draft";
   const composeInPane = editingDraft || openingDraft;
+  const filteredDomain = domainFilter ? domains.find((d) => d.id === domainFilter) : undefined;
 
   return (
     <AppShell
@@ -496,6 +544,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       counts={counts}
       folder={folder}
       current="mail"
+      domains={domains}
+      domainUnread={domainUnread}
+      domainFilter={domainFilter}
+      onDomainFilter={(id) => {
+        setDomainFilter(id);
+        setMailbox("");
+        setSelected(null);
+      }}
       onCompose={() => {
         void import("./Compose");
         openCompose();
@@ -553,7 +609,15 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <input id="mail-search" placeholder="Search mail" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mail" />
             </div>
             {mailboxes.length > 1 ? (
-              <select className="mailbox-filter" value={mailbox} onChange={(e) => setMailbox(e.target.value)} aria-label="Mailbox">
+              <select
+                className="mailbox-filter"
+                value={mailbox}
+                onChange={(e) => {
+                  setMailbox(e.target.value);
+                  if (e.target.value) setDomainFilter("");
+                }}
+                aria-label="Mailbox"
+              >
                 <option value="">All mailboxes</option>
                 {mailboxes.map((m) => (
                   <option key={m.id} value={m.id}>{m.address}</option>
@@ -588,38 +652,45 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                     ? "No matches"
                     : unreadOnly
                       ? "No unread mail"
-                      : needsSetup
-                        ? "No mailbox yet"
-                        : domainSetupPending
-                          ? "Waiting on domain setup"
-                          : `No ${title.toLowerCase()} yet`}
+                      : filteredDomain
+                        ? `No mail on ${filteredDomain.name} yet`
+                        : needsSetup
+                          ? "No mailbox yet"
+                          : domainSetupPending
+                            ? "Waiting on domain setup"
+                            : `No ${title.toLowerCase()} yet`}
                 </strong>
                 <p>
                   {qDebounced
                     ? "Try a different name, subject, or phrase."
                     : unreadOnly
                       ? "Everything in this folder is read."
-                      : needsSetup
-                        ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
-                        : domainSetupPending
-                          ? "Your mailboxes are ready. Finish domain verification to receive mail."
-                          : EMPTY[folder]}
+                      : filteredDomain
+                        ? "Send a test message to confirm receiving, or finish domain setup."
+                        : needsSetup
+                          ? "Open the setup checklist to add a domain and address — then new mail for your domain will land here."
+                          : domainSetupPending
+                            ? "Your mailboxes are ready. Finish domain verification to receive mail."
+                            : EMPTY[folder]}
                 </p>
-                {(needsSetup || domainSetupPending) && !qDebounced && !unreadOnly ? (
+                {(filteredDomain || needsSetup || domainSetupPending) && !qDebounced && !unreadOnly ? (
                   <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
-                    {domainSetupPending ? "Finish setup" : "Start setup"}
+                    {filteredDomain ? "Send a test →" : domainSetupPending ? "Finish setup" : "Start setup"}
                   </button>
                 ) : null}
               </div>
             ) : (
               visibleList.map((m) => {
-                const domain = domains.find((d) => d.id === mailboxes.find((mb) => mb.id === m.mailbox_id)?.domain_id);
+                const mb = mailboxes.find((item) => item.id === m.mailbox_id);
+                const domain = domains.find((d) => d.id === mb?.domain_id);
+                const via = mb?.address || domain?.name || undefined;
                 return (
                 <MessageRow
                   key={m.id}
                   row={m}
                   folder={folder}
                   domainColor={domain?.color || undefined}
+                  via={via}
                   active={selected === m.id || composeDraft?.id === m.id}
                   onOpen={() => onRowClick(m)}
                   onStar={() => void toggleStar(m)}
@@ -811,6 +882,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 <h3>Organize</h3>
                 <div className="list-toolbar" style={{ marginTop: 0 }}>
                   <select
+                    id="message-label-select"
                     aria-label="Add label"
                     defaultValue=""
                     onChange={(e) => {
@@ -962,11 +1034,13 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Press <kbd>?</kbd> anytime in the inbox. Shortcuts ignore focused inputs.</p>
             <ul className="shortcut-list">
               <li><kbd>?</kbd> This help</li>
+              <li><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd> Command palette</li>
               <li><kbd>c</kbd> Compose</li>
               <li><kbd>r</kbd> Reply</li>
               <li><kbd>f</kbd> Forward</li>
               <li><kbd>e</kbd> Archive</li>
               <li><kbd>s</kbd> Star</li>
+              <li><kbd>l</kbd> Label</li>
               <li><kbd>u</kbd> Mark unread</li>
               <li><kbd>#</kbd> / <kbd>Delete</kbd> Delete (Trash, or remove draft)</li>
               <li><kbd>j</kbd> / <kbd>k</kbd> Next / previous</li>
@@ -976,6 +1050,31 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </div>
       ) : null}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        domains={domains}
+        onCompose={() => {
+          void import("./Compose");
+          openCompose();
+        }}
+        onFolder={(id) => {
+          setFolder(id);
+          setSelected(null);
+          setQ("");
+          setQDebounced("");
+          go("/app");
+        }}
+        onDomain={(id) => {
+          setDomainFilter(id);
+          setMailbox("");
+          setSelected(null);
+          setFolder("inbox");
+          go("/app");
+        }}
+        onSearchFocus={() => document.getElementById("mail-search")?.focus()}
+        onSettings={(tab) => go(tab ? `/app/settings?tab=${encodeURIComponent(tab)}` : "/app/settings")}
+      />
     </AppShell>
   );
 }
@@ -984,6 +1083,7 @@ const MessageRow = memo(function MessageRow({
   row,
   folder,
   domainColor,
+  via,
   active,
   onOpen,
   onStar,
@@ -992,6 +1092,7 @@ const MessageRow = memo(function MessageRow({
   row: MailSummary;
   folder: string;
   domainColor?: string;
+  via?: string;
   active: boolean;
   onOpen: () => void;
   onStar: () => void;
@@ -1013,7 +1114,15 @@ const MessageRow = memo(function MessageRow({
       <button type="button" className="msg-row-main" onClick={onOpen}>
         <span className="mail-avatar" aria-hidden>{initials(who)}</span>
         <div className="msg-meta">
-          <span>{senderName(who)}</span>
+          <span className="msg-sender-block">
+            <span>{senderName(who)}</span>
+            {via ? (
+              <span className="msg-via">
+                <span className="domain-swatch msg-via-chip" aria-hidden style={domainColor ? { background: domainColor } : undefined} />
+                via {via}
+              </span>
+            ) : null}
+          </span>
           <span>{fmtDate(row.date_ms)}</span>
         </div>
         <div className="mail-summary">

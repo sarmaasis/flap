@@ -176,6 +176,41 @@ export async function resolveThreadId(
   return rfcMessageId || randomId("thr");
 }
 
+const WEBHOOK_DELIVERY_KEEP = 20;
+
+async function recordWebhookDelivery(
+  db: D1Database,
+  webhookId: string,
+  event: string,
+  statusCode: number | null,
+  ok: boolean,
+  error: string,
+): Promise<void> {
+  const now = nowMs();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, ok, error, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(randomId("wd"), webhookId, event, statusCode, ok ? 1 : 0, error.slice(0, 500), now)
+      .run();
+    await db
+      .prepare(
+        `DELETE FROM webhook_deliveries WHERE id IN (
+           SELECT id FROM webhook_deliveries
+           WHERE webhook_id = ?
+           ORDER BY created_at DESC
+           LIMIT -1 OFFSET ?
+         )`,
+      )
+      .bind(webhookId, WEBHOOK_DELIVERY_KEEP)
+      .run();
+  } catch (err) {
+    console.warn("Webhook delivery log failed", webhookId, err);
+  }
+}
+
 export async function fireWebhooks(
   env: Env,
   userId: string,
@@ -191,9 +226,12 @@ export async function fireWebhooks(
   for (const hook of rows.results ?? []) {
     const events = hook.events.split(",").map((e) => e.trim()).filter(Boolean);
     if (events.length && !events.includes(event) && !events.includes("*")) continue;
+    let statusCode: number | null = null;
+    let ok = false;
+    let error = "";
     try {
       const signature = await sha256Hex(`${hook.secret}.${body}`);
-      await fetch(hook.url, {
+      const res = await fetch(hook.url, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -202,12 +240,17 @@ export async function fireWebhooks(
         },
         body,
       });
+      statusCode = res.status;
+      ok = res.ok;
+      if (!res.ok) error = `HTTP ${res.status}`;
       await env.DB.prepare("UPDATE webhooks SET last_triggered_at = ? WHERE id = ?")
         .bind(nowMs(), hook.id)
         .run();
-    } catch (error) {
-      console.warn("Webhook failed", hook.id, error);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      console.warn("Webhook failed", hook.id, err);
     }
+    await recordWebhookDelivery(env.DB, hook.id, event, statusCode, ok, error);
   }
 }
 
@@ -473,6 +516,42 @@ export async function folderCounts(
   return counts;
 }
 
+/** Unread inbox counts keyed by domain id (via mailbox). */
+export async function domainUnreadCounts(
+  db: D1Database,
+  workspaceId: string,
+  mailboxIds: string[] | null = null,
+): Promise<Record<string, number>> {
+  const now = nowMs();
+  const access =
+    mailboxIds === null
+      ? { sql: "", binds: [] as unknown[] }
+      : mailboxIds.length === 0
+        ? { sql: " AND 1 = 0", binds: [] as unknown[] }
+        : {
+            sql: ` AND msg.mailbox_id IN (${mailboxIds.map(() => "?").join(", ")})`,
+            binds: [...mailboxIds] as unknown[],
+          };
+  const rows = await db
+    .prepare(
+      `SELECT mb.domain_id AS domain_id,
+              SUM(CASE WHEN msg.unread = 1 THEN 1 ELSE 0 END) AS unread
+       FROM messages msg
+       JOIN mailboxes mb ON mb.id = msg.mailbox_id
+       WHERE msg.user_id = ?${access.sql}
+         AND msg.folder = 'inbox'
+         AND (msg.snooze_until IS NULL OR msg.snooze_until <= ?)
+       GROUP BY mb.domain_id`,
+    )
+    .bind(workspaceId, ...access.binds, now)
+    .all<{ domain_id: string; unread: number }>();
+  const out: Record<string, number> = {};
+  for (const row of rows.results ?? []) {
+    if (row.domain_id) out[row.domain_id] = Number(row.unread) || 0;
+  }
+  return out;
+}
+
 export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/bootstrap", async (c) => {
     const user = await requireUser(c);
@@ -493,7 +572,10 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
         .all(),
       loadSettings(c.env.DB, ctx.workspaceId),
     ]);
-    const counts = await folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds);
+    const [counts, domain_unread] = await Promise.all([
+      folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+      domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+    ]);
     return c.json({
       user: { id: user.id, email: user.email, created_at: user.created_at },
       workspace: {
@@ -509,6 +591,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       contacts: contacts.results ?? [],
       settings,
       counts,
+      domain_unread,
       server_time: now,
     });
   });
@@ -518,8 +601,13 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     await flushScheduled(c.env).catch(() => undefined);
+    const [counts, domain_unread] = await Promise.all([
+      folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+      domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+    ]);
     return c.json({
-      counts: await folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
+      counts,
+      domain_unread,
       server_time: nowMs(),
     });
   });
@@ -877,6 +965,51 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/export", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const format = (c.req.query("format") || "json").toLowerCase();
+
+    if (format === "mbox") {
+      const messages = await c.env.DB
+        .prepare(
+          `SELECT from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body, rfc_message_id, created_at
+           FROM messages WHERE user_id = ? ORDER BY date_ms ASC LIMIT 5000`,
+        )
+        .bind(user.id)
+        .all<{
+          from_addr: string;
+          to_addr: string;
+          cc_addr: string;
+          subject: string;
+          date_ms: number;
+          text_body: string;
+          html_body: string;
+          rfc_message_id: string;
+          created_at: number;
+        }>();
+      const chunks: string[] = [];
+      for (const m of messages.results ?? []) {
+        const fromAddr = extractEmail(m.from_addr) || "unknown@localhost";
+        const when = new Date(m.date_ms || m.created_at || Date.now());
+        const envelopeDate = when.toUTCString().replace(/,/g, "");
+        const raw = buildRawMime({
+          from: m.from_addr || fromAddr,
+          to: m.to_addr || "",
+          cc: m.cc_addr || undefined,
+          subject: m.subject || "",
+          text: m.text_body || "",
+          html: m.html_body || undefined,
+          messageId: m.rfc_message_id || undefined,
+        });
+        const escaped = raw.replace(/\r\n/g, "\n").replace(/^From /gm, ">From ");
+        chunks.push(`From ${fromAddr} ${envelopeDate}\n${escaped}\n`);
+      }
+      return new Response(chunks.join("\n"), {
+        headers: {
+          "content-type": "application/mbox; charset=utf-8",
+          "content-disposition": `attachment; filename="flap-mailbox.mbox"`,
+        },
+      });
+    }
+
     const [messages, mailboxes, contacts, templates, signatures, filters, aliases] = await Promise.all([
       c.env.DB.prepare(
         `SELECT id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, label, thread_id, rfc_message_id, created_at
@@ -1124,6 +1257,27 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       .run();
     if (!res.meta.changes) return c.json({ error: "Webhook not found." }, 404);
     return c.json({ ok: true });
+  });
+
+  app.get("/api/webhooks/:id/deliveries", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const hookId = c.req.param("id");
+    const hook = await c.env.DB.prepare("SELECT id FROM webhooks WHERE id = ? AND user_id = ?")
+      .bind(hookId, user.id)
+      .first<{ id: string }>();
+    if (!hook) return c.json({ error: "Webhook not found." }, 404);
+    const rows = await c.env.DB
+      .prepare(
+        `SELECT id, webhook_id, event, status_code, ok, error, created_at
+         FROM webhook_deliveries
+         WHERE webhook_id = ?
+         ORDER BY created_at DESC
+         LIMIT 20`,
+      )
+      .bind(hookId)
+      .all();
+    return c.json({ deliveries: rows.results ?? [] });
   });
 
   app.get("/api/team", async (c) => {

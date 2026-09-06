@@ -101,7 +101,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "2,000 sends / month",
       "Catch-all & filters",
       "API keys + webhooks",
-      "Priority support",
+      "Inbound delivery logs",
       "1 seat (solo)",
     ],
     highlighted: true,
@@ -130,7 +130,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
       "Up to 10 team seats",
       "Shared inboxes (support@, hello@)",
       "Mailbox delegation & roles",
-      "Priority support",
+      "Export anytime (.mbox / JSON)",
     ],
     limits: {
       domains: 40,
