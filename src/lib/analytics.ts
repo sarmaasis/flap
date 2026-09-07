@@ -102,13 +102,23 @@ function postPayload(payload: { e: string; p?: Props; t: number; s: string; path
     /* fall through to fetch */
   }
   try {
-    void fetch("/api/analytics", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body,
-      credentials: "same-origin",
-      keepalive: true,
-    });
+    void (async () => {
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      try {
+        const { getClerkToken } = await import("./api");
+        const token = await getClerkToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+      } catch {
+        /* ignore */
+      }
+      void fetch("/api/analytics", {
+        method: "POST",
+        headers,
+        body,
+        credentials: "same-origin",
+        keepalive: true,
+      });
+    })();
   } catch {
     /* ignore */
   }

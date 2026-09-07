@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { FlapClerkProvider } from "./lib/clerk";
 import { captureReferralFromUrl, captureUtmFromUrl } from "./lib/seo";
 import { trackOnce } from "./lib/analytics";
 import "./index.css";
@@ -31,7 +32,9 @@ if (isOrganic) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <App />
+      <FlapClerkProvider>
+        <App />
+      </FlapClerkProvider>
     </ThemeProvider>
   </StrictMode>,
 );

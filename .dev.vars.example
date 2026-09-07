@@ -1,16 +1,18 @@
-# Better Auth secret (min 32 chars). openssl rand -base64 32
-BETTER_AUTH_SECRET=change-me-to-a-long-random-string-at-least-32-chars
-# Optional legacy fallback if BETTER_AUTH_SECRET is unset
-SESSION_SECRET=change-me-to-a-long-random-string-at-least-32-chars
-# Absolute public origin (scheme + host + port). Required for Better Auth, Dodo, OAuth, email links.
-# Local test: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
+# Clerk (https://dashboard.clerk.com → API Keys)
+# Publishable key is public; secret stays on the Worker only.
+CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+# Optional: PEM public key for networkless JWT verify on Workers
+# (Dashboard → API Keys → Show JWT public key → PEM Public Key)
+# CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# Absolute public origin (scheme + host + port). Used for Dodo return URLs, authorized parties, links.
+# Local: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
 APP_URL=http://127.0.0.1:5173
-# Optional override for Better Auth baseURL (defaults to APP_URL)
-# BETTER_AUTH_URL=http://127.0.0.1:5173
-# true = open signup; false = first-boot setup only after users exist
+# true = open signup; false = block new Flap users after the first account exists
 SAAS_MODE=true
 
-# From address for verification + magic-link emails.
+# From address for system / product mail (not Clerk auth mail — Clerk sends its own).
 # Prefer SEB (Cloudflare Email Sending) for useflap.online when bound.
 SYSTEM_FROM_EMAIL=noreply@useflap.online
 
@@ -41,20 +43,6 @@ MAILGUN_WEBHOOK_SIGNING_KEY=
 # Local only: allow unsigned inbound POSTs when signing key unset
 # MAILGUN_WEBHOOK_ALLOW_UNSIGNED=true
 # Legacy inbound: https://useflap.online/api/inbound/mailgun
-
-# Google OAuth via Better Auth social provider
-# Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client (Web)
-# Authorized redirect URI: http://127.0.0.1:5173/api/auth/callback/google
-# Production: https://useflap.online/api/auth/callback/google
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-
-# Optional GitHub OAuth via Better Auth
-# GitHub → Settings → Developer settings → OAuth Apps
-# Authorization callback URL: http://127.0.0.1:5173/api/auth/callback/github
-# Production: https://useflap.online/api/auth/callback/github
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
 
 # ─── Dodo Payments (https://docs.dodopayments.com) ───────────────────────────
 # Test and live are SEPARATE: keys, webhooks, and products do not cross over.
@@ -88,22 +76,21 @@ DODO_PRODUCT_PRO=
 DODO_PRODUCT_TEAM=
 DODO_PRODUCT_BUSINESS=
 
-# Production secrets (wrangler secret put …):
-# BETTER_AUTH_SECRET, APP_URL=https://useflap.online
-# SYSTEM_FROM_EMAIL=noreply@useflap.online
-# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SES_REGION
-# SES_INBOUND_WEBHOOK_SECRET, SES_RECEIPT_RULE_SET, SES_INBOUND_BUCKET
-# MAILGUN_API_KEY, MAILGUN_WEBHOOK_SIGNING_KEY (legacy only)
-# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-# GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (optional)
-# DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
-# DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
-# Webhook URL: https://useflap.online/api/billing/webhook
-# SES inbound: https://useflap.online/api/inbound/ses
-# OAuth callbacks: https://useflap.online/api/auth/callback/google
-#                  https://useflap.online/api/auth/callback/github
-
 # Annual Dodo products (−20%)
 # DODO_PRODUCT_SOLO_ANNUAL=
 # DODO_PRODUCT_BUILDER_ANNUAL=
 # DODO_PRODUCT_STUDIO_ANNUAL=
+
+# Production secrets (wrangler secret put …):
+# CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, CLERK_JWT_KEY (optional)
+# APP_URL=https://useflap.online
+# SYSTEM_FROM_EMAIL=noreply@useflap.online
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SES_REGION
+# SES_INBOUND_WEBHOOK_SECRET, SES_RECEIPT_RULE_SET, SES_INBOUND_BUCKET
+# MAILGUN_API_KEY, MAILGUN_WEBHOOK_SIGNING_KEY (legacy only)
+# DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
+# DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
+# Webhook URL: https://useflap.online/api/billing/webhook
+# SES inbound: https://useflap.online/api/inbound/ses
+# Clerk: enable Email link + Google/GitHub in Dashboard; allowed origins include APP_URL
+#         and redirect URLs /sso-callback, /auth/verify

@@ -7,7 +7,7 @@ export function systemFrom(env: Env): string {
 }
 
 export function appOrigin(env: Env): string {
-  return (env.BETTER_AUTH_URL || env.APP_URL || "https://useflap.online").replace(/\/$/, "");
+  return (env.APP_URL || "https://useflap.online").replace(/\/$/, "");
 }
 
 /** Extract Cloudflare Email Sending / SEB error fields for logs. */
@@ -57,13 +57,13 @@ export function clientSebFailureMessage(code?: string): string {
 }
 
 /**
- * Auth / magic-link / verify mail.
+ * System / product mail (not Clerk auth — Clerk sends its own).
  * Prefer SEB for useflap.online when bound; otherwise Mailgun.
  */
 export async function sendSystemEmail(
   env: Env,
   opts: { to: string; subject: string; text: string; html?: string; messageId?: string },
-  // Kept for call-site compatibility; auth mail is awaited so failures surface to Better Auth.
+  // Kept for call-site compatibility with older await/waitUntil call sites.
   _execCtx?: { waitUntil?: (promise: Promise<unknown>) => void },
 ): Promise<{ ok: true; sent: boolean; reason?: string }> {
   if (!canSendMail(env)) {

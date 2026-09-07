@@ -81,6 +81,8 @@ export const PRIVATE_PATH_PREFIXES = [
   "/invite",
   "/settings",
   "/verify-email",
+  "/sso-callback",
+  "/auth/verify",
   "/forgot-password",
   "/reset-password",
 ] as const;

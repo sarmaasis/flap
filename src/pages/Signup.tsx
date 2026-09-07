@@ -1,46 +1,42 @@
 import { useEffect, useState } from "react";
+import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { api } from "../lib/api";
-import { authClient, authErrorMessage } from "../lib/auth-client";
+import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
 
 function OAuthButtons() {
-  const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
-  useEffect(() => {
-    api.authProviders().then(setProviders).catch(() => undefined);
-  }, []);
-  if (!providers.google && !providers.github) return null;
+  const { signIn, isLoaded } = useSignIn();
+  if (!isLoaded || !signIn) return null;
 
-  async function social(provider: "google" | "github") {
-    await authClient.signIn.social({
-      provider,
-      callbackURL: "/app/settings?tab=setup&onboarding=1",
+  async function social(strategy: "oauth_google" | "oauth_github") {
+    if (!signIn) return;
+    await signIn.authenticateWithRedirect({
+      strategy,
+      redirectUrl: absoluteUrl("/sso-callback"),
+      redirectUrlComplete: absoluteUrl("/app/settings?tab=setup&onboarding=1"),
     });
   }
 
   return (
     <div className="stack gap-2">
-      {providers.google ? (
-        <Button type="button" variant="outline" className="w-full" onClick={() => void social("google")}>
-          Continue with Google
-        </Button>
-      ) : null}
-      {providers.github ? (
-        <Button type="button" variant="secondary" className="w-full" onClick={() => void social("github")}>
-          Continue with GitHub
-        </Button>
-      ) : null}
+      <Button type="button" variant="outline" className="w-full" onClick={() => void social("oauth_google")}>
+        Continue with Google
+      </Button>
+      <Button type="button" variant="secondary" className="w-full" onClick={() => void social("oauth_github")}>
+        Continue with GitHub
+      </Button>
       <div className="auth-divider"><span>or email a magic link</span></div>
     </div>
   );
 }
 
-export default function Signup() {
+function SignupInner() {
+  const { signUp, isLoaded } = useSignUp();
   const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
@@ -55,17 +51,18 @@ export default function Signup() {
 
   async function onMagicLink(e: React.FormEvent) {
     e.preventDefault();
+    if (!isLoaded || !signUp) return;
     setErr("");
     setNotice("");
     setBusy(true);
     try {
-      const { error } = await authClient.signIn.magicLink({
-        email,
-        callbackURL: "/app/settings?tab=setup&onboarding=1&verify=ok",
-        newUserCallbackURL: "/app/settings?tab=setup&onboarding=1&verify=ok",
-        errorCallbackURL: "/signup?error=magic",
+      await signUp.create({ emailAddress: email.trim() });
+      const { startEmailLinkFlow } = signUp.createEmailLinkFlow();
+      await startEmailLinkFlow({
+        redirectUrl: absoluteUrl(
+          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
+        ),
       });
-      if (error) throw error;
       track("signup_completed", { method: "magic_link", referred: Boolean(refCode) });
       if (refCode) track("referral_signup");
       setNotice("Check your email for a sign-in link. One click creates your workspace and verifies your email.");
@@ -106,7 +103,7 @@ export default function Signup() {
             <Label htmlFor="email">Work email</Label>
             <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <Button type="submit" disabled={busy} className="w-full">
+          <Button type="submit" disabled={busy || !isLoaded} className="w-full">
             {busy ? "Sending link…" : "Email me a magic link"}
           </Button>
         </div>
@@ -133,4 +130,10 @@ export default function Signup() {
       </form>
     </div>
   );
+}
+
+export default function Signup() {
+  const ready = useClerkReady();
+  if (!ready) return <ClerkMissingCard />;
+  return <SignupInner />;
 }

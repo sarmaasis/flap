@@ -29,8 +29,8 @@ npm run db:migrate:remote
 | `0007_quota_enforcement.sql` | `messages.storage_bytes`, monthly send counters on users |
 | `0008_growth_referrals.sql` | Referral codes/rewards, activation timestamps, DNS check rate-limit log |
 | `0009_analytics_verify_abuse.sql` | First-party `analytics_events`, email verify tokens, payment identity columns for referral abuse |
-| `0010_better_auth.sql` | Better Auth `user`/`session`/`account`/`verification` tables + id-preserving backfill from Flap `users` |
-| `0011_auth_email_rate_limit.sql` | D1 counters for magic-link / verification email rate limits |
+| `0010_better_auth.sql` | Historical Better Auth tables + id-preserving backfill (no longer written by app code) |
+| `0011_auth_email_rate_limit.sql` | Historical D1 counters for Flap-sent auth mail (Clerk now sends auth mail) |
 | `0012_mailgun_provider.sql` | `mail_provider`, `provider_state`, `provider_dns_json` on domains |
 | `0013_ses_provider.sql` | SES readiness timestamps, inbound idempotency, suppressions, `provider_message_id` |
 | `0014_product_features.sql` | Labels, notes, domain color/mute, undo-send prefs |
@@ -41,6 +41,7 @@ npm run db:migrate:remote
 | `0019_collaboration.sql` | Presence, audit log, portals, VA invites, holding workspaces |
 | `0020_forms_embed.sql` | Contact forms and embed widgets |
 | `0021_rules_automation.sql` | Rule templates, parse rules, message extras, theme/AI prefs |
+| `0022_clerk.sql` | `users.clerk_user_id` for Clerk → Flap identity mapping |
 
 If a database already applied the old umbrella file `0016_mega_features.sql`, remap the journal once (schema is identical):
 
@@ -55,14 +56,15 @@ INSERT INTO d1_migrations (name) VALUES
   ('0021_rules_automation.sql');
 ```
 
-**Launch note:** Apply through `0013_ses_provider` on remote D1 before relying on SES customer-domain mail. Existing password hashes are **not** migrated — users sign in with magic link or password reset after cutover. Update Google/GitHub OAuth redirect URIs to `/api/auth/callback/{provider}`.
+**Launch note:** Apply through `0022_clerk` on remote D1 before relying on Clerk sessions. Existing Better Auth tables are left in place (not dropped). Existing Flap `users` rows are linked on first Clerk sign-in by email (`clerk_user_id`). Enable Google/GitHub and Email link in the Clerk Dashboard; set redirect URLs to `/sso-callback` and `/auth/verify`.
 
-### Better Auth coexistence
+### Auth identity (Clerk)
 
-| Table | Owner | Notes |
+| Table / column | Owner | Notes |
 |-------|--------|-------|
-| `user`, `session`, `account`, `verification` | Better Auth | Singular names; no clash with Flap `users` / `sessions` |
-| `users` | Flap product | Workspace id = `users.id` = Better Auth `user.id` |
+| `users.id` | Flap product | Workspace id everywhere (billing, domains, inbox) |
+| `users.clerk_user_id` | Flap ↔ Clerk | Linked on first successful Clerk session |
+| Legacy `user`/`session`/`account`/`verification` | Unused | Historical Better Auth tables; do not drop casually |
 | Legacy `sessions` / `oauth_accounts` | Deprecated | No longer written by app code |
 
 **Launch note (pre-auth):** Apply through `0009_analytics_verify_abuse` on remote D1 before relying on analytics ingest, legacy password email verification, or payment-identity referral blocks.

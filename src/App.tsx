@@ -10,6 +10,8 @@ const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const SsoCallback = lazy(() => import("./pages/SsoCallback"));
+const AuthVerify = lazy(() => import("./pages/AuthVerify"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Inbox = lazy(() => import("./pages/Inbox"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -62,6 +64,8 @@ export default function App() {
     return <Screen><Login /></Screen>;
   }
   if (path === "/verify-email") return <Screen><VerifyEmail /></Screen>;
+  if (path === "/sso-callback") return <Screen><SsoCallback /></Screen>;
+  if (path === "/auth/verify") return <Screen><AuthVerify /></Screen>;
   if (path.startsWith("/invite/")) return <Screen><InviteAccept /></Screen>;
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;

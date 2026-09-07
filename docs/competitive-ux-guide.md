@@ -30,7 +30,7 @@ Already shipped and worth advertising honestly:
 | **Team** | Studio plan with shared inboxes / seats (up to 10) |
 | **Growth** | Referrals (+1 domain permanently after invitee connects a domain) |
 | **Developer** | API keys, inbound webhooks |
-| **Auth / billing** | Better Auth, Dodo Payments, plan gating |
+| **Auth / billing** | Clerk, Dodo Payments, plan gating |
 | **Marketing** | SEO pages, guides, DNS tools, Workspace cost calculator |
 | **Stack** | React 19 + Vite + Tailwind; Hono Worker; D1/R2; SES for customer mail; SEB for system mail |
 | **Design** | Light-only UI: warm editorial + teal (distinct from cold SaaS gray) |
@@ -214,7 +214,7 @@ From codebase audit. Fix credibility before adding chrome.
 | **Empty testimonials** | Trust leak on marketing | Real quotes or delete section |
 | **Priority support marketing-only** | Overpromise | Define SLA or drop badge |
 | **inlet → flap rename risk** | Broken links, old env names, SEO ghosts | Grep + redirect + copy sweep |
-| **Auth depends on SEB** | System magic-link/verify fails if SEB misconfigured | Document hard dependency; alerting on auth-mail failures |
+| **Auth depends on Clerk** | Magic-link/verify fails if Clerk misconfigured | Document hard dependency; Clerk Dashboard alerts |
 | **GitHub blurb implies CF customer mail** | Wrong architecture story | Rewrite to SES + CF app hosting |
 
 ---
@@ -239,7 +239,7 @@ From codebase audit. Fix credibility before adding chrome.
 3. Filters UX upgrade (visual rules + "test rule").
 4. Studio invite/permissions clarity (shared inbox mental model).
 5. Competitor landing pages: CF Routing upgrade path; honest Hydra/Folio comparison.
-6. SEB auth-mail monitoring (alert when magic links fail).
+6. Clerk auth-mail monitoring (alert when magic links fail).
 
 **Success metric:** Paid conversion from users with 2+ domains; support tickets about "wrong From" near zero.
 

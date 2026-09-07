@@ -4,7 +4,6 @@ import { ensureReferralCode } from "./referrals";
 import { getActivationState } from "./activation";
 import { nowMs } from "./ids";
 import { ANALYTICS_EVENTS, trackServerEvent } from "./analytics";
-import { createAuth } from "./better-auth";
 
 type App = { Bindings: Env };
 
@@ -131,8 +130,10 @@ export function registerGrowthRoutes(app: Hono<App>) {
     return c.json({ ok: true, accepted });
   });
 
-  /** Outside `/api/auth/*` so Better Auth catch-all does not swallow it.
-   * Allows unverified sessions (and email-only body) so Settings / verify wall can resend. */
+  /**
+   * Verification mail is owned by Clerk. This endpoint confirms session state;
+   * the client should call Clerk prepareVerification / email link flow.
+   */
   app.post("/api/account/resend-verification", async (c) => {
     const sessionUser = await getSessionUser(c);
     const body = (await c.req.json().catch(() => ({}))) as { email?: string };
@@ -146,28 +147,17 @@ export function registerGrowthRoutes(app: Hono<App>) {
     if (sessionUser?.emailVerified) {
       return c.json({ ok: true, sent: false, reason: "already_verified", message: "Email is already verified." });
     }
-    const auth = createAuth(c.env, c.executionCtx);
-    const origin = (c.env.APP_URL || "https://useflap.online").replace(/\/$/, "");
-    try {
-      await auth.api.sendVerificationEmail({
-        body: {
-          email,
-          callbackURL: `${origin}/app/settings?tab=setup&verify=ok&onboarding=1`,
-        },
-        headers: c.req.raw.headers,
-      });
-      return c.json({ ok: true, sent: true, message: "Verification email sent." });
-    } catch (err) {
-      const statusCode =
-        err && typeof err === "object" && "statusCode" in err && typeof (err as { statusCode: unknown }).statusCode === "number"
-          ? (err as { statusCode: number }).statusCode
-          : undefined;
-      const message = err instanceof Error ? err.message : "Could not send verification email.";
-      if (statusCode === 429) {
-        return c.json({ error: message || "Too many email requests. Please wait a bit and try again." }, 429);
-      }
-      return c.json({ error: message }, 400);
+    if (!sessionUser) {
+      return c.json({
+        error: "Sign in required to resend verification. Prefer a magic link on /login.",
+      }, 401);
     }
+    return c.json({
+      ok: true,
+      sent: false,
+      use_clerk_client: true,
+      message: "Request a verification link from the verify-email page (Clerk sends the email).",
+    });
   });
 }
 

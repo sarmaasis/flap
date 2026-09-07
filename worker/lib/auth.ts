@@ -1,6 +1,6 @@
 import type { Context } from "hono";
-import { createAuth } from "./better-auth";
-import { ensureFlapUser } from "./flap-user";
+import { clerkAuthorizedParties, flapClerk, requestWithClerkToken } from "./clerk";
+import { ensureFlapUser, referralFromCookieHeader } from "./flap-user";
 
 export type UserRow = {
   id: string;
@@ -10,7 +10,7 @@ export type UserRow = {
 };
 
 export type SessionUser = UserRow & {
-  /** Better Auth `user.emailVerified` — source of truth for /app access. */
+  /** Clerk primary email verified — source of truth for /app access. */
   emailVerified: boolean;
 };
 
@@ -21,57 +21,134 @@ export async function userCount(db: D1Database): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
+function signupOpen(env: Env): boolean {
+  return (env.SAAS_MODE || "true").toLowerCase() !== "false";
+}
+
 /**
- * Resolve the Flap product user from the Better Auth session cookie.
- * Lazily provisions `users` (workspace id === auth user id) when missing.
+ * Resolve the Flap product user from a Clerk session JWT (Bearer or cookie).
+ * Lazily provisions / links `users` (workspace id stays Flap `users.id`).
  * Does not enforce email verification (use `requireUser` for product APIs).
  */
 export async function getSessionUser(c: Context<AppEnv>): Promise<SessionUser | null> {
-  const auth = createAuth(c.env, c.executionCtx);
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session?.user) return null;
+  if (!(c.env.CLERK_SECRET_KEY || "").trim() || !(c.env.CLERK_PUBLISHABLE_KEY || "").trim()) {
+    return null;
+  }
 
-  const emailVerified = Boolean(session.user.emailVerified);
-
-  await ensureFlapUser(c.env, {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-    emailVerified,
+  const clerk = flapClerk(c.env);
+  const requestState = await clerk.authenticateRequest(requestWithClerkToken(c.req.raw), {
+    authorizedParties: clerkAuthorizedParties(c.env),
   });
 
-  const row = await c.env.DB.prepare(
-    `SELECT id, email, password_hash, created_at FROM users WHERE id = ?`,
+  if (!requestState.isAuthenticated) return null;
+
+  const auth = requestState.toAuth();
+  const clerkUserId = auth.userId;
+  if (!clerkUserId) return null;
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id, email, password_hash, created_at, email_verified_at, clerk_user_id
+     FROM users WHERE clerk_user_id = ?`,
   )
-    .bind(session.user.id)
-    .first<UserRow>();
+    .bind(clerkUserId)
+    .first<UserRow & { email_verified_at: number | null; clerk_user_id: string | null }>();
 
-  if (row) return { ...row, emailVerified };
+  if (existing) {
+    const emailVerified = Boolean(existing.email_verified_at);
+    return {
+      id: existing.id,
+      email: existing.email,
+      password_hash: existing.password_hash,
+      created_at: existing.created_at,
+      emailVerified,
+    };
+  }
 
-  // Rare: email matched an older Flap row with a different id during migration edge cases.
+  const clerkUser = await clerk.users.getUser(clerkUserId);
+  const primary =
+    clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) ||
+    clerkUser.emailAddresses[0];
+  const email = (primary?.emailAddress || "").trim().toLowerCase();
+  if (!email) return null;
+
+  const emailVerified = primary?.verification?.status === "verified";
+  const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
+
   const byEmail = await c.env.DB.prepare(
-    `SELECT id, email, password_hash, created_at FROM users WHERE email = ?`,
+    `SELECT id, email, password_hash, created_at, email_verified_at, clerk_user_id
+     FROM users WHERE email = ?`,
   )
-    .bind(session.user.email.trim().toLowerCase())
-    .first<UserRow>();
-  return byEmail ? { ...byEmail, emailVerified } : null;
+    .bind(email)
+    .first<UserRow & { email_verified_at: number | null; clerk_user_id: string | null }>();
+
+  if (byEmail) {
+    if (byEmail.clerk_user_id && byEmail.clerk_user_id !== clerkUserId) {
+      console.warn("Flap user email linked to a different Clerk id", email);
+      return null;
+    }
+    if (!byEmail.clerk_user_id) {
+      await c.env.DB.prepare("UPDATE users SET clerk_user_id = ? WHERE id = ?")
+        .bind(clerkUserId, byEmail.id)
+        .run();
+    }
+    await ensureFlapUser(
+      c.env,
+      {
+        id: byEmail.id,
+        clerkUserId,
+        email,
+        name,
+        emailVerified,
+      },
+      { linkOnly: true },
+    );
+    return {
+      id: byEmail.id,
+      email: byEmail.email,
+      password_hash: byEmail.password_hash,
+      created_at: byEmail.created_at,
+      emailVerified: emailVerified || Boolean(byEmail.email_verified_at),
+    };
+  }
+
+  if (!signupOpen(c.env) && (await userCount(c.env.DB)) > 0) {
+    return null;
+  }
+
+  const referral = referralFromCookieHeader(c.req.header("cookie"));
+  const provisioned = await ensureFlapUser(
+    c.env,
+    {
+      id: "", // generated inside ensureFlapUser when creating
+      clerkUserId,
+      email,
+      name,
+      emailVerified,
+    },
+    { referralCode: referral, createIfMissing: true },
+  );
+
+  if (!provisioned) return null;
+
+  const row = await c.env.DB.prepare(
+    `SELECT id, email, password_hash, created_at, email_verified_at FROM users WHERE id = ?`,
+  )
+    .bind(provisioned.id)
+    .first<UserRow & { email_verified_at: number | null }>();
+
+  if (!row) return null;
+  return {
+    ...row,
+    emailVerified: emailVerified || Boolean(row.email_verified_at),
+  };
 }
 
-/** Session required and email verified (blocks password signup before verify). */
+/** Session required and email verified. */
 export async function requireUser(c: Context<AppEnv>): Promise<UserRow | Response> {
   const user = await getSessionUser(c);
   if (!user) return c.json({ error: "Sign in required." }, 401);
   if (!user.emailVerified) {
-    return c.json(
-      { error: "Email not verified.", code: "EMAIL_NOT_VERIFIED" },
-      403,
-    );
+    return c.json({ error: "Email not verified.", code: "EMAIL_NOT_VERIFIED" }, 403);
   }
   return user;
-}
-
-/** @deprecated Prefer Better Auth signOut — kept for thin /api/logout wrapper. */
-export async function destroySession(c: Context<AppEnv>): Promise<void> {
-  const auth = createAuth(c.env, c.executionCtx);
-  await auth.api.signOut({ headers: c.req.raw.headers });
 }
