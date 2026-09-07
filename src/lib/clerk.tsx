@@ -32,15 +32,45 @@ function TokenBridge({ children }: { children: ReactNode }) {
   return <ClerkReadyContext.Provider value={true}>{children}</ClerkReadyContext.Provider>;
 }
 
-async function resolvePublishableKey(): Promise<string> {
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
+
+/**
+ * Clerk magic-link cookies are host-scoped. localhost and 127.0.0.1 are different sites.
+ * If APP_URL prefers one and the user opened the other, bounce before starting Clerk.
+ */
+export function maybeRedirectToAppOrigin(appUrl: string): boolean {
+  const preferredRaw = appUrl.trim();
+  if (!preferredRaw) return false;
+  try {
+    const preferred = new URL(preferredRaw.includes("://") ? preferredRaw : `http://${preferredRaw}`);
+    const current = new URL(window.location.href);
+    if (!LOCAL_HOSTS.has(preferred.hostname) || !LOCAL_HOSTS.has(current.hostname)) return false;
+    if (preferred.hostname === current.hostname) return false;
+    const preferredPort = preferred.port || (preferred.protocol === "https:" ? "443" : "80");
+    const currentPort = current.port || (current.protocol === "https:" ? "443" : "80");
+    if (preferredPort !== currentPort) return false;
+    const target = `${preferred.protocol}//${preferred.host}${current.pathname}${current.search}${current.hash}`;
+    window.location.replace(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveBootstrap(): Promise<{ publishableKey: string; appUrl: string }> {
   const fromVite = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined)?.trim();
-  if (fromVite) return fromVite;
   try {
     const res = await fetch("/api/public-config", { credentials: "same-origin" });
-    const data = (await res.json().catch(() => ({}))) as { clerkPublishableKey?: string };
-    return (data.clerkPublishableKey || "").trim();
+    const data = (await res.json().catch(() => ({}))) as {
+      clerkPublishableKey?: string;
+      appUrl?: string;
+    };
+    return {
+      publishableKey: (fromVite || data.clerkPublishableKey || "").trim(),
+      appUrl: (data.appUrl || "").trim(),
+    };
   } catch {
-    return "";
+    return { publishableKey: fromVite || "", appUrl: "" };
   }
 }
 
@@ -49,9 +79,10 @@ export function FlapClerkProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    void resolvePublishableKey().then((key) => {
+    void resolveBootstrap().then(({ publishableKey, appUrl }) => {
       if (cancelled) return;
-      setState(key ? { status: "ready", publishableKey: key } : { status: "missing" });
+      if (maybeRedirectToAppOrigin(appUrl)) return;
+      setState(publishableKey ? { status: "ready", publishableKey } : { status: "missing" });
     });
     return () => {
       cancelled = true;
@@ -72,7 +103,14 @@ export function FlapClerkProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ClerkProvider publishableKey={state.publishableKey} afterSignOutUrl="/">
+    <ClerkProvider
+      publishableKey={state.publishableKey}
+      afterSignOutUrl="/"
+      signInUrl="/login"
+      signUpUrl="/signup"
+      signInFallbackRedirectUrl="/app"
+      signUpFallbackRedirectUrl="/app/domains?onboarding=1"
+    >
       <TokenBridge>{children}</TokenBridge>
     </ClerkProvider>
   );
@@ -107,6 +145,19 @@ export function authErrorMessage(error: unknown, fallback = "Something went wron
   return fallback;
 }
 
+/** Clerk Frontend API error codes from a thrown response-shaped object. */
+export function clerkErrorCodes(error: unknown): string[] {
+  if (!error || typeof error !== "object") return [];
+  const errors = (error as { errors?: Array<{ code?: string }> }).errors;
+  if (!Array.isArray(errors)) return [];
+  return errors.map((e) => e.code).filter((c): c is string => Boolean(c));
+}
+
+export function clerkHasErrorCode(error: unknown, code: string): boolean {
+  return clerkErrorCodes(error).includes(code);
+}
+
+/** Magic-link redirectUrl must use the current origin so Clerk cookies match. */
 export function absoluteUrl(path: string): string {
   const origin = window.location.origin.replace(/\/$/, "");
   return path.startsWith("http") ? path : `${origin}${path.startsWith("/") ? path : `/${path}`}`;

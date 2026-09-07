@@ -29,6 +29,7 @@ import {
   TOOL_PAGES,
 } from "../src/content/marketing.ts";
 import { SEO_PAGE_DEFS } from "../src/content/seo-pages.ts";
+import { FOR_PAGES, VS_PAGES } from "../src/content/hubs.ts";
 import {
   LEGAL_PAGES,
   buildSitemapEntries,
@@ -101,7 +102,7 @@ function articleShell(opts: {
 }): string {
   const parts: string[] = [];
   parts.push(`<article style="max-width:42rem;margin:0 auto;padding:2rem 1.25rem;font-family:system-ui,sans-serif;line-height:1.55;color:#141413">`);
-  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#1c6e5c">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
+  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#F26522">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
   parts.push(`<h1 style="font-size:1.85rem;line-height:1.2;margin:0.75rem 0 1rem">${esc(opts.h1)}</h1>`);
   if (opts.definition) {
     parts.push(`<p style="padding:0.85rem 1rem;background:#f0efeb;border-radius:8px"><strong>In short:</strong> ${esc(opts.definition)}</p>`);
@@ -135,7 +136,7 @@ const HOME_FAQS = [
   },
   {
     q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}.`,
+    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.pro.limits.domains}, Studio ${PLANS.team.limits.domains}.`,
   },
   {
     q: "How does DNS / delivery work?",
@@ -166,7 +167,7 @@ function buildPages(): Page[] {
         },
         {
           heading: "Pricing",
-          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo (${PLANS.studio.limits.domains} domains, team seats).`,
+          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, team seats).`,
         },
       ],
       faqs: HOME_FAQS,
@@ -389,7 +390,7 @@ function buildPages(): Page[] {
             ...WEBHOOK_DOCS.events.map((e) => `${e.name}: ${e.description}`),
             ...WEBHOOK_DOCS.headers.map((h) => `${h.name}: ${h.value}`),
             ...WEBHOOK_DOCS.notes,
-            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.builder.limits.api_keys}/${PLANS.builder.limits.webhooks}; Studio ${PLANS.studio.limits.api_keys}/${PLANS.studio.limits.webhooks}.`,
+            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.pro.limits.api_keys}/${PLANS.pro.limits.webhooks}; Studio ${PLANS.team.limits.api_keys}/${PLANS.team.limits.webhooks}.`,
           ],
         },
       ],
@@ -439,7 +440,7 @@ function buildPages(): Page[] {
   pages.push({
     path: "/pricing",
     title: "Pricing | Flap — domain-first custom-domain email",
-    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.builder.price_monthly}/mo (${PLANS.builder.limits.domains} domains), Studio $${PLANS.studio.price_monthly}/mo. Annual −20%.`,
+    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo. Annual −20%.`,
     bodyHtml: articleShell({
       eyebrow: "Pricing",
       h1: "Domain-first plans",
@@ -543,6 +544,171 @@ function buildPages(): Page[] {
     }),
   });
 
+
+
+  // Shipmail-inspired marketing hubs (/security, /for, /vs, /research + children)
+  pages.push({
+    path: "/security",
+    title: "Security | Flap",
+    description:
+      "How Flap handles privacy, export, TLS, and mail infrastructure. Amazon SES for your domains. Cloudflare for the app.",
+    bodyHtml: articleShell({
+      eyebrow: "Security",
+      h1: "Privacy and security",
+      lede: "Short promises we can keep. Amazon SES for your domains. Cloudflare for the app.",
+      definition:
+        "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare.",
+      sections: [
+        {
+          heading: "We do not read your email for ads",
+          body: "Flap does not scan customer mail to sell ads or build advertising profiles.",
+        },
+        {
+          heading: "We do not sell behavioral mail data",
+          body: "Message content is not sold. Product analytics use aggregate product events, not inbox contents.",
+        },
+        {
+          heading: "Your data stays yours",
+          body: "Export JSON or .mbox anytime from Settings. After cancel, paid accounts keep a 30-day export window.",
+        },
+        {
+          heading: "How deliverability is configured",
+          body: "You publish MX, SPF, and DKIM for Amazon SES at your DNS host. DMARC is recommended. Flap shows exact records in the DNS wizard.",
+        },
+        {
+          heading: "Portability",
+          body: "Today: webmail, PWA, and export. IMAP/SMTP app passwords are scheduled for 2026-10-15. We will not market client protocols as live before they ship.",
+        },
+        {
+          heading: "Concrete controls",
+          body: "TLS in transit to the app and to SES. Encryption at rest via Cloudflare D1/R2 and SES storage. Auth rate limits on magic links. HMAC-signed inbound and outbound webhooks.",
+        },
+        {
+          heading: "Infrastructure honesty",
+          body: `${MAIL_ARCHITECTURE.app_host}. Customer mail: ${MAIL_ARCHITECTURE.inbound_provider} inbound and outbound. System mail for useflap.online uses Cloudflare Email Sending. Flap is not an EU Rust MTA and does not claim Proton-style end-to-end encryption.`,
+        },
+      ],
+    }),
+    jsonLd: webPageLd({
+      path: "/security",
+      title: "Security | Flap",
+      description: "Honest security and privacy commitments for Flap custom-domain email.",
+      dateModified: "2026-09-07",
+    }),
+  });
+
+  pages.push({
+    path: "/for",
+    title: "Flap for your role | Flap",
+    description:
+      "ICP pages for indie hackers, startups, freelancers, developers, agencies, ecommerce, and creators.",
+    bodyHtml: articleShell({
+      eyebrow: "For",
+      h1: "Flap for your role",
+      lede: "Pick the page that matches how you work.",
+      sections: [
+        {
+          heading: "Roles",
+          body: "Dedicated landing pages for each ICP.",
+          bullets: FOR_PAGES.map((p) => `${p.h1} (${p.path})`),
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Flap for your role",
+      url: `${SITE_URL}/for`,
+    },
+  });
+
+  pages.push({
+    path: "/vs",
+    title: "Compare Flap | Flap",
+    description:
+      "Compare Flap with Google Workspace, Shipmail, Hydra, Folio, Zoho, and more.",
+    bodyHtml: articleShell({
+      eyebrow: "Compare",
+      h1: "Compare Flap",
+      lede: "Honest comparisons for multi-domain founders.",
+      sections: [
+        {
+          heading: "Comparisons",
+          body: "Side-by-side pages vs common alternatives.",
+          bullets: VS_PAGES.map((p) => `${p.h1} (${p.path})`),
+        },
+      ],
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Compare Flap",
+      url: `${SITE_URL}/vs`,
+    },
+  });
+
+  pages.push({
+    path: "/research",
+    title: "Business email cost research | Flap",
+    description:
+      "Methodology and 2026 cost table for Workspace, Shipmail sticker prices, and Flap plans.",
+    bodyHtml: articleShell({
+      eyebrow: "Research",
+      h1: "Business email cost, 2026",
+      lede:
+        "Illustrative USD list prices for founders comparing suites vs email-only hosts. Shipmail figures cited from shipmail.to/pricing (verified 2026-09-07). Flap figures from shared/plans.ts.",
+      sections: [
+        {
+          heading: "Entry paid sticker prices",
+          body: "Compare sticker prices only. Deliverability, protocol support, and suite apps change total cost of ownership.",
+          bullets: [
+            "Google Workspace — ~$7/user/mo (scales by seats × environments)",
+            "Shipmail Solo — $4/mo (2 mailboxes; up to 50 domains)",
+            `Flap Solo — $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains, ${PLANS.solo.limits.mailboxes} mailboxes)`,
+            `Flap Pro — $${PLANS.pro.price_monthly}/mo (highlighted; ${PLANS.pro.limits.team_seats} seats)`,
+            `Flap Team — $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, shared inboxes)`,
+          ],
+        },
+        {
+          heading: "Methodology",
+          body: "Compare sticker prices only. Flap does not claim Shipmail's IMAP/newsletter surface until those flags flip. Use /tools/google-workspace-cost-calculator for interactive math.",
+        },
+      ],
+    }),
+    jsonLd: webPageLd({
+      path: "/research",
+      title: "Business email cost research | Flap",
+      description: "2026 cost table comparing Workspace, Shipmail sticker prices, and Flap plans.",
+      dateModified: "2026-09-07",
+    }),
+  });
+
+  for (const hub of [...FOR_PAGES, ...VS_PAGES]) {
+    pages.push({
+      path: hub.path,
+      title: hub.title,
+      description: hub.description,
+      bodyHtml: articleShell({
+        eyebrow: hub.path.startsWith("/for") ? "For" : "Compare",
+        h1: hub.h1,
+        lede: hub.description,
+        definition: hub.body[0],
+        sections: [
+          {
+            heading: "Why Flap",
+            body: hub.body.slice(1).join(" ") || hub.body[0],
+            bullets: hub.body,
+          },
+        ],
+      }),
+      jsonLd: webPageLd({
+        path: hub.path,
+        title: hub.title,
+        description: hub.description,
+        dateModified: "2026-09-07",
+      }),
+    });
+  }
 
   pages.push({
     path: "/about",

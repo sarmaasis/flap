@@ -1,6 +1,6 @@
 /**
  * Central SEO registry for every indexable public route.
- * Sitemap and build-time validation consume this — do not maintain a parallel URL list.
+ * Sitemap and build-time validation consume this - do not maintain a parallel URL list.
  */
 import { PLANS, PLAN_ORDER } from "../../shared/plans";
 import { pricingOneLiner, SITE_URL } from "../../shared/product-facts";
@@ -14,6 +14,7 @@ import {
 } from "./marketing";
 import { SEO_PAGE_DEFS } from "./seo-pages";
 import { TOOL_EXPLAINERS } from "./tool-explainers";
+import { FOR_PAGES, VS_PAGES } from "./hubs";
 
 export const LEGAL_PAGES = [
   {
@@ -25,7 +26,7 @@ export const LEGAL_PAGES = [
   {
     path: "/privacy",
     title: "Privacy Policy | Flap",
-    description: "Privacy Policy for Flap — how we handle account and mailbox data.",
+    description: "Privacy Policy for Flap - how we handle account and mailbox data.",
     lastmod: "2026-09-04",
   },
   {
@@ -119,7 +120,7 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
       path: "/",
       title: MARKETING.seo_title,
       description: MARKETING.seo_description,
-      h1: MARKETING.primary_tagline,
+      h1: "Every project. One calm inbox.",
       pageType: "home",
       indexable: true,
       sitemap: true,
@@ -132,9 +133,9 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
   out.push(
     entry({
       path: "/pricing",
-      title: "Pricing | Flap — domain-first custom-domain email",
-      description: `Domain-first plans: ${pricingOneLiner()}. Annual −20%.`,
-      h1: "Domain-first plans",
+      title: "Pricing | Flap - domain-first custom-domain email",
+      description: `Domain-first plans: ${pricingOneLiner()}. Annual = 10× monthly.`,
+      h1: "Room for your next big idea.",
       pageType: "pricing",
       indexable: true,
       sitemap: true,
@@ -147,7 +148,7 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
   out.push(
     entry({
       path: "/about",
-      title: "About Flap — custom-domain email for founders",
+      title: "About Flap - custom-domain email for founders",
       description:
         "What Flap is, who builds it, how mail runs on Amazon SES, and how to contact support@useflap.online.",
       h1: "About Flap",
@@ -165,7 +166,7 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
     entry({
       path: "/tools",
       title: "Free email DNS & deliverability tools | Flap",
-      description: "MX, SPF, DMARC, DKIM, headers, scorecards, and more — free tools for custom-domain email.",
+      description: "MX, SPF, DMARC, DKIM, headers, scorecards, and more - free tools for custom-domain email.",
       h1: "Free email DNS & deliverability tools",
       pageType: "collection",
       indexable: true,
@@ -300,7 +301,7 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
       path: BLOG_INDEX.path,
       title: BLOG_INDEX.title,
       description: BLOG_INDEX.description,
-      h1: "Flap blog",
+      h1: "A better way to work with email.",
       pageType: "blog_index",
       indexable: true,
       sitemap: true,
@@ -324,6 +325,14 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
         ogType: "article",
       }),
     );
+  }
+
+  out.push(entry({ path: "/security", title: "Security | Flap", description: "How Flap handles privacy, export, TLS, and mail infrastructure on Amazon SES and Cloudflare.", h1: "Privacy and security", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare." }));
+  out.push(entry({ path: "/for", title: "Flap for your role | Flap", description: "ICP pages for indie hackers, startups, freelancers, developers, agencies, ecommerce, and creators.", h1: "Flap for your role", pageType: "collection", indexable: true, sitemap: true, modified: SITE_MODIFIED }));
+  out.push(entry({ path: "/vs", title: "Compare Flap | Flap", description: "Compare Flap with Google Workspace, Shipmail, Hydra, Folio, Zoho, and more.", h1: "Compare Flap", pageType: "collection", indexable: true, sitemap: true, modified: SITE_MODIFIED }));
+  out.push(entry({ path: "/research", title: "Business email cost research | Flap", description: "2026 cost table comparing Workspace, Shipmail sticker prices, and Flap plans.", h1: "Business email cost, 2026", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED }));
+  for (const hub of [...FOR_PAGES, ...VS_PAGES]) {
+    out.push(entry({ path: hub.path, title: hub.title, description: hub.description, h1: hub.h1, pageType: hub.path.startsWith("/vs") ? "comparison" : "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: hub.body[0] }));
   }
 
   for (const legal of LEGAL_PAGES) {
@@ -370,7 +379,7 @@ export function isPrivatePath(pathname: string): boolean {
   );
 }
 
-/** Visible pricing snippets that must match PLANS — used by validation. */
+/** Visible pricing snippets that must match PLANS - used by validation. */
 export function expectedPricingSnippets(): string[] {
   return PLAN_ORDER.map((id) => {
     const p = PLANS[id];

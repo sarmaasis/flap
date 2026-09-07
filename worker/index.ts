@@ -53,9 +53,24 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  // Clerk needs FAPI / protect / Cloudflare challenge hosts. See:
+  // https://clerk.com/docs/guides/secure/best-practices/csp-headers
   c.header(
     "Content-Security-Policy",
-    "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: cid:; frame-src 'self'; connect-src 'self'",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com https://*.protect.clerk.com",
+      "worker-src 'self' blob:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https: cid: https://img.clerk.com",
+      "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://*.protect.clerk.com",
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk-telemetry.com https://*.clerk-telemetry.com https://img.clerk.com https://*.protect.clerk.com:*",
+    ].join("; "),
   );
 });
 
@@ -145,6 +160,15 @@ app.get("/settings/referrals", (c) => serveSpaShell(c));
 
 app.get("/about", (c) => servePrerenderOrSpa(c));
 app.get("/pricing", (c) => servePrerenderOrSpa(c));
+app.get("/book/*", (c) => servePrerenderOrSpa(c));
+app.get("/book", (c) => servePrerenderOrSpa(c));
+app.get("/research/*", (c) => servePrerenderOrSpa(c));
+app.get("/research", (c) => servePrerenderOrSpa(c));
+app.get("/vs/*", (c) => servePrerenderOrSpa(c));
+app.get("/vs", (c) => servePrerenderOrSpa(c));
+app.get("/for/*", (c) => servePrerenderOrSpa(c));
+app.get("/for", (c) => servePrerenderOrSpa(c));
+app.get("/security", (c) => servePrerenderOrSpa(c));
 app.get("/support", (c) => servePrerenderOrSpa(c));
 app.get("/status", (c) => servePrerenderOrSpa(c));
 app.get("/terms", (c) => servePrerenderOrSpa(c));
@@ -221,21 +245,23 @@ app.get("/api/public-config", (c) =>
   c.json({
     clerkPublishableKey: (c.env.CLERK_PUBLISHABLE_KEY || "").trim(),
     clerkConfigured: clerkConfigured(c.env),
+    /** Preferred public origin — SPA may redirect localhost ↔ 127.0.0.1 to match. */
+    appUrl: (c.env.APP_URL || "").trim().replace(/\/$/, ""),
   }),
 );
 
 /** @deprecated Use Clerk on /signup. */
 app.post("/api/signup", (c) =>
-  c.json({ error: "Signup moved to Clerk. Use magic link or Google/GitHub on /signup.", path: "/signup" }, 410),
+  c.json({ error: "Signup moved to Clerk. Use a magic link on /signup.", path: "/signup" }, 410),
 );
 
 /** @deprecated Use Clerk on /login. */
 app.post("/api/login", (c) =>
-  c.json({ error: "Login moved to Clerk. Use magic link or Google/GitHub on /login.", path: "/login" }, 410),
+  c.json({ error: "Login moved to Clerk. Use a magic link on /login.", path: "/login" }, 410),
 );
 
-/** OAuth providers are enabled in the Clerk Dashboard (not Flap env). */
-app.get("/api/auth/providers", (c) => c.json({ google: true, github: true, clerk: clerkConfigured(c.env) }));
+/** Auth is Clerk magic-link only (no Google/GitHub in the Flap UI). */
+app.get("/api/auth/providers", (c) => c.json({ google: false, github: false, clerk: clerkConfigured(c.env) }));
 
 app.post("/api/logout", (c) => c.json({ ok: true }));
 
@@ -262,7 +288,7 @@ app.get("/api/me", async (c) => {
     mailboxes: mailboxes.results ?? [],
     auth: {
       has_password: false,
-      providers: { google: true, github: true },
+      providers: { google: false, github: false },
     },
   });
 });

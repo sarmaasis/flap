@@ -5,27 +5,27 @@ export const SUPPORT_EMAIL = "support@useflap.online";
 
 export const MARKETING = {
   product_name: "Flap",
-  one_line: "One inbox for every startup you build.",
+  one_line: "Modern email for your business.",
   short_description:
-    "Send and receive email across all your startup domains from one inbox, without setting up a separate email workspace for every project.",
+    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents — on your own domain.",
   long_description:
-    "Flap is custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain, send as you@yourstartup.com, and keep one inbox — instead of paying for a separate Google Workspace (or similar) for each launch.",
-  primary_tagline: "One inbox for every startup you build.",
+    "Flap is custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain, send as you@yourstartup.com, and keep webmail, calendar, newsletters, bookings, and an agent API in one subscription.",
+  primary_tagline: "Modern email for your business.",
   founder_tagline: "Email infrastructure for people who keep launching things.",
-  product_hunt_tagline: "One inbox for every startup you build",
+  product_hunt_tagline: "Modern email for your business",
   hero_subheadline:
-    "Connect all your domains and send & receive email as you@yourstartup.com without paying for a separate Workspace account for every project.",
-  microcopy: "Multiple domains. One inbox. Setup in minutes.",
-  seo_title: "Flap — One inbox for every startup you build",
+    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents. Everything on your own domain.",
+  microcopy: "Same stack on every plan. Pick how many mailboxes you need.",
+  seo_title: "Flap - Modern email for your business",
   seo_description:
-    "Custom-domain email for founders who launch multiple projects. One inbox across all your domains — faster and cheaper than a Workspace per startup.",
+    "Custom-domain email with webmail, calendar, newsletters, bookings, AI assistant, and API. From $6/mo. Free includes real mailboxes.",
   key_features: [
-    "Multiple domains in one inbox",
-    "Send as any project identity",
-    "Catch-all, aliases, and filters",
-    "Guided DNS setup",
-    "API keys and inbound webhooks",
-    "Studio seats for small teams",
+    "Webmail across every domain",
+    "Calendars & booking pages",
+    "Newsletters from your domain",
+    "AI assistant (confirm-before-send)",
+    "API, webhooks, MCP, thin SDKs",
+    "Guided DNS setup on Amazon SES",
   ],
   architecture_line:
     "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar.",
@@ -39,11 +39,11 @@ export const ICP_LINES = [
   "Launch a new domain without adding another email subscription",
 ] as const;
 
-/** Qualitative credibility until real testimonials exist — do not invent stats. */
+/** Qualitative credibility until real testimonials exist - do not invent stats. */
 export const CREDIBILITY = [
-  { title: "Secure domain verification", body: "Guided MX/SPF checks with precise errors — not a vague “verification failed.”" },
-  { title: "Proper DNS authentication", body: "SPF and DKIM records you control — published at any DNS host for Flap’s mail provider." },
-  { title: "Founder-built", body: "Shipped for indie hackers and studios — not enterprise procurement theater." },
+  { title: "Secure domain verification", body: "Guided MX/SPF checks with precise errors - not a vague “verification failed.”" },
+  { title: "Proper DNS authentication", body: "SPF and DKIM records you control - published at any DNS host for Flap’s mail provider." },
+  { title: "Founder-built", body: "Shipped for indie hackers and studios - not enterprise procurement theater." },
   { title: "Transparent pricing", body: "Domain-first plans. No surprise seat tax for every side project." },
   { title: "Fast setup", body: "Add domain → point DNS → create hello@ → inbox." },
 ] as const;
@@ -63,7 +63,7 @@ export function planCards() {
       blurb: p.blurb,
       features: p.features,
       highlighted: Boolean(p.highlighted),
-      badge: p.highlighted ? "Most popular" : p.id === "studio" ? "Up to 10 seats" : undefined,
+      badge: p.highlighted ? "Most popular" : p.id === "team" ? "Unlimited seats" : p.id === "pro" ? "Up to 5 seats" : undefined,
       cta: p.id === "free" ? "Start free" : `Get ${p.name}`,
       limits: p.limits,
     };
@@ -86,12 +86,12 @@ export const SEO_PAGES = [
   {
     path: "/custom-domain-email",
     title: "Custom domain email without Workspace | Flap",
-    description: "Get you@yourdomain.com with a real inbox, aliases, and send — setup in minutes on Flap.",
+    description: "Get you@yourdomain.com with a real inbox, aliases, and send - setup in minutes on Flap.",
   },
   {
     path: "/email-for-indie-hackers",
     title: "Email for indie hackers | Flap",
-    description: "Professional email for every side project domain — one inbox, no per-project Workspace tax.",
+    description: "Professional email for every side project domain - one inbox, no per-project Workspace tax.",
   },
   {
     path: "/email-for-side-projects",
@@ -102,7 +102,7 @@ export const SEO_PAGES = [
     path: "/flap-vs-google-workspace",
     title: "Flap vs Google Workspace for multi-project founders",
     description:
-      "Compare Flap and Google Workspace when you run several small products — cost scaling, unified inbox, and setup.",
+      "Compare Flap and Google Workspace when you run several small products - cost scaling, unified inbox, and setup.",
   },
   {
     path: "/flap-vs-zoho",
@@ -147,7 +147,7 @@ export const GUIDE_PAGES = [
   {
     path: "/guides/cloudflare-custom-domain-email",
     title: "Cloudflare DNS for Flap email",
-    description: "Exact MX/SPF/DKIM records and proxy settings when DNS is on Cloudflare — no Email Routing required.",
+    description: "Exact MX/SPF/DKIM records and proxy settings when DNS is on Cloudflare - no Email Routing required.",
     provider: "cloudflare",
   },
   {
@@ -188,12 +188,12 @@ export const GUIDE_PAGES = [
   },
 ] as const;
 
-/** Blog post paths — keep in sync with src/content/blog.ts */
+/** Blog post paths - keep in sync with src/content/blog.ts */
 export const BLOG_INDEX = {
   path: "/blog",
-  title: "Blog — custom domain email for founders | Flap",
+  title: "Blog - custom domain email for founders | Flap",
   description:
-    "Practical posts on multi-domain email, Workspace cost, DNS (MX/SPF/DMARC), and hosted vs self-host mail — from Flap (useflap.online).",
+    "Practical posts on multi-domain email, Workspace cost, DNS (MX/SPF/DMARC), and hosted vs self-host mail - from Flap (useflap.online).",
 } as const;
 
 export const BLOG_SLUGS = [

@@ -448,6 +448,21 @@ export const api = {
   revokeMailboxMember: (mailboxId: string, userId: string) =>
     req<{ ok: boolean }>(`/api/team/mailboxes/${mailboxId}/members/${userId}`, { method: "DELETE" }),
   authProviders: () => req<{ google: boolean; github: boolean }>("/api/auth/providers"),
+  newsletters: () =>
+    req<{
+      items: Array<{ id: string; subject: string; status: string; capped_count: number; created_at: number }>;
+      caps: { sends_per_month: number; subscribers: number };
+    }>("/api/newsletters"),
+  createNewsletter: (body: { subject: string; html_body?: string; domain_id?: string }) =>
+    req<{ item: { id: string; subject: string; status: string } }>("/api/newsletters", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createBookingPage: (body: { slug: string; title?: string; mailbox_id?: string }) =>
+    req<{ page: { id: string; slug: string; url: string } }>("/api/booking-pages", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
   savePrefs: (body: {
     vacation_enabled?: boolean;

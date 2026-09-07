@@ -37,8 +37,8 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     const body = (await c.req.json().catch(() => ({}))) as { mode?: string };
     const mode = body.mode === "isolated" ? "isolated" : "shared";
-    if (mode === "isolated" && !planAtLeast(plan.plan_id, "studio")) {
-      return c.json({ error: "Isolated reputation mode requires Studio." }, 402);
+    if (mode === "isolated" && !planAtLeast(plan.plan_id, "team")) {
+      return c.json({ error: "Isolated reputation mode requires Team." }, 402);
     }
     const res = await c.env.DB.prepare("UPDATE domains SET reputation_mode = ? WHERE id = ? AND user_id = ?")
       .bind(mode, c.req.param("id"), ctx.workspaceId)
@@ -53,10 +53,10 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) {
-      return c.json({ error: "Deliverability dashboard requires Builder or Studio.", domains: [] }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) {
+      return c.json({ error: "Deliverability dashboard requires Pro or Team.", domains: [] }, 402);
     }
-    const days = planAtLeast(plan.plan_id, "studio") ? 90 : 14;
+    const days = planAtLeast(plan.plan_id, "team") ? 90 : 14;
     const sinceDay = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
     const rows = await c.env.DB.prepare(
       `SELECT domain_id, kind, SUM(count) AS total FROM deliverability_events
@@ -73,7 +73,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
       days,
       events: rows.results ?? [],
       domains: domains.results ?? [],
-      note: "SES bounce/complaint events appear here when SNS/webhooks are wired. Shared pool is the default; Isolated is Studio-only.",
+      note: "SES bounce/complaint events appear here when SNS/webhooks are wired. Shared pool is the default; Isolated is Team-only.",
     });
   });
 
@@ -109,7 +109,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
       .first<{ name: string; receiving_ready_at: number | null; sending_ready_at: number | null }>();
     const ok = Boolean(row?.receiving_ready_at);
     const label = ok ? "receiving" : "setup";
-    const color = ok ? "#1c6e5c" : "#b47828";
+    const color = ok ? "#0a7b6f" : "#b47828";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="24" role="img"><rect width="160" height="24" rx="4" fill="#111"/><text x="8" y="16" fill="#fff" font-size="11" font-family="sans-serif">Flap</text><rect x="48" width="112" height="24" fill="${color}"/><text x="56" y="16" fill="#fff" font-size="11" font-family="sans-serif">${String(row?.name ?? "domain").slice(0, 18)} ${label}</text></svg>`;
     return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=300" } });
   });
@@ -148,7 +148,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Custom retention requires Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Custom retention requires Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { days?: number | null; legal_hold?: boolean };
     const days = body.days == null ? null : Math.min(3650, Math.max(7, Number(body.days)));
     await c.env.DB.prepare("UPDATE domains SET retention_days = ?, legal_hold = ? WHERE id = ? AND user_id = ?")
@@ -163,7 +163,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "Auth upgrades require Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Auth upgrades require Pro or Team." }, 402);
     const domain = await c.env.DB.prepare("SELECT name FROM domains WHERE id = ? AND user_id = ?")
       .bind(c.req.param("id"), ctx.workspaceId)
       .first<{ name: string }>();
@@ -190,14 +190,14 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "Domain IAM requires Studio.", roles: [] }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Domain IAM requires Team.", roles: [] }, 402);
     return c.json({
       roles: [
         { id: "send_all", label: "Can send as any domain mailbox" },
         { id: "send_mapped", label: "Can send only on mapped domains" },
         { id: "read_only", label: "Read-only shared inbox" },
       ],
-      note: "Map Studio seats to domains in Team settings. Least-privilege for agencies.",
+      note: "Map Team seats to domains in Team settings. Least-privilege for agencies.",
     });
   });
 
@@ -207,7 +207,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "studio")) return c.json({ error: "War room requires Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "War room requires Team." }, 402);
     const domains = await c.env.DB.prepare(
       "SELECT id, name, color, reputation_mode, parked FROM domains WHERE user_id = ?",
     )

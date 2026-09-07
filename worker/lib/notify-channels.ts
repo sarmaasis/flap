@@ -71,7 +71,7 @@ export function registerNotifyChannelRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "Weekly digests require Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Weekly digests require Pro or Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { enabled?: boolean; weekday?: number };
     await c.env.DB.prepare(
       `INSERT INTO scheduled_digests (user_id, enabled, weekday) VALUES (?, ?, ?)

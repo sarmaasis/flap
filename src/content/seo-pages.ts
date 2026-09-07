@@ -13,7 +13,7 @@ export type SeoPageDef = {
   title: string;
   description: string;
   h1: string;
-  /** Direct answer near top — LLMs and featured snippets can cite this. */
+  /** Direct answer near top - LLMs and featured snippets can cite this. */
   definition: string;
   lede: string;
   updated: string;
@@ -22,7 +22,7 @@ export type SeoPageDef = {
   faqs: Array<{ q: string; a: string }>;
   related: Array<{ href: string; label: string }>;
   comparison?: boolean;
-  /** Distinct search intent — used to prevent cannibalization. */
+  /** Distinct search intent - used to prevent cannibalization. */
   primaryIntent?: string;
 };
 
@@ -34,16 +34,16 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     primaryIntent: "Find alternatives to the Workspace email model (not a full suite replacement)",
     title: "Google Workspace alternative for multi-domain founders | Flap",
     description:
-      "Flap is a Google Workspace alternative for founders who need custom-domain email on many projects — one inbox, domain-first pricing, no suite per launch.",
+      "Flap is a Google Workspace alternative for founders who need custom-domain email on many projects - one inbox, domain-first pricing, no suite per launch.",
     h1: "Google Workspace alternative for multi-domain founders",
     definition:
       "Flap (useflap.online) is a hosted custom-domain email product for indie hackers and serial founders: connect multiple project domains to one inbox instead of provisioning a separate Google Workspace (or similar) for each startup.",
-    lede: "Looking for a Google Workspace alternative for email on many project domains? Flap replaces the mailbox-and-suite-per-launch pattern — not Docs, Drive, or Meet.",
+    lede: "Looking for a Google Workspace alternative for email on many project domains? Flap replaces the mailbox-and-suite-per-launch pattern - not Docs, Drive, or Meet.",
     updated: UPDATED,
     sections: [
       {
         heading: "What “Workspace alternative” means here",
-        body: "Google Workspace is a productivity suite (Gmail + Docs + Drive + Meet + Calendar). Flap is not that suite. Flap replaces the email-hosting part when your pain is “another domain needs hello@” — not when your team lives in Docs all day.",
+        body: "Google Workspace is a productivity suite (Gmail + Docs + Drive + Meet + Calendar). Flap is not that suite. Flap replaces the email-hosting part when your pain is “another domain needs hello@” - not when your team lives in Docs all day.",
         bullets: [
           "Replace: per-project mailbox / Workspace-for-email cost",
           "Do not replace: Docs, Drive, Meet, or org-wide Google admin",
@@ -51,15 +51,15 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "When Workspace is the wrong unit of cost",
-        body: `Workspace shines for companies that need shared drives and calendars. It is a poor fit when you just need you@project.com on the fifth side project this year. Flap prices primarily by how many domains you connect (Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}), not by standing up a new suite environment per brand.`,
+        body: `Workspace shines for companies that need shared drives and calendars. It is a poor fit when you just need you@project.com on the fifth side project this year. Flap prices primarily by how many domains you connect (Solo ${PLANS.solo.limits.domains}, Pro ${PLANS.pro.limits.domains}, Team ${PLANS.team.limits.domains}), not by standing up a new suite environment per brand.`,
       },
       {
         heading: "What you get with Flap",
-        body: `Connect domains, create addresses, send and receive from one inbox. Free plan: ${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/month. Paid plans add catch-all, higher limits, and (on Studio) team seats. Outbound uses your authenticated domain identities.`,
+        body: `Connect domains, create addresses, send and receive from one inbox. Free plan: ${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/month. Paid plans add catch-all, higher limits, and (on Team) team seats. Outbound uses your authenticated domain identities.`,
       },
       {
         heading: "Honest tradeoffs",
-        body: "Choose Google Workspace when collaboration apps matter more than multi-domain mail. Choose Flap when the pain is another mailbox setup per launch. Flap receives mail via Amazon SES after you publish guided MX/SPF/DKIM at your DNS host — Cloudflare Email Routing is not required.",
+        body: "Choose Google Workspace when collaboration apps matter more than multi-domain mail. Choose Flap when the pain is another mailbox setup per launch. Flap receives mail via Amazon SES after you publish guided MX/SPF/DKIM at your DNS host - Cloudflare Email Routing is not required.",
       },
       {
         heading: "How founders switch",
@@ -74,18 +74,18 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
         ["Cost driver", "Seats × environments", "Domain count on plan"],
         ["Many side projects", "Heavy per brand", "Add domain to same account"],
         ["Unified inbox across brands", "Usually separate orgs", "Designed for one inbox"],
-        ["Docs / Meet / Drive", "Yes", "No — email only"],
+        ["Docs / Meet / Drive", "Yes", "No - email only"],
         ["Best for", "Teams in Google apps", "Serial launchers"],
       ],
     },
     faqs: [
       {
         q: "Can Flap replace Google Workspace entirely?",
-        a: "For email on multiple founder domains, often yes. For Docs, Drive, and Meet — no. Use the right tool for each job.",
+        a: "For email on multiple founder domains, often yes. For Docs, Drive, and Meet - no. Use the right tool for each job.",
       },
       {
         q: "How does Flap pricing compare to Workspace?",
-        a: `Workspace list pricing scales by seats (illustrative ~$7/user/domain if you provision separately). Flap Solo is $${PLANS.solo.price_monthly}/mo for ${PLANS.solo.limits.domains} domains, Builder $${PLANS.builder.price_monthly} for ${PLANS.builder.limits.domains}, Studio $${PLANS.studio.price_monthly} for ${PLANS.studio.limits.domains}. Use the cost calculator for your numbers.`,
+        a: `Workspace list pricing scales by seats (illustrative ~$7/user/domain if you provision separately). Flap Solo is $${PLANS.solo.price_monthly}/mo for ${PLANS.solo.limits.domains} domains, Pro $${PLANS.pro.price_monthly} for ${PLANS.pro.limits.domains}, Team $${PLANS.team.price_monthly} for ${PLANS.team.limits.domains}. Use the cost calculator for your numbers.`,
       },
       {
         q: "Do I keep my Google account for personal mail?",
@@ -93,7 +93,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "Is migration automatic?",
-        a: "Point DNS and create matching addresses in Flap. There is no automatic mailbox history importer — export older mail separately if you need it.",
+        a: "Point DNS and create matching addresses in Flap. There is no automatic mailbox history importer - export older mail separately if you need it.",
       },
     ],
     related: [
@@ -111,7 +111,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     title: "Email hosting for multiple domains | Flap",
     description:
       "Host email for many domains in one inbox with Flap. Domain-first plans for indie hackers and studios juggling side projects.",
-    h1: "Email hosting for multiple domains — one inbox",
+    h1: "Email hosting for multiple domains - one inbox",
     definition:
       "Multi-domain email hosting means one mail product accepts and sends mail for several custom domains. Flap (useflap.online) provides that as a single inbox with per-domain sender identities, aimed at founders who run many projects.",
     lede: "Need a host that accepts mail for many domains without a separate customer per brand? Flap is domain-first hosting: add domains to one account up to your plan limit.",
@@ -119,10 +119,10 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Domain-first, not seat-first",
-        body: "Plans are built around how many domains you connect. That matches how founders actually accumulate projects — domains grow faster than headcount.",
+        body: "Plans are built around how many domains you connect. That matches how founders actually accumulate projects - domains grow faster than headcount.",
         bullets: [
           `Free: ${PLANS.free.limits.domains} domains`,
-          `Solo: ${PLANS.solo.limits.domains} · Builder: ${PLANS.builder.limits.domains} · Studio: ${PLANS.studio.limits.domains}`,
+          `Solo: ${PLANS.solo.limits.domains} · Pro: ${PLANS.pro.limits.domains} · Team: ${PLANS.team.limits.domains}`,
           "Referral bonuses can add permanent domain slots",
         ],
       },
@@ -148,13 +148,13 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
         ["Aliases / disposables", "Limits by plan; unlimited aliases on paid"],
         ["Catch-all", "Paid plans"],
         ["Team seats", "Studio up to 10"],
-        ["Shared inboxes", "Studio (e.g. support@, hello@)"],
+        ["Shared inboxes", "Team (e.g. support@, hello@)"],
       ],
     },
     faqs: [
       {
         q: "Do I need Cloudflare already?",
-        a: "No. Flap receives mail via Amazon SES. Your DNS can live at Namecheap, Porkbun, Route 53, Cloudflare DNS, Vercel, etc. — publish the SES MX/SPF/DKIM values Flap shows. Cloudflare Email Routing is not required.",
+        a: "No. Flap receives mail via Amazon SES. Your DNS can live at Namecheap, Porkbun, Route 53, Cloudflare DNS, Vercel, etc. - publish the SES MX/SPF/DKIM values Flap shows. Cloudflare Email Routing is not required.",
       },
       {
         q: "Is this the same as email forwarding?",
@@ -162,7 +162,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "How many domains can I host?",
-        a: `Up to your plan limit (${PLANS.solo.limits.domains} / ${PLANS.builder.limits.domains} / ${PLANS.studio.limits.domains} on Solo / Builder / Studio), plus any referral domain bonuses.`,
+        a: `Up to your plan limit (${PLANS.solo.limits.domains} / ${PLANS.pro.limits.domains} / ${PLANS.team.limits.domains} on Solo / Pro / Team), plus any referral domain bonuses.`,
       },
     ],
     related: [
@@ -179,7 +179,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     primaryIntent: "Learn how branded custom-domain email works and how to obtain an inbox",
     title: "Custom domain email without Workspace | Flap",
     description:
-      "Get you@yourdomain.com with a real Flap inbox — aliases, send, and DNS guidance. Custom domain email without a Google Workspace per project.",
+      "Get you@yourdomain.com with a real Flap inbox - aliases, send, and DNS guidance. Custom domain email without a Google Workspace per project.",
     h1: "Custom domain email that is actually an inbox",
     definition:
       "Custom domain email means sending and receiving mail as addresses on a domain you own (e.g. you@startup.com). Flap hosts that inbox for founders, with multi-domain support at useflap.online.",
@@ -192,11 +192,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Start free, then scale domains",
-        body: `Prove MX on the Free plan (${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/mo, ${PLANS.free.limits.mailboxes} mailboxes). Upgrade to Solo, Builder, or Studio when projects multiply.`,
+        body: `Prove MX on the Free plan (${PLANS.free.limits.domains} domains, ${PLANS.free.limits.send_per_month} sends/mo, ${PLANS.free.limits.mailboxes} mailboxes). Upgrade to Solo, Pro, or Team when projects multiply.`,
       },
       {
         heading: "Send as the brand",
-        body: "Outbound uses your authenticated domain identities — not a personal Gmail rewrite. SPF/DKIM alignment follows the Amazon SES DNS you publish for Flap.",
+        body: "Outbound uses your authenticated domain identities - not a personal Gmail rewrite. SPF/DKIM alignment follows the Amazon SES DNS you publish for Flap.",
       },
       {
         heading: "Setup path",
@@ -231,10 +231,10 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     primaryIntent: "Audience-specific use case for indie hackers who keep shipping",
     title: "Email for indie hackers | Flap",
     description:
-      "Professional email for every side project domain. Flap gives indie hackers one inbox across launches — no per-project Workspace tax.",
+      "Professional email for every side project domain. Flap gives indie hackers one inbox across launches - no per-project Workspace tax.",
     h1: "Email for indie hackers who keep shipping",
     definition:
-      "Email for indie hackers is professional custom-domain mail sized for solo builders with many domains. Flap positions as “email infrastructure for people who keep launching things” — one inbox at useflap.online across project brands.",
+      "Email for indie hackers is professional custom-domain mail sized for solo builders with many domains. Flap positions as “email infrastructure for people who keep launching things” - one inbox at useflap.online across project brands.",
     lede: "Built for indie hackers who ship often: professional email on every domain you own, without suite procurement theater.",
     updated: UPDATED,
     sections: [
@@ -248,7 +248,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Referral bonus",
-        body: "Invite a founder with your link — both accounts get +1 domain permanently after the referred user signs up, verifies email, and connects a domain.",
+        body: "Invite a founder with your link - both accounts get +1 domain permanently after the referred user signs up, verifies email, and connects a domain.",
       },
       {
         heading: "What Flap is not",
@@ -258,7 +258,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     faqs: [
       {
         q: "Is Flap only for solo builders?",
-        a: "Solo and Builder are solo-seat. Studio adds up to 10 team seats and shared inboxes when you grow past one person.",
+        a: "Solo and Pro are solo-seat. Team adds up to 10 team seats and shared inboxes when you grow past one person.",
       },
       {
         q: "Can I keep personal Gmail?",
@@ -283,7 +283,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     title: "Email for side projects | Flap",
     description:
       "Launch another domain without another email subscription. Flap is one inbox for all your side projects’ custom-domain email.",
-    h1: "Email for every side project — without another subscription",
+    h1: "Email for every side project - without another subscription",
     definition:
       "Side-project email means a professional address on each experiment domain without paying for a full workspace per idea. Flap hosts those domains in one inbox so subscriptions do not multiply with launches.",
     lede: "Side projects should not inherit enterprise seat math. Use Flap when the experiment needs a professional address without a Workspace trial per idea.",
@@ -313,7 +313,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         q: "Can multiple side projects share one free plan?",
-        a: `Free includes ${PLANS.free.limits.domains} domains. Add Solo or Builder when you need more domains on the same inbox.`,
+        a: `Free includes ${PLANS.free.limits.domains} domains. Add Solo or Pro when you need more domains on the same inbox.`,
       },
       {
         q: "Is forwarding enough for side projects?",
@@ -337,13 +337,13 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     h1: "Flap vs Google Workspace",
     definition:
       "Flap vs Google Workspace is a use-case comparison: for a founder managing several small project domains, Flap may be simpler because one inbox covers many domains, while Workspace is stronger when you need Google’s full productivity suite and org tools.",
-    lede: "This page compares two named products side by side. Use it when you already know both names and need tradeoffs — not a generic “alternatives” list.",
+    lede: "This page compares two named products side by side. Use it when you already know both names and need tradeoffs - not a generic “alternatives” list.",
     updated: UPDATED,
     comparison: true,
     sections: [
       {
         heading: "Multiple domains / projects",
-        body: `Workspace: typically separate customers or complex multi-domain admin when each brand is its own environment. Flap: add domains to one account up to your plan limit (Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.builder.limits.domains}, Studio ${PLANS.studio.limits.domains}).`,
+        body: `Workspace: typically separate customers or complex multi-domain admin when each brand is its own environment. Flap: add domains to one account up to your plan limit (Solo ${PLANS.solo.limits.domains}, Pro ${PLANS.pro.limits.domains}, Team ${PLANS.team.limits.domains}).`,
       },
       {
         heading: "Number of separate accounts / admin setups",
@@ -351,11 +351,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Cost scaling",
-        body: "Workspace cost rises with seats × how many environments you stand up. Flap Solo/Builder/Studio rise mainly with domain count. Illustrative Workspace Business Starter list price used in Flap’s calculator: $7/user/month per domain you provision separately.",
+        body: "Workspace cost rises with seats × how many environments you stand up. Flap Solo/Pro/Team rise mainly with domain count. Illustrative Workspace Business Starter list price used in Flap’s calculator: $7/user/month per domain you provision separately.",
       },
       {
         heading: "Unified inbox & identities",
-        body: "Flap is designed as one inbox for many identities. Workspace inboxes are usually per user inside one organization — cross-brand unification is not the default path for indie multi-product setups.",
+        body: "Flap is designed as one inbox for many identities. Workspace inboxes are usually per user inside one organization - cross-brand unification is not the default path for indie multi-product setups.",
       },
       {
         heading: "Setup complexity",
@@ -382,7 +382,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     faqs: [
       {
         q: "Is Flap “better” than Google Workspace?",
-        a: "Not universally. It is a better fit for multi-project email without suite overhead — not a claim of general superiority.",
+        a: "Not universally. It is a better fit for multi-project email without suite overhead - not a claim of general superiority.",
       },
       {
         q: "Can I use both?",
@@ -408,8 +408,8 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       "Compare Flap and Zoho Mail for founders juggling many domains: workflow simplicity, unified inbox, and honest best-use-case guidance.",
     h1: "Flap vs Zoho Mail",
     definition:
-      "Flap vs Zoho Mail compares two hosted email options. Zoho Mail is a capable full mail product; Flap focuses on a simpler multi-project workflow — one inbox, many domain identities, domain-first plans at useflap.online.",
-    lede: "Zoho Mail is a capable hosted mail product. For founders juggling many small domains, Flap focuses on workflow simplicity: one inbox, many identities, domain-first plans — without pretending Zoho is “too expensive.”",
+      "Flap vs Zoho Mail compares two hosted email options. Zoho Mail is a capable full mail product; Flap focuses on a simpler multi-project workflow - one inbox, many domain identities, domain-first plans at useflap.online.",
+    lede: "Zoho Mail is a capable hosted mail product. For founders juggling many small domains, Flap focuses on workflow simplicity: one inbox, many identities, domain-first plans - without pretending Zoho is “too expensive.”",
     updated: UPDATED,
     comparison: true,
     sections: [
@@ -419,7 +419,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Cost framing",
-        body: "We do not claim Zoho is expensive. The comparison is about setup overhead and unified multi-domain management for serial launchers — not a price war.",
+        body: "We do not claim Zoho is expensive. The comparison is about setup overhead and unified multi-domain management for serial launchers - not a price war.",
       },
       {
         heading: "Unified management",
@@ -431,12 +431,12 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
     ],
     table: {
-      caption: "Flap vs Zoho Mail — founder lens",
+      caption: "Flap vs Zoho Mail - founder lens",
       headers: ["Dimension", "Zoho Mail", "Flap"],
       rows: [
         ["Product focus", "Hosted mail (+ Zoho suite)", "Multi-domain founder inbox"],
         ["Multi-project workflow", "Capable; org-oriented", "Optimized for serial launches"],
-        ["Pricing narrative", "Varies by Zoho plan", "Domain-first Solo/Builder/Studio"],
+        ["Pricing narrative", "Varies by Zoho plan", "Domain-first Solo/Pro/Team"],
         ["Suite ecosystem", "Strong Zoho stack", "Email-only; no CRM suite"],
         ["Best for", "Zoho-centric teams", "Indie / studio multi-domain mail"],
       ],
@@ -444,7 +444,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     faqs: [
       {
         q: "Does Flap migrate from Zoho?",
-        a: "You can point DNS and create matching addresses. There is no automatic mailbox importer yet — export/import is manual.",
+        a: "You can point DNS and create matching addresses. There is no automatic mailbox importer yet - export/import is manual.",
       },
       {
         q: "Is Flap cheaper than Zoho?",
@@ -468,11 +468,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     primaryIntent: "Solve unified-inbox workflow across brand identities",
     title: "Multiple domains, one inbox | Flap",
     description:
-      "Connect every startup domain to a single Flap inbox. Send and receive as each brand identity — one inbox for every startup you build.",
+      "Connect every startup domain to a single Flap inbox. Send and receive as each brand identity - one inbox for every startup you build.",
     h1: "Multiple domains. One inbox.",
     definition:
       "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the tagline “One inbox for every startup you build.”",
-    lede: "The problem is workflow: threads scatter across forwards and forgotten trials. Flap’s job here is one inbox, many sender identities — not “which host supports N domains.”",
+    lede: "The problem is workflow: threads scatter across forwards and forgotten trials. Flap’s job here is one inbox, many sender identities - not “which host supports N domains.”",
     updated: UPDATED,
     sections: [
       {
@@ -489,7 +489,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Plan limits (domains)",
-        body: `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Builder ${PLANS.builder.limits.domains} · Studio ${PLANS.studio.limits.domains} (plus referral bonuses when earned).`,
+        body: `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Pro ${PLANS.pro.limits.domains} · Team ${PLANS.team.limits.domains} (plus referral bonuses when earned).`,
       },
     ],
     table: {
@@ -505,15 +505,15 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     faqs: [
       {
         q: "What are the domain limits?",
-        a: `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Builder ${PLANS.builder.limits.domains} · Studio ${PLANS.studio.limits.domains} domains (plus referral bonuses).`,
+        a: `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Pro ${PLANS.pro.limits.domains} · Team ${PLANS.team.limits.domains} domains (plus referral bonuses).`,
       },
       {
         q: "Do all domains share storage and send quotas?",
-        a: "Yes — quotas are per Flap account/plan (storage and monthly sends), not per domain silo.",
+        a: "Yes - quotas are per Flap account/plan (storage and monthly sends), not per domain silo.",
       },
       {
         q: "Can a studio share the inbox?",
-        a: "Studio includes team seats and shared inboxes (e.g. support@, hello@). Solo and Builder are single-seat.",
+        a: "Team includes team seats and shared inboxes (e.g. support@, hello@). Solo and Pro are single-seat.",
       },
     ],
     related: [
@@ -528,11 +528,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     path: "/cloudflare-email-routing-alternative",
     title: "Cloudflare Email Routing alternative with a real reply inbox | Flap",
     description:
-      "Outgrown Cloudflare Email Routing forwards? Flap is the upgrade path when you need a real custom-domain inbox to reply from — Amazon SES mail, app on Cloudflare, DNS at any registrar.",
+      "Outgrown Cloudflare Email Routing forwards? Flap is the upgrade path when you need a real custom-domain inbox to reply from - Amazon SES mail, app on Cloudflare, DNS at any registrar.",
     h1: "Cloudflare Email Routing alternative when you need a real inbox",
     definition:
       "Cloudflare Email Routing is excellent for forwarding and Worker hooks. Flap is a hosted custom-domain mailbox (send + receive) for founders who need to reply as hello@theirbrand.com from one inbox across many domains.",
-    lede: "Keep Cloudflare for DNS or the website if you want. When forwards are no longer enough — you need threads, send-as identities, and a product inbox — Flap is the upgrade path without inventing a ship date for IMAP or claiming Cloudflare is “bad.”",
+    lede: "Keep Cloudflare for DNS or the website if you want. When forwards are no longer enough - you need threads, send-as identities, and a product inbox - Flap is the upgrade path without inventing a ship date for IMAP or claiming Cloudflare is “bad.”",
     updated: UPDATED,
     comparison: true,
     sections: [
@@ -550,11 +550,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Honest tradeoffs",
-        body: "Email Routing is free for many forwarding use cases and deeply integrated with Cloudflare zones. Flap is a paid product (with a free trial tier) focused on multi-domain inboxes — not a Cloudflare dashboard replacement, not Docs/Drive, and IMAP/SMTP client access is not available yet (use the web app and PWA).",
+        body: "Email Routing is free for many forwarding use cases and deeply integrated with Cloudflare zones. Flap is a paid product (with a free trial tier) focused on multi-domain inboxes - not a Cloudflare dashboard replacement, not Docs/Drive, and IMAP/SMTP client access is not available yet (use the web app and PWA).",
       },
       {
         heading: "How the switch looks",
-        body: "Add the domain in Flap, publish the MX/SPF/DKIM records Flap shows (SES inbound), create mailboxes, then Check setup. If you previously pointed MX at route*.mx.cloudflare.net for Email Routing, replace those with Flap’s SES MX values — pick one inbound provider per domain.",
+        body: "Add the domain in Flap, publish the MX/SPF/DKIM records Flap shows (SES inbound), create mailboxes, then Check setup. If you previously pointed MX at route*.mx.cloudflare.net for Email Routing, replace those with Flap’s SES MX values - pick one inbound provider per domain.",
       },
     ],
     table: {
@@ -593,7 +593,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     path: "/hydra-alternative",
     title: "Hydra alternative for multi-domain founder email | Flap",
     description:
-      "Looking beyond Hydra for custom-domain email across side projects? Flap offers one inbox, domain-first plans, SES mail, and Cloudflare app hosting — honest comparison without slam copy.",
+      "Looking beyond Hydra for custom-domain email across side projects? Flap offers one inbox, domain-first plans, SES mail, and Cloudflare app hosting - honest comparison without slam copy.",
     h1: "Hydra alternative for multi-domain founders",
     definition:
       "Hydra is another custom-domain email option some founders consider. Flap (useflap.online) is built specifically for serial launchers who want one inbox across many project domains with transparent domain-first pricing.",
@@ -603,7 +603,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Where Flap focuses",
-        body: "Multi-domain setup guided by MX/SPF/DKIM checks, compose as each brand, filters/aliases, JSON and .mbox export, API keys and inbound webhooks on paid plans, Studio seats when a teammate joins.",
+        body: "Multi-domain setup guided by MX/SPF/DKIM checks, compose as each brand, filters/aliases, JSON and .mbox export, API keys and inbound webhooks on paid plans, Team seats when a teammate joins.",
       },
       {
         heading: "Architecture (no marketing fog)",
@@ -611,11 +611,11 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
       {
         heading: "Honest tradeoffs",
-        body: "Hydra may fit better if you already prefer its UX, pricing, or client story. Flap does not claim IMAP/SMTP today — use the web app and PWA until client access ships. Flap is not a full Google Workspace suite replacement.",
+        body: "Hydra may fit better if you already prefer its UX, pricing, or client story. Flap does not claim IMAP/SMTP today - use the web app and PWA until client access ships. Flap is not a full Google Workspace suite replacement.",
       },
       {
         heading: "Try before you cut over",
-        body: `Start on Free with up to ${PLANS.free.limits.domains} domains, prove receiving, export anytime. Cancel keeps access through the paid period — download your mailbox before it ends.`,
+        body: `Start on Free with up to ${PLANS.free.limits.domains} domains, prove receiving, export anytime. Cancel keeps access through the paid period - download your mailbox before it ends.`,
       },
     ],
     table: {
@@ -653,7 +653,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     path: "/folio-alternative",
     title: "Folio alternative for project-domain email | Flap",
     description:
-      "Considering Folio for founder email? Flap is a multi-domain inbox alternative with SES mail, Cloudflare app hosting, filters, webhooks, and export — compared honestly.",
+      "Considering Folio for founder email? Flap is a multi-domain inbox alternative with SES mail, Cloudflare app hosting, filters, webhooks, and export - compared honestly.",
     h1: "Folio alternative for multi-project email",
     definition:
       "Folio is another hosted email option founders may evaluate. Flap focuses on one inbox across many startup domains, domain-first plans, and an explicit SES + Cloudflare architecture.",
@@ -663,7 +663,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Flap’s bet",
-        body: "Domain count is the main scaling axis (Solo 5, Builder 20, Studio 40). Features like catch-all, filters, API keys, inbound webhooks, and Studio seats show up where plans unlock them — not as vague “priority support” badges.",
+        body: "Mailbox count is the main scaling axis (Solo 3, Pro 6, Team 12; up to 50 domains on every paid plan). Features like catch-all, filters, API keys, inbound webhooks, and Team seats show up where plans unlock them - not as vague “priority support” badges.",
       },
       {
         heading: "Trust and exit",
@@ -678,9 +678,9 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       caption: "Fit checklist",
       headers: ["Need", "Flap"],
       rows: [
-        ["Many domains, one login", "Yes — core design"],
+        ["Many domains, one login", "Yes - core design"],
         ["Send as brand identities", "Yes"],
-        ["Desktop IMAP today", "Not yet — web/PWA"],
+        ["Desktop IMAP today", "Not yet - web/PWA"],
         ["Export mailbox", "JSON + .mbox"],
         ["Team seats", "Studio"],
       ],
@@ -710,7 +710,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     path: "/justemails-alternative",
     title: "JustEmails alternative for multi-domain founders | Flap",
     description:
-      "Comparing JustEmails to Flap? Flap is a domain-first multi-domain inbox on Amazon SES with filters, webhooks, export, and transparent limits — not a flat yearly black box.",
+      "Comparing JustEmails to Flap? Flap is a domain-first multi-domain inbox on Amazon SES with filters, webhooks, export, and transparent limits - not a flat yearly black box.",
     h1: "JustEmails alternative for serial launchers",
     definition:
       "JustEmails is a simple hosted email option some founders consider for a flat yearly fee. Flap (useflap.online) is built for people who keep launching domains and want one inbox, clear plan limits, and SES-backed send/receive.",
@@ -720,7 +720,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Where Flap differs",
-        body: `Domain-first plans (Free ${PLANS.free.limits.domains} domains, Solo ${PLANS.solo.limits.domains} at $${PLANS.solo.price_monthly}/mo, Builder ${PLANS.builder.limits.domains} at $${PLANS.builder.price_monthly}/mo). Filters, aliases, JSON/.mbox export, API keys and inbound webhooks on Solo+, Studio seats for small teams.`,
+        body: `Domain-first plans (Free ${PLANS.free.limits.domains} domains, Solo ${PLANS.solo.limits.domains} at $${PLANS.solo.price_monthly}/mo, Pro ${PLANS.pro.limits.domains} at $${PLANS.pro.price_monthly}/mo). Filters, aliases, JSON/.mbox export, API keys and inbound webhooks on Solo+, Team seats for small teams.`,
       },
       {
         heading: "Architecture",
@@ -739,7 +739,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
         ["Real send + receive", "SES-backed inbox"],
         ["Export / exit", "JSON + .mbox"],
         ["API / webhooks", "Solo+"],
-        ["Desktop IMAP today", "Not yet — web/PWA"],
+        ["Desktop IMAP today", "Not yet - web/PWA"],
       ],
     },
     faqs: [
@@ -773,7 +773,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Flap’s focus",
-        body: "Guided MX/SPF/DKIM, compose as each brand, catch-all/aliases on paid plans, filters, export, and developer webhooks — optimized for serial launchers.",
+        body: "Guided MX/SPF/DKIM, compose as each brand, catch-all/aliases on paid plans, filters, export, and developer webhooks - optimized for serial launchers.",
       },
       {
         heading: "Honest tradeoffs",
@@ -810,7 +810,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     path: "/improvmx-alternative",
     title: "ImprovMX alternative with a real inbox | Flap",
     description:
-      "ImprovMX is great for forwarding. Flap is for founders who need a real reply inbox across many domains — SES send/receive, not forwards-only.",
+      "ImprovMX is great for forwarding. Flap is for founders who need a real reply inbox across many domains - SES send/receive, not forwards-only.",
     h1: "ImprovMX alternative when you need a real inbox",
     definition:
       "ImprovMX focuses on email forwarding and aliases. Flap (useflap.online) hosts a real multi-domain inbox so you can send and receive as you@yourstartup.com without a Workspace per launch.",
@@ -820,7 +820,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Forwarding vs inbox",
-        body: "Forwards-only products solve aliasing. Flap stores mail, supports compose identities, aliases/catch-all (plan allowing), and export — a different job than redirecting to another mailbox.",
+        body: "Forwards-only products solve aliasing. Flap stores mail, supports compose identities, aliases/catch-all (plan allowing), and export - a different job than redirecting to another mailbox.",
       },
       {
         heading: "Architecture",

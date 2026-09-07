@@ -1,47 +1,41 @@
-import { useEffect, useState } from "react";
-import { useSignIn, useSignUp } from "@clerk/clerk-react";
+import { useEffect, useRef, useState } from "react";
+import { useSignUp } from "@clerk/clerk-react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
+import {
+  authErrorMessage,
+  clerkHasErrorCode,
+  ClerkMissingCard,
+  useClerkReady,
+} from "../lib/clerk";
 import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
 
-function OAuthButtons() {
-  const { signIn, isLoaded } = useSignIn();
-  if (!isLoaded || !signIn) return null;
+type SignUpLike = NonNullable<ReturnType<typeof useSignUp>["signUp"]>;
 
-  async function social(strategy: "oauth_google" | "oauth_github") {
-    if (!signIn) return;
-    await signIn.authenticateWithRedirect({
-      strategy,
-      redirectUrl: absoluteUrl("/sso-callback"),
-      redirectUrlComplete: absoluteUrl("/app/settings?tab=setup&onboarding=1"),
-    });
-  }
+function loginWithEmail(email: string, notice: "exists" | "already" = "exists") {
+  const q = new URLSearchParams({ email: email.trim(), notice });
+  go(`/login?${q.toString()}`);
+}
 
-  return (
-    <div className="stack gap-2">
-      <Button type="button" variant="outline" className="w-full" onClick={() => void social("oauth_google")}>
-        Continue with Google
-      </Button>
-      <Button type="button" variant="secondary" className="w-full" onClick={() => void social("oauth_github")}>
-        Continue with GitHub
-      </Button>
-      <div className="auth-divider"><span>or email a magic link</span></div>
-    </div>
-  );
+function missingLabel(fields: string[] | undefined): string {
+  if (!fields?.length) return "";
+  return ` Still needed in Clerk: ${fields.join(", ")}.`;
 }
 
 function SignupInner() {
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp, isLoaded, setActive } = useSignUp();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
+  const verifyInflight = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     captureReferralFromUrl();
@@ -49,33 +43,150 @@ function SignupInner() {
     track("signup_started");
   }, []);
 
-  async function onMagicLink(e: React.FormEvent) {
+  async function activateAndEnter(sessionId: string) {
+    if (!setActive) return;
+    track("signup_completed", { method: "email_code", referred: Boolean(refCode) });
+    if (refCode) track("referral_signup");
+    await setActive({ session: sessionId });
+    go("/app/domains?onboarding=1&verify=ok");
+  }
+
+  /**
+   * Email verify can succeed while SignUp stays `missing_requirements`
+   * (legal acceptance, password, name, …). Try to close those we can, then activate.
+   */
+  async function finalizeSignUp(resource: SignUpLike): Promise<"done" | "stuck"> {
+    let current = resource;
+
+    const tryActivate = async () => {
+      if (current.status === "complete" && current.createdSessionId) {
+        await activateAndEnter(current.createdSessionId);
+        return true;
+      }
+      return false;
+    };
+
+    if (await tryActivate()) return "done";
+
+    const missing = current.missingFields || [];
+    const needsLegal = missing.includes("legal_accepted");
+    if (needsLegal || current.status === "missing_requirements") {
+      try {
+        // User already agreed via the Terms copy on this page.
+        current = await current.update({ legalAccepted: true });
+      } catch {
+        // Ignore — may not be required.
+      }
+      if (await tryActivate()) return "done";
+    }
+
+    // User row may already exist without a session (abandoned prior attempt).
+    if (current.createdUserId && !current.createdSessionId) {
+      loginWithEmail(email, "exists");
+      return "done";
+    }
+
+    setErr(
+      `Email is verified, but Clerk did not create a session.${missingLabel(current.missingFields)} ` +
+        "In Clerk Dashboard → User & authentication: make Password optional/off for sign-up, " +
+        "enable Email verification code, and turn off other required fields (name/username) unless you collect them.",
+    );
+    return "stuck";
+  }
+
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signUp) return;
     setErr("");
     setNotice("");
     setBusy(true);
     try {
-      await signUp.create({ emailAddress: email.trim() });
-      const { startEmailLinkFlow } = signUp.createEmailLinkFlow();
-      await startEmailLinkFlow({
-        redirectUrl: absoluteUrl(
-          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
-        ),
+      // legalAccepted up front so verify can reach `complete` when Clerk requires it.
+      const created = await signUp.create({
+        emailAddress: email.trim(),
+        legalAccepted: true,
       });
-      track("signup_completed", { method: "magic_link", referred: Boolean(refCode) });
-      if (refCode) track("referral_signup");
-      setNotice("Check your email for a sign-in link. One click creates your workspace and verifies your email.");
+      if ((await finalizeSignUp(created)) === "done") return;
+
+      const emailStatus = created.verifications?.emailAddress?.status;
+      if (emailStatus === "verified") {
+        if ((await finalizeSignUp(created)) === "done") return;
+        return;
+      }
+
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setStep("code");
+      setNotice("We sent a 6-digit code to your email. Enter it below to create your workspace.");
     } catch (error) {
-      setErr(authErrorMessage(error, "Could not send magic link."));
+      if (clerkHasErrorCode(error, "form_identifier_exists")) {
+        loginWithEmail(email, "exists");
+        return;
+      }
+      // Some instances reject legalAccepted on create if not enabled — retry without it.
+      if (clerkHasErrorCode(error, "form_param_unknown") || clerkHasErrorCode(error, "form_param_nil")) {
+        try {
+          const created = await signUp.create({ emailAddress: email.trim() });
+          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+          setStep("code");
+          setNotice("We sent a 6-digit code to your email. Enter it below to create your workspace.");
+          void created;
+          return;
+        } catch (retryErr) {
+          if (clerkHasErrorCode(retryErr, "form_identifier_exists")) {
+            loginWithEmail(email, "exists");
+            return;
+          }
+          setErr(authErrorMessage(retryErr, "Could not send verification code."));
+          return;
+        }
+      }
+      setErr(authErrorMessage(error, "Could not send verification code."));
     } finally {
       setBusy(false);
     }
   }
 
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isLoaded || !signUp || !setActive) return;
+    if (verifyInflight.current) {
+      await verifyInflight.current;
+      return;
+    }
+    setErr("");
+    setBusy(true);
+
+    const run = (async () => {
+      try {
+        let result: SignUpLike;
+        try {
+          result = await signUp.attemptEmailAddressVerification({ code: code.trim() });
+        } catch (error) {
+          if (clerkHasErrorCode(error, "verification_already_verified")) {
+            // First attempt (or StrictMode twin) already verified — finish that SignUp.
+            result = signUp;
+          } else if (clerkHasErrorCode(error, "form_identifier_exists")) {
+            loginWithEmail(email, "exists");
+            return;
+          } else {
+            setErr(authErrorMessage(error, "Invalid or expired code."));
+            return;
+          }
+        }
+        await finalizeSignUp(result);
+      } finally {
+        verifyInflight.current = null;
+        setBusy(false);
+      }
+    })();
+
+    verifyInflight.current = run;
+    await run;
+  }
+
   return (
     <div className="auth-shell">
-      <form className="auth-card" onSubmit={onMagicLink}>
+      <form className="auth-card" onSubmit={step === "email" ? sendCode : verifyCode}>
         <a
           className="brand"
           href="/"
@@ -88,7 +199,9 @@ function SignupInner() {
         </a>
         <h1>Create your workspace</h1>
         <p className="muted">
-          Sign up with Google, GitHub, or a magic link — no password.
+          {step === "email"
+            ? "Enter your work email and we’ll send a one-time code — no password."
+            : `Enter the code we sent to ${email}.`}
         </p>
         {refCode ? (
           <p className="muted text-xs">
@@ -97,15 +210,60 @@ function SignupInner() {
         ) : null}
         {err ? <p className="error" role="alert">{err}</p> : null}
         {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <OAuthButtons />
         <div className="stack gap-3">
-          <div className="stack gap-1.5">
-            <Label htmlFor="email">Work email</Label>
-            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
+          {step === "email" ? (
+            <div className="stack gap-1.5">
+              <Label htmlFor="email">Work email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="stack gap-1.5">
+              <Label htmlFor="code">Verification code</Label>
+              <Input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                minLength={6}
+                maxLength={8}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+              />
+            </div>
+          )}
           <Button type="submit" disabled={busy || !isLoaded} className="w-full">
-            {busy ? "Sending link…" : "Email me a magic link"}
+            {busy
+              ? step === "email"
+                ? "Sending code…"
+                : "Verifying…"
+              : step === "email"
+                ? "Email me a code"
+                : "Verify and continue"}
           </Button>
+          {step === "code" ? (
+            <button
+              type="button"
+              className="auth-password-toggle"
+              disabled={busy}
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setNotice("");
+                setErr("");
+                verifyInflight.current = null;
+              }}
+            >
+              Use a different email
+            </button>
+          ) : null}
         </div>
         <p className="muted mt-4 text-xs leading-relaxed">
           By continuing you agree to the{" "}

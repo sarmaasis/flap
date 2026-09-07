@@ -1,4 +1,4 @@
-/** Public developer docs — API send + outbound webhooks. */
+/** Public developer docs - API send + outbound webhooks. */
 
 import { PLANS } from "../../shared/plans";
 
@@ -17,18 +17,18 @@ export const API_SEND = {
   path: "/api/v1/send",
   auth: "Authorization: Bearer flap_…",
   body: {
-    to: "required — recipient(s), comma-separated",
+    to: "required - recipient(s), comma-separated",
     subject: "required",
     text: "optional plain text body",
     html: "optional HTML body",
-    from: "optional — must be one of your Flap mailboxes; defaults to oldest mailbox",
+    from: "optional - must be one of your Flap mailboxes; defaults to oldest mailbox",
     cc: "optional",
     bcc: "optional",
   },
   success: '{ "ok": true, "id": "msg_…" }',
   notes: [
     "API keys are created in Settings → Developers. The full token is shown once.",
-    `Keys are available on Solo (${PLANS.solo.limits.api_keys}), Builder (${PLANS.builder.limits.api_keys}), and Studio (${PLANS.studio.limits.api_keys}).`,
+    `Keys are available on Solo (${PLANS.solo.limits.api_keys}), Pro (${PLANS.pro.limits.api_keys}), and Team (${PLANS.team.limits.api_keys}).`,
     "Sends count toward your plan’s monthly outbound quota and storage limits.",
     "From addresses must belong to a mailbox on your workspace.",
   ],
@@ -62,6 +62,6 @@ export const WEBHOOK_DOCS = {
     "Webhook URL must be https://",
     "Subscribe to mail.received or * (all events).",
     "Delivery attempts are logged in Settings → Developers → Deliveries (last 20).",
-    `Webhook slots follow plan limits (Solo ${PLANS.solo.limits.webhooks}, Builder ${PLANS.builder.limits.webhooks}, Studio ${PLANS.studio.limits.webhooks}).`,
+    `Webhook slots follow plan limits (Solo ${PLANS.solo.limits.webhooks}, Pro ${PLANS.pro.limits.webhooks}, Team ${PLANS.team.limits.webhooks}).`,
   ],
 } as const;

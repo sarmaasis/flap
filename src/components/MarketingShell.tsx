@@ -22,94 +22,112 @@ const FOOTER_TOOLS = [
   { path: "/tools/deliverability-scorecard", label: "Scorecard" },
 ];
 
-export default function MarketingShell({ children, primaryHref = "/signup", primaryLabel = "Start free" }: Props) {
+const NAV_LINKS = [
+  { href: "/pricing", label: "Pricing" },
+  { href: "/for", label: "Use cases" },
+  { href: "/docs", label: "Docs" },
+  { href: "/blog", label: "Blog" },
+];
+
+export default function MarketingShell({ children, primaryHref = "/signup", primaryLabel = "Get started" }: Props) {
   return (
     <div className="landing-root min-h-screen overflow-x-clip">
-      <div className="landing-atmosphere" aria-hidden />
-      <header className="landing-nav mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 md:px-8">
-        <a
-          href="/"
-          className="brand flex items-center gap-2 text-lg font-semibold tracking-tight"
-          onClick={(e) => {
-            e.preventDefault();
-            go("/");
-          }}
-        >
-          <BrandMark />
-          Flap
-        </a>
-        <nav className="hidden items-center gap-5 text-sm md:flex">
-          <a href="/#pricing" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
-          <a href="/about" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
-          <a href="/docs" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
-          <a href="/tools" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/tools"); }}>Tools</a>
-          <a href="/guides" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
-          <a href="/blog" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
-          <a href="/login" className="text-[var(--muted)] hover:text-[var(--fg)]" onClick={(e) => { e.preventDefault(); go("/login"); }}>Sign in</a>
-          <Button
-            size="sm"
-            asChild
-            onClick={() => track("signup_clicked", { source: "nav" })}
-          >
-            <a
-              href={primaryHref}
-              onClick={(e) => {
-                e.preventDefault();
-                track("signup_clicked", { source: "nav" });
-                go(primaryHref);
-              }}
-            >
-              {primaryLabel}
-            </a>
-          </Button>
-        </nav>
-        <Button
-          className="md:hidden"
-          size="sm"
-          asChild
-        >
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <header className="landing-nav mx-auto max-w-6xl px-5 md:px-8">
+        <div className="landing-nav-bar">
           <a
-            href={primaryHref}
+            href="/"
+            className="brand flex items-center gap-2 text-[15px] font-semibold tracking-tight"
             onClick={(e) => {
               e.preventDefault();
-              track("signup_clicked", { source: "nav_mobile" });
-              go(primaryHref);
+              go("/");
             }}
           >
-            {primaryLabel}
+            <BrandMark />
+            flap
           </a>
-        </Button>
+          <nav className="landing-nav-links" aria-label="Primary">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={(e) => {
+                  e.preventDefault();
+                  go(link.href);
+                }}
+              >
+                {link.label}
+              </a>
+            ))}
+            <a
+              href="/login"
+              onClick={(e) => {
+                e.preventDefault();
+                go("/login");
+              }}
+            >
+              Sign in
+            </a>
+          </nav>
+          <details className="marketing-mobile-menu"><summary>Menu</summary><nav aria-label="Mobile navigation">{[...NAV_LINKS, { href: "/login", label: "Sign in" }].map(link => <a key={link.href} href={link.href}>{link.label}</a>)}</nav></details>
+          <div className="flex items-center gap-2">
+            <a
+              href="/login"
+              className="hidden text-sm font-medium text-[var(--muted)] hover:text-[var(--fg)] sm:inline md:hidden"
+              onClick={(e) => {
+                e.preventDefault();
+                go("/login");
+              }}
+            >
+              Sign in
+            </a>
+            <Button
+              size="sm"
+              asChild
+              onClick={() => track("signup_clicked", { source: "nav" })}
+            >
+              <a
+                href={primaryHref}
+                onClick={(e) => {
+                  e.preventDefault();
+                  track("signup_clicked", { source: "nav" });
+                  go(primaryHref);
+                }}
+              >
+                {primaryLabel}
+              </a>
+            </Button>
+          </div>
+        </div>
       </header>
 
-      {children}
+      <main id="main-content">{children}</main>
 
       <footer className="landing-footer mx-auto grid max-w-6xl gap-10 border-t border-[var(--line)] px-5 py-14 text-sm text-[var(--muted)] md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr] md:gap-8 md:px-8 md:py-16">
         <div>
           <div className="brand mb-3 flex items-center gap-2 text-[var(--fg)]">
-            <BrandMark /> Flap
+            <BrandMark /> flap
           </div>
           <p className="max-w-xs text-sm leading-relaxed">{MARKETING.short_description}</p>
           <p className="mt-5 text-xs">© {new Date().getFullYear()} Flap · {SITE_URL.replace("https://", "")}</p>
         </div>
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Product</span>
-          <a href="/#pricing" onClick={(e) => { e.preventDefault(); go("/#pricing"); }}>Pricing</a>
-          <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>Full pricing page</a>
+          <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>Pricing</a>
+          <a href="/security" onClick={(e) => { e.preventDefault(); go("/security"); }}>Security</a>
           <a href="/about" onClick={(e) => { e.preventDefault(); go("/about"); }}>About</a>
-          <a href="/multiple-domains-one-inbox" onClick={(e) => { e.preventDefault(); go("/multiple-domains-one-inbox"); }}>Multiple domains</a>
-          <a href="/custom-domain-email" onClick={(e) => { e.preventDefault(); go("/custom-domain-email"); }}>Custom domain email</a>
-          <a href="/flap-vs-google-workspace" onClick={(e) => { e.preventDefault(); go("/flap-vs-google-workspace"); }}>vs Google Workspace</a>
-          <a href="/flap-vs-zoho" onClick={(e) => { e.preventDefault(); go("/flap-vs-zoho"); }}>vs Zoho Mail</a>
-          <a href="/justemails-alternative" onClick={(e) => { e.preventDefault(); go("/justemails-alternative"); }}>vs JustEmails</a>
-          <a href="/improvmx-alternative" onClick={(e) => { e.preventDefault(); go("/improvmx-alternative"); }}>vs ImprovMX</a>
+          <a href="/for" onClick={(e) => { e.preventDefault(); go("/for"); }}>Who it&apos;s for</a>
+          <a href="/vs" onClick={(e) => { e.preventDefault(); go("/vs"); }}>Compare</a>
+          <a href="/vs/shipmail" onClick={(e) => { e.preventDefault(); go("/vs/shipmail"); }}>vs Shipmail</a>
+          <a href="/vs/google-workspace" onClick={(e) => { e.preventDefault(); go("/vs/google-workspace"); }}>vs Google Workspace</a>
         </div>
         <div className="flex flex-col gap-2.5">
           <span className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--fg)]">Learn</span>
           <a href="/blog" onClick={(e) => { e.preventDefault(); go("/blog"); }}>Blog</a>
           <a href="/docs" onClick={(e) => { e.preventDefault(); go("/docs"); }}>Docs</a>
+          <a href="/research" onClick={(e) => { e.preventDefault(); go("/research"); }}>Research</a>
           <a href="/guides" onClick={(e) => { e.preventDefault(); go("/guides"); }}>Guides</a>
           <a href="/status" onClick={(e) => { e.preventDefault(); go("/status"); }}>Status</a>
-          <a href="/google-workspace-alternative" onClick={(e) => { e.preventDefault(); go("/google-workspace-alternative"); }}>Workspace alternative</a>
           <a href="/email-for-indie-hackers" onClick={(e) => { e.preventDefault(); go("/email-for-indie-hackers"); }}>Indie hackers</a>
         </div>
         <div className="flex flex-col gap-2.5">

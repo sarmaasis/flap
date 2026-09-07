@@ -50,7 +50,7 @@ MAILGUN_WEBHOOK_SIGNING_KEY=
 #
 # LOCAL TEST CHECKOUT (required for Upgrade buttons to work):
 #   1. Dashboard in Test Mode
-#   2. Create Solo / Builder / Studio subscription products → copy pdt_… ids
+#   2. Create Solo / Pro / Team / Scale subscription products → copy pdt_… ids
 #   3. Create a test API key (often prefixed dodo_test_…)
 #   4. Keep ENVIRONMENT=test_mode  (hits https://test.dodopayments.com)
 #   5. Restart `npm run dev` after editing this file
@@ -62,15 +62,18 @@ DODO_PAYMENTS_WEBHOOK_KEY=
 # test_mode | live_mode
 DODO_PAYMENTS_ENVIRONMENT=test_mode
 # Product IDs from the SAME mode as the API key (subscription products)
+# Match shared/plans.ts amounts in Dodo: Solo $6 / Pro $12 / Team $29 / Scale $2.50 per mailbox;
+# annual = 10× monthly ($60 / $120 / $290 / $25 per mailbox).
 DODO_PRODUCT_SOLO=
-DODO_PRODUCT_BUILDER=
-DODO_PRODUCT_STUDIO=
-# Legacy aliases (still accepted):
-# DODO_PRODUCT_STARTER → Solo, DODO_PRODUCT_PRO → Builder
-# DODO_PRODUCT_TEAM / DODO_PRODUCT_BUSINESS → Studio
-DODO_PRODUCT_STARTER=
 DODO_PRODUCT_PRO=
 DODO_PRODUCT_TEAM=
+DODO_PRODUCT_SCALE=
+# Legacy aliases (still accepted):
+# DODO_PRODUCT_STARTER → Solo, DODO_PRODUCT_BUILDER → Pro
+# DODO_PRODUCT_STUDIO / DODO_PRODUCT_BUSINESS → Team
+DODO_PRODUCT_STARTER=
+DODO_PRODUCT_BUILDER=
+DODO_PRODUCT_STUDIO=
 DODO_PRODUCT_BUSINESS=
 
 # Annual Dodo products (−20%)
@@ -86,7 +89,7 @@ DODO_PRODUCT_BUSINESS=
 # SES_INBOUND_WEBHOOK_SECRET, SES_RECEIPT_RULE_SET, SES_INBOUND_BUCKET
 # MAILGUN_API_KEY, MAILGUN_WEBHOOK_SIGNING_KEY (legacy only)
 # DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY, DODO_PAYMENTS_ENVIRONMENT=live_mode
-# DODO_PRODUCT_SOLO, DODO_PRODUCT_BUILDER, DODO_PRODUCT_STUDIO
+# DODO_PRODUCT_SOLO, DODO_PRODUCT_PRO, DODO_PRODUCT_TEAM, DODO_PRODUCT_SCALE
 # Webhook URL: https://useflap.online/api/billing/webhook
 # SES inbound: https://useflap.online/api/inbound/ses
 # Clerk: enable Email link + Google/GitHub in Dashboard; allowed origins include APP_URL

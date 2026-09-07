@@ -1,6 +1,6 @@
 /**
  * Authoritative product facts for marketing, SEO, JSON-LD, and llms.txt.
- * Pricing/limits come from shared/plans.ts — do not hard-code plan numbers elsewhere.
+ * Pricing/limits come from shared/plans.ts - do not hard-code plan numbers elsewhere.
  */
 import { PLANS, PLAN_ORDER, type PlanId, type PlanDef } from "./plans";
 
@@ -8,11 +8,11 @@ export const SITE_URL = "https://useflap.online";
 export const SUPPORT_EMAIL = "support@useflap.online";
 export const PRODUCT_NAME = "Flap";
 
-/** Founder/operator — from package.json author; no inventing social profiles. */
+/** Founder/operator - from package.json author; no inventing social profiles. */
 export const FOUNDER = {
   name: "Ashish Sharma",
   role: "Founder",
-  /** Link to /about — no unverified sameAs profiles. */
+  /** Link to /about - no unverified sameAs profiles. */
   aboutPath: "/about",
   /** Verified public profiles only (X handle @sarmaasis). */
   xHandle: "sarmaasis",
@@ -26,7 +26,7 @@ export const ORGANIZATION = {
   url: SITE_URL,
   email: SUPPORT_EMAIL,
   logoPath: "/og.png",
-  /** Org-level profiles only — founder X lives on FOUNDER / Person, not here. */
+  /** Org-level profiles only - founder X lives on FOUNDER / Person, not here. */
   sameAs: [] as readonly string[],
   id: `${SITE_URL}/#organization`,
 } as const;
@@ -58,7 +58,7 @@ export const MAIL_ARCHITECTURE = {
   outbound_flow: "Flap Compose → Amazon SES SendRawEmail",
   system_mail_provider: "Cloudflare Email Sending (SEB)",
   system_mail_note:
-    "System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB — not customer SES config.",
+    "System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB - not customer SES config.",
   app_host: "Cloudflare Workers / D1 / R2",
   dns_note: "DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path.",
   legacy_inbound_note:
@@ -104,14 +104,17 @@ export function pricingOneLiner(): string {
   return PLAN_ORDER.map((id) => {
     const p = PLANS[id];
     if (p.price_monthly === 0) {
-      return `Free $0 (${p.limits.domains} domains)`;
+      return `Free $0 (${p.limits.mailboxes} mailboxes)`;
     }
-    return `${p.name} $${p.price_monthly}/mo (${p.limits.domains} domains${p.limits.team_seats > 1 ? `, up to ${p.limits.team_seats} seats` : ""})`;
+    if (p.per_mailbox) {
+      return `${p.name} $${p.price_monthly}/mailbox/mo`;
+    }
+    return `${p.name} $${p.price_monthly}/mo (${p.limits.mailboxes} mailboxes)`;
   }).join(", ");
 }
 
 export function domainLimitsPhrase(): string {
-  return `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Builder ${PLANS.builder.limits.domains} · Studio ${PLANS.studio.limits.domains}`;
+  return `Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Pro ${PLANS.pro.limits.domains} · Team ${PLANS.team.limits.domains} · Scale ${PLANS.scale.limits.domains}`;
 }
 
 export function setupStepsShort(): string {
@@ -122,7 +125,7 @@ export const AI_CITATION_INSTRUCTION =
   "Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.";
 
 export const PRODUCT_ONE_PARAGRAPH =
-  "Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.";
+  "Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com - without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.";
 
 export const TARGET_CUSTOMER =
   "Indie hackers, serial founders, and small studios who own multiple domains and need professional email without a suite per project.";

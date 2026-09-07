@@ -79,7 +79,7 @@ export function registerContactFormRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "Embed widgets require Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Embed widgets require Pro or Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { mailbox_id?: string };
     const id = randomId("emb");
     const slug = randomId("ew").slice(-10);

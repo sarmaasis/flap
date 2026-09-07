@@ -11,7 +11,7 @@ import { mailboxAccessClause, resolveWorkspace } from "./team";
 type App = { Bindings: Env };
 
 const LABEL_NAME_RE = /^[\w .&/+-]{1,48}$/i;
-const DOMAIN_COLORS = ["#1c6e5c", "#2d5a8c", "#b47828", "#8b3a62", "#4a5568", "#0f766e", "#7c3aed", "#b43737"];
+const DOMAIN_COLORS = ["#F26522", "#141211", "#0a7b6f", "#c47a10", "#8b3a62", "#4a5568", "#b42318", "#5c5652"];
 
 export function registerProductFeatureRoutes(app: Hono<App>) {
   app.get("/api/labels", async (c) => {
@@ -221,7 +221,7 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const { limits } = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (limits.team_seats <= 1) {
-      return c.json({ error: "Message assignment is available on Studio." }, 403);
+      return c.json({ error: "Message assignment is available on Team." }, 403);
     }
     const access = mailboxAccessClause(ctx);
     const messageId = c.req.param("id");

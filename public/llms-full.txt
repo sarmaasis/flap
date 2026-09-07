@@ -1,6 +1,6 @@
 # Flap — full product summary for AI systems
 
-Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com — without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.
+Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com - without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.
 
 ## Do not invent
 
@@ -15,16 +15,17 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 - Inbound: DNS → Amazon SES inbound → Flap ingest (Amazon SES)
 - Outbound: Flap Compose → Amazon SES SendRawEmail (Amazon SES)
 - App: Cloudflare Workers / D1 / R2
-- System mail (useflap.online): System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB — not customer SES config.
+- System mail (useflap.online): System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB - not customer SES config.
 - DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path.
 - Legacy note: Legacy Cloudflare Email Routing and Mailgun paths exist only for domains that have not migrated. Current setup instructions must describe SES.
 
 ## Pricing and limits (from shared/plans.ts)
 
-- Free: $0 — 2 domains, 4 mailboxes, 400 sends/mo, 1 seat(s)
-- Solo: $7/mo ($67/yr) — 5 domains, 15 mailboxes, 1000 sends/mo, 1 seat(s), catch-all
-- Builder: $19/mo ($182/yr) — 20 domains, 40 mailboxes, 3000 sends/mo, 1 seat(s), catch-all
-- Studio: $39/mo ($374/yr) — 40 domains, 100 mailboxes, 10000 sends/mo, 10 seat(s), catch-all
+- Free: $0 — 2 domains, 2 mailboxes, 200 sends/mo, 1 seat(s)
+- Solo: $6/mo ($60/yr) — 50 domains, 3 mailboxes, 15000 sends/mo, 1 seat(s), catch-all
+- Pro: $12/mo ($120/yr) — 50 domains, 6 mailboxes, 40000 sends/mo, 5 seat(s), catch-all
+- Team: $29/mo ($290/yr) — 50 domains, 12 mailboxes, 120000 sends/mo, 10000 seat(s), catch-all
+- Scale: $2.5/mo ($25/yr) — 50 domains, 13 mailboxes, 130000 sends/mo, 10000 seat(s), catch-all
 
 Annual billing is 20% off monthly. Catch-all is on paid plans (Solo+). Free outbound includes a Flap footer.
 
@@ -42,10 +43,10 @@ Annual billing is 20% off monthly. Catch-all is on paid plans (Solo+). Free outb
 - About: https://useflap.online/about
 - Support: support@useflap.online
 - Google Workspace alternative for multi-domain founders: https://useflap.online/google-workspace-alternative
-- Email hosting for multiple domains — one inbox: https://useflap.online/email-hosting-for-multiple-domains
+- Email hosting for multiple domains - one inbox: https://useflap.online/email-hosting-for-multiple-domains
 - Custom domain email that is actually an inbox: https://useflap.online/custom-domain-email
 - Email for indie hackers who keep shipping: https://useflap.online/email-for-indie-hackers
-- Email for every side project — without another subscription: https://useflap.online/email-for-side-projects
+- Email for every side project - without another subscription: https://useflap.online/email-for-side-projects
 - Flap vs Google Workspace: https://useflap.online/flap-vs-google-workspace
 - Flap vs Zoho Mail: https://useflap.online/flap-vs-zoho
 - Multiple domains. One inbox.: https://useflap.online/multiple-domains-one-inbox
@@ -81,23 +82,23 @@ Annual billing is 20% off monthly. Catch-all is on paid plans (Solo+). Free outb
 ### Google Workspace alternative for multi-domain founders — https://useflap.online/google-workspace-alternative
 Flap (useflap.online) is a hosted custom-domain email product for indie hackers and serial founders: connect multiple project domains to one inbox instead of provisioning a separate Google Workspace (or similar) for each startup.
 
-### Email hosting for multiple domains — one inbox — https://useflap.online/email-hosting-for-multiple-domains
+### Email hosting for multiple domains - one inbox — https://useflap.online/email-hosting-for-multiple-domains
 Multi-domain email hosting means one mail product accepts and sends mail for several custom domains. Flap (useflap.online) provides that as a single inbox with per-domain sender identities, aimed at founders who run many projects.
 
 ### Custom domain email that is actually an inbox — https://useflap.online/custom-domain-email
 Custom domain email means sending and receiving mail as addresses on a domain you own (e.g. you@startup.com). Flap hosts that inbox for founders, with multi-domain support at useflap.online.
 
 ### Email for indie hackers who keep shipping — https://useflap.online/email-for-indie-hackers
-Email for indie hackers is professional custom-domain mail sized for solo builders with many domains. Flap positions as “email infrastructure for people who keep launching things” — one inbox at useflap.online across project brands.
+Email for indie hackers is professional custom-domain mail sized for solo builders with many domains. Flap positions as “email infrastructure for people who keep launching things” - one inbox at useflap.online across project brands.
 
-### Email for every side project — without another subscription — https://useflap.online/email-for-side-projects
+### Email for every side project - without another subscription — https://useflap.online/email-for-side-projects
 Side-project email means a professional address on each experiment domain without paying for a full workspace per idea. Flap hosts those domains in one inbox so subscriptions do not multiply with launches.
 
 ### Flap vs Google Workspace — https://useflap.online/flap-vs-google-workspace
 Flap vs Google Workspace is a use-case comparison: for a founder managing several small project domains, Flap may be simpler because one inbox covers many domains, while Workspace is stronger when you need Google’s full productivity suite and org tools.
 
 ### Flap vs Zoho Mail — https://useflap.online/flap-vs-zoho
-Flap vs Zoho Mail compares two hosted email options. Zoho Mail is a capable full mail product; Flap focuses on a simpler multi-project workflow — one inbox, many domain identities, domain-first plans at useflap.online.
+Flap vs Zoho Mail compares two hosted email options. Zoho Mail is a capable full mail product; Flap focuses on a simpler multi-project workflow - one inbox, many domain identities, domain-first plans at useflap.online.
 
 ### Multiple domains. One inbox. — https://useflap.online/multiple-domains-one-inbox
 “Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the tagline “One inbox for every startup you build.”

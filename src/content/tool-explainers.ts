@@ -21,7 +21,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
   "/tools/email-setup-checker": {
     path: "/tools/email-setup-checker",
     answerFirst:
-      "The email setup checker looks up MX, SPF, and DMARC for a domain and summarizes whether inbound mail and basic authentication records are present. A “pass” here does not guarantee inbox placement — only that common DNS prerequisites exist.",
+      "The email setup checker looks up MX, SPF, and DMARC for a domain and summarizes whether inbound mail and basic authentication records are present. A “pass” here does not guarantee inbox placement - only that common DNS prerequisites exist.",
     whatItChecks:
       "MX (where inbound mail is routed), SPF (which servers may send as the domain), and DMARC (how receivers should treat authentication failures). It does not send mail, open SMTP sessions that deliver messages, or validate DKIM signatures on live messages.",
     interpret: [
@@ -162,7 +162,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
     interpret: [
       {
         state: "p=none",
-        meaning: "Monitor mode — useful while watching reports. Failures are not quarantined/rejected by policy alone.",
+        meaning: "Monitor mode - useful while watching reports. Failures are not quarantined/rejected by policy alone.",
       },
       {
         state: "p=quarantine or p=reject",
@@ -180,7 +180,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
       },
       {
         label: "Risky early reject",
-        body: "p=reject while SPF still missing SES include or DKIM CNAMEs unpublished — legitimate mail may fail.",
+        body: "p=reject while SPF still missing SES include or DKIM CNAMEs unpublished - legitimate mail may fail.",
       },
     ],
     commonErrors: [
@@ -219,7 +219,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
   "/tools/dkim-checker": {
     path: "/tools/dkim-checker",
     answerFirst:
-      "A DKIM checker verifies that a selector’s public key DNS record exists (TXT or CNAME) for your domain. Flap uses Amazon SES Easy DKIM CNAMEs — copy exact tokens from Settings → Setup. Presence of a record does not guarantee every message will authenticate or land in the inbox.",
+      "A DKIM checker verifies that a selector’s public key DNS record exists (TXT or CNAME) for your domain. Flap uses Amazon SES Easy DKIM CNAMEs - copy exact tokens from Settings → Setup. Presence of a record does not guarantee every message will authenticate or land in the inbox.",
     whatItChecks:
       "DNS for <selector>._domainkey.<domain> (or SES token CNAMEs). Enter the selector you actually publish. It does not sign a test message or verify ARC chains.",
     interpret: [
@@ -239,7 +239,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
       },
       {
         label: "Legacy misconception",
-        body: "Expecting smtp._domainkey for SES Easy DKIM — Flap’s current path uses the SES-provided tokens, not a generic smtp selector.",
+        body: "Expecting smtp._domainkey for SES Easy DKIM - Flap’s current path uses the SES-provided tokens, not a generic smtp selector.",
       },
     ],
     commonErrors: [
@@ -278,7 +278,7 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
   "/tools/google-workspace-cost-calculator": {
     path: "/tools/google-workspace-cost-calculator",
     answerFirst:
-      "This calculator estimates illustrative Google Workspace spend when you provision seats across multiple project domains, then compares it to the cheapest Flap plan that covers that domain count. Figures are educational — not invoices or delivery guarantees.",
+      "This calculator estimates illustrative Google Workspace spend when you provision seats across multiple project domains, then compares it to the cheapest Flap plan that covers that domain count. Figures are educational - not invoices or delivery guarantees.",
     whatItChecks:
       "It multiplies domains × users-per-domain × an illustrative Workspace Business Starter list price ($7/user/month from shared config), then picks a Flap plan from shared/plans.ts by domain capacity.",
     interpret: [
@@ -290,13 +290,13 @@ export const TOOL_EXPLAINERS: Record<string, ToolExplainer> = {
       {
         state: "Small or zero savings",
         meaning:
-          "Few domains or Flap’s matching tier is close to the illustrative Workspace line. Compare features — Flap is email-only, not Docs/Drive/Meet.",
+          "Few domains or Flap’s matching tier is close to the illustrative Workspace line. Compare features - Flap is email-only, not Docs/Drive/Meet.",
       },
     ],
     examples: [
       {
         label: "Example",
-        body: "8 domains × 1 user × $7 ≈ $56/mo illustrative Workspace. Flap Builder covers 20 domains at $19/mo list — your habits may differ.",
+        body: "8 domains × 1 user × $7 ≈ $56/mo illustrative Workspace. Flap Pro covers 20 domains at $19/mo list - your habits may differ.",
       },
       {
         label: "Wrong interpretation",

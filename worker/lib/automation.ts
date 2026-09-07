@@ -70,7 +70,7 @@ export function registerAutomationRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "AI assist requires Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "AI assist requires Pro or Team." }, 402);
     const settings = await c.env.DB.prepare("SELECT ai_opt_in FROM user_settings WHERE user_id = ?")
       .bind(ctx.workspaceId)
       .first<{ ai_opt_in: number }>();
@@ -140,7 +140,7 @@ export function registerAutomationRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) return c.json({ error: "Parse rules require Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Parse rules require Pro or Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as {
       name?: string;
       pattern?: string;

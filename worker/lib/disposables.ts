@@ -30,8 +30,8 @@ export function registerDisposableRoutes(app: Hono<AppEnv>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
-    if (!planAtLeast(plan.plan_id, "builder")) {
-      return c.json({ error: "Disposable share addresses require Builder or Studio." }, 402);
+    if (!planAtLeast(plan.plan_id, "pro")) {
+      return c.json({ error: "Disposable share addresses require Pro or Team." }, 402);
     }
     const body = (await c.req.json().catch(() => ({}))) as {
       domain_id?: string;
