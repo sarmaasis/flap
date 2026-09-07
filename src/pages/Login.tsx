@@ -5,53 +5,39 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
-import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
+import {
+  authErrorMessage,
+  clerkHasErrorCode,
+  ClerkMissingCard,
+  useClerkReady,
+} from "../lib/clerk";
 import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
-function OAuthButtons({ invite }: { invite?: string }) {
-  const { signIn, isLoaded } = useSignIn();
-  if (!isLoaded || !signIn) return null;
-
-  const complete = invite ? `/invite/${invite}` : "/app";
-
-  async function social(strategy: "oauth_google" | "oauth_github") {
-    if (!signIn) return;
-    await signIn.authenticateWithRedirect({
-      strategy,
-      redirectUrl: absoluteUrl("/sso-callback"),
-      redirectUrlComplete: absoluteUrl(complete),
-    });
-  }
-
-  return (
-    <div className="stack gap-2">
-      <Button type="button" variant="outline" className="w-full" onClick={() => void social("oauth_google")}>
-        Continue with Google
-      </Button>
-      <Button type="button" variant="secondary" className="w-full" onClick={() => void social("oauth_github")}>
-        Continue with GitHub
-      </Button>
-      <div className="auth-divider"><span>or email a magic link</span></div>
-    </div>
-  );
-}
-
 function LoginInner() {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
-  const { signIn, isLoaded } = useSignIn();
-  const [email, setEmail] = useState("");
+  const { signIn, isLoaded, setActive } = useSignIn();
+  const params = new URLSearchParams(window.location.search);
+  const [email, setEmail] = useState(() => (params.get("email") || "").trim());
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [err, setErr] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(() => {
+    const n = params.get("notice");
+    if (n === "exists") return "That email already has an account. Sign in with a code.";
+    if (n === "already") return "That email is already verified in Clerk. Sign in with a fresh code.";
+    return "";
+  });
   const [busy, setBusy] = useState(false);
-  const invite = new URLSearchParams(window.location.search).get("invite") || undefined;
+  const invite = params.get("invite") || undefined;
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("error")) setErr("Sign-in failed. Try again or use a magic link.");
+    if (params.get("error")) setErr("Sign-in failed. Try again or request a new code.");
     api.setupStatus().then((s) => {
       if (s.needs_setup) go("/setup");
     }).catch(() => undefined);
+    // Intentionally once on mount for query-driven notices.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -66,21 +52,61 @@ function LoginInner() {
     }).catch(() => undefined);
   }, [authLoaded, isSignedIn, invite]);
 
-  async function onMagicLink(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || !signIn) return;
     setErr("");
     setNotice("");
     setBusy(true);
     try {
-      await signIn.create({
-        strategy: "email_link",
-        identifier: email.trim(),
-        redirectUrl: absoluteUrl("/auth/verify"),
+      const created = await signIn.create({ identifier: email.trim() });
+      const emailCodeFactor = created.supportedFirstFactors?.find(
+        (f): f is Extract<typeof f, { strategy: "email_code" }> => f.strategy === "email_code",
+      );
+      if (!emailCodeFactor?.emailAddressId) {
+        setErr(
+          "Email code sign-in is not enabled. In Clerk Dashboard enable Email verification code (User & authentication → Email).",
+        );
+        return;
+      }
+      await signIn.prepareFirstFactor({
+        strategy: "email_code",
+        emailAddressId: emailCodeFactor.emailAddressId,
       });
-      setNotice("Check your email for a sign-in link. It expires in 15 minutes.");
+      setStep("code");
+      setNotice("We sent a 6-digit code to your email. It expires in a few minutes.");
     } catch (ex) {
-      setErr(authErrorMessage(ex, "Could not send magic link."));
+      if (clerkHasErrorCode(ex, "form_identifier_not_found")) {
+        setErr("No account for that email yet.");
+        return;
+      }
+      setErr(authErrorMessage(ex, "Could not send sign-in code."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isLoaded || !signIn || !setActive) return;
+    setErr("");
+    setBusy(true);
+    try {
+      const result = await signIn.attemptFirstFactor({
+        strategy: "email_code",
+        code: code.trim(),
+      });
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        return;
+      }
+      setErr("Could not complete sign-in. Request a new code.");
+    } catch (ex) {
+      if (clerkHasErrorCode(ex, "verification_already_verified") && signIn.createdSessionId) {
+        await setActive({ session: signIn.createdSessionId });
+        return;
+      }
+      setErr(authErrorMessage(ex, "Invalid or expired code."));
     } finally {
       setBusy(false);
     }
@@ -88,25 +114,71 @@ function LoginInner() {
 
   return (
     <div className="auth-shell">
-      <form className="auth-card" onSubmit={onMagicLink}>
+      <form className="auth-card" onSubmit={step === "email" ? sendCode : verifyCode}>
         <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
           <BrandMark /> Flap
         </a>
         <h1>Sign in</h1>
         <p className="muted">
-          Use Google, GitHub, or a magic link — no password to remember.
+          {step === "email"
+            ? "Enter your email and we’ll send a one-time code — no password."
+            : `Enter the code we sent to ${email}.`}
         </p>
         {err ? <p className="error" role="alert">{err}</p> : null}
         {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <OAuthButtons invite={invite} />
         <div className="stack gap-3">
-          <div className="stack gap-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
+          {step === "email" ? (
+            <div className="stack gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="stack gap-1.5">
+              <Label htmlFor="code">Verification code</Label>
+              <Input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                minLength={6}
+                maxLength={8}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+              />
+            </div>
+          )}
           <Button type="submit" disabled={busy || !isLoaded} className="w-full">
-            {busy ? "Sending link…" : "Email me a magic link"}
+            {busy
+              ? step === "email"
+                ? "Sending code…"
+                : "Verifying…"
+              : step === "email"
+                ? "Email me a code"
+                : "Verify and sign in"}
           </Button>
+          {step === "code" ? (
+            <button
+              type="button"
+              className="auth-password-toggle"
+              disabled={busy}
+              onClick={() => {
+                setStep("email");
+                setCode("");
+                setNotice("");
+                setErr("");
+              }}
+            >
+              Use a different email
+            </button>
+          ) : null}
         </div>
         <p className="muted mt-4 text-sm">
           New here?{" "}

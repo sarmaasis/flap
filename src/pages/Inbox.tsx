@@ -712,9 +712,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           <div className="onboarding-banner inbox-onboarding" role="status">
             <div>
               <strong>Finish setup to receive mail</strong>
-              <p>Add your domain and create a mailbox in Settings, then publish the SES DNS records Flap shows at your DNS host.</p>
+              <p>Add your domain and create a mailbox under Domains, then publish the SES DNS records Flap shows at your DNS host.</p>
             </div>
-            <Button type="button" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+            <Button type="button" onClick={() => go("/app/domains?onboarding=1")}>
               Open setup checklist
             </Button>
           </div>
@@ -725,7 +725,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               <strong>Your mailboxes are ready. Finish domain verification to receive mail.</strong>
               <p>Publish SES verification, DKIM, and MX records, then click Check setup.</p>
             </div>
-            <Button type="button" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+            <Button type="button" onClick={() => go("/app/domains?onboarding=1")}>
               Finish setup
             </Button>
           </div>
@@ -850,7 +850,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                             : EMPTY[folder]}
                 </p>
                 {(filteredDomain || needsSetup || domainSetupPending) && !qDebounced && !unreadOnly ? (
-                  <Button type="button" className="mt-3" onClick={() => go("/app/settings?tab=setup&onboarding=1")}>
+                  <Button type="button" className="mt-3" onClick={() => go("/app/domains?onboarding=1")}>
                     {filteredDomain ? "Send a test →" : domainSetupPending ? "Finish setup" : "Start setup"}
                   </Button>
                 ) : null}
@@ -1017,7 +1017,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                         setNoteDraft("");
                       }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not add note."));
                     }}
-                    onOpenBilling={() => go("/app/settings?tab=billing")}
+                    onOpenBilling={() => go("/app/billing")}
                   />
                 );
               })()}
@@ -1143,7 +1143,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           go("/app");
         }}
         onSearchFocus={() => document.getElementById("mail-search")?.focus()}
-        onSettings={(tab) => go(tab ? `/app/settings?tab=${encodeURIComponent(tab)}` : "/app/settings")}
+        onSettings={(tab) => {
+          if (tab === "setup") go("/app/domains");
+          else if (tab === "billing") go("/app/billing");
+          else if (tab === "developers" || tab === "developer") go("/app/developer");
+          else go(tab ? `/app/settings?tab=${encodeURIComponent(tab)}` : "/app/settings");
+        }}
       />
     </AppShell>
   );

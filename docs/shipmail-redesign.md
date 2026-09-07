@@ -517,7 +517,7 @@ Keep crawl equity: `/email-for-indie-hackers`, `/email-for-side-projects`, `/ema
 
 ### Steps
 
-1. **Signup** - magic link / Google / GitHub (keep Better Auth). Minimal fields.
+1. **Signup** - Clerk magic link only (no Google/GitHub in Flap UI). Minimal fields.
 2. **Create org** - name + optional company size (startup / solo / agency) for `/for` personalization.
 3. **Add domain** - own domain first; optional "buy domain" later (do not block).
 4. **DNS checklist** - MX, SPF, DKIM (SES). Copy buttons in JetBrains Mono. Registrar deep links (reuse Flap guides).

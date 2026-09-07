@@ -22,9 +22,9 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 ## Pricing and limits (from shared/plans.ts)
 
 - Free: $0 — 2 domains, 2 mailboxes, 200 sends/mo, 1 seat(s)
-- Solo: $5/mo ($50/yr) — 5 domains, 4 mailboxes, 5000 sends/mo, 1 seat(s), catch-all
-- Pro: $12/mo ($120/yr) — 15 domains, 12 mailboxes, 25000 sends/mo, 5 seat(s), catch-all
-- Team: $29/mo ($290/yr) — 40 domains, 30 mailboxes, 100000 sends/mo, 10000 seat(s), catch-all
+- Solo: $6/mo ($60/yr) — 50 domains, 3 mailboxes, 15000 sends/mo, 1 seat(s), catch-all
+- Pro: $12/mo ($120/yr) — 50 domains, 6 mailboxes, 40000 sends/mo, 5 seat(s), catch-all
+- Team: $29/mo ($290/yr) — 50 domains, 12 mailboxes, 120000 sends/mo, 10000 seat(s), catch-all
 - Scale: $2.5/mo ($25/yr) — 50 domains, 13 mailboxes, 130000 sends/mo, 10000 seat(s), catch-all
 
 Annual billing is 20% off monthly. Catch-all is on paid plans (Solo+). Free outbound includes a Flap footer.

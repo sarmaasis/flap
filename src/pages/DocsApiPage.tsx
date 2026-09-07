@@ -40,7 +40,7 @@ export default function DocsApiPage() {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Button onClick={() => go("/signup")}>Start free</Button>
-          <Button variant="outline" onClick={() => go("/app/settings?tab=developers")}>
+          <Button variant="outline" onClick={() => go("/app/developer")}>
             Open Developers settings
           </Button>
         </div>

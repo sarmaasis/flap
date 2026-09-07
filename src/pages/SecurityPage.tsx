@@ -30,7 +30,7 @@ const SECTIONS = [
   },
   {
     title: "Concrete controls",
-    body: "TLS in transit to the app and to SES. Encryption at rest via Cloudflare D1/R2 and SES storage. Auth rate limits on magic links. HMAC-signed inbound and outbound webhooks.",
+    body: "TLS in transit to the app and to SES. Encryption at rest via Cloudflare D1/R2 and SES storage. Auth rate limits on email codes. HMAC-signed inbound and outbound webhooks.",
   },
   {
     title: "Infrastructure honesty",

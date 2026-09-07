@@ -7,7 +7,7 @@ Flap is email infrastructure, not a full productivity suite. It does not replace
 ## Product
 
 - [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
-- [Pricing](https://useflap.online/pricing): Free $0 (2 domains), Solo $5/mo (5 domains), Pro $12/mo (15 domains, up to 5 seats), Team $29/mo (40 domains, up to 10000 seats), Scale $2.5/mo (50 domains, up to 10000 seats). Annual = 10× monthly.
+- [Pricing](https://useflap.online/pricing): Free $0 (2 mailboxes), Solo $6/mo (3 mailboxes), Pro $12/mo (6 mailboxes), Team $29/mo (12 mailboxes), Scale $2.5/mailbox/mo. Annual = 10× monthly.
 - [About](https://useflap.online/about): What Flap is, who operates it, infrastructure overview
 - [Signup](https://useflap.online/signup): Create a Flap account
 - [Support](https://useflap.online/support): support@useflap.online

@@ -102,7 +102,7 @@ function articleShell(opts: {
 }): string {
   const parts: string[] = [];
   parts.push(`<article style="max-width:42rem;margin:0 auto;padding:2rem 1.25rem;font-family:system-ui,sans-serif;line-height:1.55;color:#141413">`);
-  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#1c6e5c">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
+  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#F26522">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
   parts.push(`<h1 style="font-size:1.85rem;line-height:1.2;margin:0.75rem 0 1rem">${esc(opts.h1)}</h1>`);
   if (opts.definition) {
     parts.push(`<p style="padding:0.85rem 1rem;background:#f0efeb;border-radius:8px"><strong>In short:</strong> ${esc(opts.definition)}</p>`);

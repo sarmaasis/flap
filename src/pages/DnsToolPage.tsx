@@ -511,7 +511,7 @@ export default function DnsToolPage({ path }: { path: string }) {
               </a>
             </Button>
             <Button asChild variant="outline">
-              <a href="/app/settings?tab=setup" onClick={(e) => { e.preventDefault(); go("/app/settings?tab=setup"); }}>
+              <a href="/app/domains" onClick={(e) => { e.preventDefault(); go("/app/domains"); }}>
                 DNS wizard
               </a>
             </Button>

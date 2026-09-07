@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Check } from "lucide-react";
 import MarketingShell from "../components/MarketingShell";
 import { LastUpdated } from "../components/MarketingArticle";
 import { Button } from "../components/ui/button";
 import {
   PLANS,
   PLAN_ORDER,
+  SHARED_STACK_FEATURES,
   monthlyEquivalentFromYearly,
   scaleMonthlyPrice,
   scaleYearlyPrice,
@@ -23,24 +25,24 @@ const UPDATED = "2026-09-07";
 
 const FAQS = [
   {
-    q: "Can I cancel anytime?",
-    a: "Yes. You keep access through the paid period. Export JSON or .mbox from Settings before it ends.",
+    q: "How does billing work?",
+    a: "Free includes real mailboxes. Paid plans are Solo, Pro, Team, and Scale. Annual is 10× monthly (2 months free). You can cancel anytime.",
   },
   {
-    q: "Does Free include real custom-domain email?",
-    a: `Yes. Free includes ${PLANS.free.limits.domains} domains, ${PLANS.free.limits.mailboxes} mailboxes, and ${PLANS.free.limits.send_per_month} outbound sends with a small Flap footer. Paid plans remove the footer and raise limits.`,
+    q: "What counts as a mailbox?",
+    a: "A unique address like hello@yourdomain.com. Each mailbox has its own inbox and storage. Aliases deliver into an existing mailbox.",
   },
   {
-    q: "Is this Google Workspace?",
-    a: "No. Flap is email infrastructure (multi-domain inbox on Amazon SES). It does not replace Docs, Drive, Meet, or Calendar.",
+    q: "Do plans share the same features?",
+    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes — not the product surface. Free lets you try real mailboxes before choosing a paid plan.",
   },
   {
     q: "Do you support IMAP/SMTP today?",
-    a: "Not yet. Use the web app and PWA. Client credentials are scheduled for 2026-10-15. Settings shows the honest path until then.",
+    a: "Not yet. Use the web app and PWA. Support for other email apps is not yet available.",
   },
   {
-    q: "How does annual billing work?",
-    a: "Annual costs the same as 10 monthly payments (2 months free).",
+    q: "Can I use multiple domains?",
+    a: `Yes. Every paid plan includes up to ${PLANS.solo.limits.domains} custom domains. Your plan limit is based on mailboxes.`,
   },
 ];
 
@@ -74,15 +76,14 @@ export default function PricingPage() {
 
   return (
     <MarketingShell>
-      <article className="mx-auto max-w-6xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
+      <article className="flap-pricing mx-auto max-w-6xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Pricing</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-          Flat plans. Domains included.
+          Room for your next big idea.
         </h1>
         <LastUpdated date={UPDATED} />
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)]">
-          No per-seat tax for every side project. Free includes real mailboxes, unlike hosts that charge before you can receive mail.
-          Annual billing is 10× monthly.
+          Start free, then choose the space your team needs. Paid plans include up to {PLANS.solo.limits.domains} custom domains, with plans from ${PLANS.solo.price_monthly}/month.
         </p>
 
         <div className="mt-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-sm">
@@ -90,8 +91,9 @@ export default function PricingPage() {
             type="button"
             className={cn(
               "rounded-full px-4 py-1.5 font-medium",
-              interval === "month" ? "bg-[var(--cta)] text-[var(--cta-fg)]" : "text-[var(--muted)]",
+              interval === "month" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
             )}
+            aria-pressed={interval === "month"}
             onClick={() => setInterval("month")}
           >
             Monthly
@@ -100,12 +102,13 @@ export default function PricingPage() {
             type="button"
             className={cn(
               "rounded-full px-4 py-1.5 font-medium",
-              interval === "year" ? "bg-[var(--cta)] text-[var(--cta-fg)]" : "text-[var(--muted)]",
+              interval === "year" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
             )}
+            aria-pressed={interval === "year"}
             onClick={() => setInterval("year")}
           >
-            Annual
-            <span className="ml-1 text-xs opacity-80">2 mo free</span>
+            Yearly
+            <span className="ml-1 text-xs font-semibold text-[var(--cta)]">2 mo free</span>
           </button>
         </div>
 
@@ -128,9 +131,9 @@ export default function PricingPage() {
               <section
                 key={id}
                 className={cn(
-                  "rounded-xl border p-5",
+                  "landing-plan rounded-[18px] border p-5",
                   plan.highlighted
-                    ? "border-[var(--cta)] bg-[var(--cta-dim)]"
+                    ? "landing-plan-featured"
                     : "border-[var(--line)] bg-[var(--surface)]",
                 )}
               >
@@ -142,22 +145,31 @@ export default function PricingPage() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-sm text-[var(--muted)]">{plan.blurb}</p>
+                <p className={cn("mt-1 text-sm", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>{plan.blurb}</p>
                 <p className="mt-4 text-3xl font-semibold tracking-tight">
                   {plan.price_monthly === 0 ? "$0" : `$${price}`}
-                  {suffix ? <span className="text-base font-normal text-[var(--muted)]">{suffix}</span> : null}
+                  {suffix ? (
+                    <span className={cn("text-base font-normal", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>
+                      {suffix}
+                    </span>
+                  ) : null}
                 </p>
                 {interval === "month" && plan.price_yearly > 0 ? (
-                  <p className="mt-1 text-xs text-[var(--muted)]">
+                  <p className={cn("mt-1 text-xs", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>
                     or ${plan.price_yearly}/yr (~${yearlyEq}/mo)
                   </p>
                 ) : null}
                 {interval === "year" && plan.price_monthly > 0 ? (
-                  <p className="mt-1 text-xs text-[var(--muted)]">${plan.price_monthly}/mo billed yearly</p>
+                  <p className={cn("mt-1 text-xs", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>
+                    About ${yearlyEq}/mo, billed yearly
+                  </p>
                 ) : null}
-                <ul className="mt-4 list-disc space-y-1.5 pl-5 text-sm text-[var(--muted)]">
+                <ul className={cn("mt-4 space-y-2 text-sm", plan.highlighted ? "text-[#d6d3d1]" : "text-[var(--muted)]")}>
                   {plan.features.map((f) => (
-                    <li key={f}>{f}</li>
+                    <li key={f} className="flex gap-2">
+                      <Check className={cn("mt-0.5 h-4 w-4 shrink-0", plan.highlighted ? "text-[var(--cta)]" : "text-[var(--fg)]")} />
+                      <span>{f}</span>
+                    </li>
                   ))}
                 </ul>
                 <Button
@@ -174,6 +186,21 @@ export default function PricingPage() {
             );
           })}
         </div>
+
+        <section className="mt-12 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
+          <h2 className="text-xl font-semibold">The essentials, already included.</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Plans change capacity — not the product. Solo through Scale share these tools (IMAP/SMTP not included yet).
+          </p>
+          <ul className="mt-5 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2 lg:grid-cols-3">
+            {SHARED_STACK_FEATURES.map((f) => (
+              <li key={f} className="flex gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--cta)]" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section className="mt-10 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
           <div className="flex flex-wrap items-end justify-between gap-4">

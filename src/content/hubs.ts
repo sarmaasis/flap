@@ -18,7 +18,7 @@ export const FOR_PAGES: HubPage[] = [
     body: [
       "You keep launching domains. Flap keeps one inbox across them.",
       "Free includes real mailboxes so you can prove MX before you pay.",
-      "Solo starts at $5/mo for five domains - not a suite tax per project.",
+      "Solo starts at $6/mo for three mailboxes — up to 50 domains on every paid plan.",
     ],
   },
   {
@@ -127,7 +127,7 @@ export const VS_PAGES: HubPage[] = [
     description: "Honest comparison: Shipmail mailbox-flat plans vs Flap multi-domain SES hosting.",
     h1: "Flap vs Shipmail",
     body: [
-      "Shipmail public Solo is $4/mo; Flap Solo is $5/mo with more domains on the card (5 vs Shipmail's domain-flat 50 cap shared across plans).",
+      "Shipmail Solo is $4/mo; Flap Solo is $6/mo (Free forever wedge + SES margin). Pro $12 / Team $29. Same paid stack (webmail first; IMAP later).",
       "Shipmail markets IMAP/JMAP/CalDAV and newsletters as included. Flap ships webmail + SES first; IMAP credentials target 2026-10-15.",
       "Flap Free includes real mailboxes. Shipmail Free is dashboard-only (0 mailboxes).",
       "Architecture: Flap = Amazon SES + Cloudflare Workers. Shipmail markets its own EU-hosted mail engine.",

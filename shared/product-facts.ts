@@ -104,9 +104,12 @@ export function pricingOneLiner(): string {
   return PLAN_ORDER.map((id) => {
     const p = PLANS[id];
     if (p.price_monthly === 0) {
-      return `Free $0 (${p.limits.domains} domains)`;
+      return `Free $0 (${p.limits.mailboxes} mailboxes)`;
     }
-    return `${p.name} $${p.price_monthly}/mo (${p.limits.domains} domains${p.limits.team_seats > 1 ? `, up to ${p.limits.team_seats} seats` : ""})`;
+    if (p.per_mailbox) {
+      return `${p.name} $${p.price_monthly}/mailbox/mo`;
+    }
+    return `${p.name} $${p.price_monthly}/mo (${p.limits.mailboxes} mailboxes)`;
   }).join(", ");
 }
 

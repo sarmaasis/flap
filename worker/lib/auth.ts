@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { clerkAuthorizedParties, flapClerk, requestWithClerkToken } from "./clerk";
 import { ensureFlapUser, referralFromCookieHeader } from "./flap-user";
+import { markEmailVerified } from "./referrals";
 
 export type UserRow = {
   id: string;
@@ -35,12 +36,28 @@ export async function getSessionUser(c: Context<AppEnv>): Promise<SessionUser | 
     return null;
   }
 
+  const raw = c.req.raw;
   const clerk = flapClerk(c.env);
-  const requestState = await clerk.authenticateRequest(requestWithClerkToken(c.req.raw), {
-    authorizedParties: clerkAuthorizedParties(c.env),
+  const requestState = await clerk.authenticateRequest(requestWithClerkToken(raw), {
+    authorizedParties: clerkAuthorizedParties(c.env, raw),
   });
 
-  if (!requestState.isAuthenticated) return null;
+  if (!requestState.isAuthenticated) {
+    const quiet =
+      requestState.reason === "session-token-and-uat-missing" ||
+      requestState.reason === "session-token-missing" ||
+      requestState.reason === "dev-browser-missing" ||
+      requestState.reason === "client-uat-but-no-session-token";
+    if (!quiet) {
+      console.warn(
+        "Clerk authenticateRequest failed",
+        requestState.status,
+        requestState.reason,
+        requestState.message,
+      );
+    }
+    return null;
+  }
 
   const auth = requestState.toAuth();
   const clerkUserId = auth.userId;
@@ -54,7 +71,22 @@ export async function getSessionUser(c: Context<AppEnv>): Promise<SessionUser | 
     .first<UserRow & { email_verified_at: number | null; clerk_user_id: string | null }>();
 
   if (existing) {
-    const emailVerified = Boolean(existing.email_verified_at);
+    let emailVerified = Boolean(existing.email_verified_at);
+    // Sync Clerk verification onto legacy / partial rows so magic-link users are not stuck.
+    if (!emailVerified) {
+      try {
+        const clerkUser = await clerk.users.getUser(clerkUserId);
+        const primary =
+          clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) ||
+          clerkUser.emailAddresses[0];
+        if (primary?.verification?.status === "verified") {
+          await markEmailVerified(c.env.DB, existing.id);
+          emailVerified = true;
+        }
+      } catch (err) {
+        console.warn("Could not sync Clerk email verification", err);
+      }
+    }
     return {
       id: existing.id,
       email: existing.email,

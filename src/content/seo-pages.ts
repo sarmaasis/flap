@@ -663,7 +663,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Flap’s bet",
-        body: "Domain count is the main scaling axis (Solo 5, Pro 15, Team 40). Features like catch-all, filters, API keys, inbound webhooks, and Team seats show up where plans unlock them - not as vague “priority support” badges.",
+        body: "Mailbox count is the main scaling axis (Solo 3, Pro 6, Team 12; up to 50 domains on every paid plan). Features like catch-all, filters, API keys, inbound webhooks, and Team seats show up where plans unlock them - not as vague “priority support” badges.",
       },
       {
         heading: "Trust and exit",

@@ -32,7 +32,7 @@ export function registerOnboardingToolRoutes(app: Hono<AppEnv>) {
         { id: "send_test", done: false },
         { id: "invite_teammate", optional: true, done: false },
       ],
-      next: "/app/settings?tab=setup&wizard=1",
+      next: "/app/domains?wizard=1",
     });
   });
 

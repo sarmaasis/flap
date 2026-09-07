@@ -65,7 +65,7 @@ export default function ProjectWizard({ open, onClose }: { open: boolean; onClos
               <Button variant="outline" onClick={onClose}>
                 Close
               </Button>
-              <Button onClick={() => go("/app/settings?tab=setup&wizard=1")}>Open Setup</Button>
+              <Button onClick={() => go("/app/domains?wizard=1")}>Open Setup</Button>
             </DialogFooter>
           </div>
         ) : (

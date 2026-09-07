@@ -6,13 +6,13 @@
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Paper/orange/ink tokens + Inter/JetBrains Mono | **Shipped** | `src/index.css`, `index.html`, manifest |
-| Logo mark uses orange flap | **Shipped** | CSS vars `--mark-flap` |
-| Pricing Solo $5 / Pro $12 / Team $29 / Scale | **Shipped** | `shared/plans.ts`; Free keeps 2 mailboxes |
+| Paper/orange/ink tokens + Inter/JetBrains Mono | **Shipped** | `src/index.css`, `index.html`, manifest; teal brand chrome removed |
+| Logo mark uses orange flap | **Shipped** | CSS vars `--mark-flap`; carbon square mark + favicon |
+| Pricing Solo $6 / Pro $12 / Team $29 / Scale $2.50 | **Shipped** | `shared/plans.ts`; Free keeps 2 mailboxes; above Shipmail Solo/Pro for SES+Free wedge |
 | Annual = 10× monthly | **Shipped** | |
 | Pricing Monthly\|Annual toggle + Scale slider | **Shipped** | `/pricing` |
 | Dodo docs + legacy builder/studio map | **Shipped** | `docs/dodo-billing.md` |
-| Landing / marketing positioning | **Shipped** | Shipmail-shaped, Flap-owned |
+| Landing / marketing positioning | **Shipped** | Shipmail structure: pill nav, hero highlight, stats, ticker, dark featured plan |
 | `/security` | **Shipped** | Honest SES/CF |
 | `/for` + P0 ICP pages | **Shipped** | 7 pages |
 | `/vs` + P0 comps incl. Shipmail | **Shipped** | 10 pages |

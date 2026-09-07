@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useAuth, useClerk, useUser } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
+import { authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
 import {
   readPendingVerifyEmail,
@@ -14,12 +14,13 @@ import {
 function VerifyEmailInner() {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { user, isLoaded: userLoaded } = useUser();
-  const clerk = useClerk();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [reason, setReason] = useState<"signup" | "signin" | "">("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -44,42 +45,56 @@ function VerifyEmailInner() {
     }
   }, [authLoaded, userLoaded, user]);
 
-  async function resend() {
+  async function sendCode() {
     setErr("");
     setNotice("");
     setBusy(true);
     try {
       if (!isSignedIn || !user?.primaryEmailAddress) {
-        setErr("Sign in first, then resend — or use a magic link on /login.");
+        setErr("Sign in first, then request a code — or use /login.");
         return;
       }
       const addr = user.primaryEmailAddress;
-      const { startEmailLinkFlow } = addr.createEmailLinkFlow();
-      await startEmailLinkFlow({
-        redirectUrl: absoluteUrl(
-          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
-        ),
-      });
+      await addr.prepareVerification({ strategy: "email_code" });
       storePendingVerifyEmail(addr.emailAddress);
-      setNotice("Verification email sent. Check your inbox (and spam).");
+      setAwaitingCode(true);
+      setNotice("Verification code sent. Check your inbox (and spam).");
     } catch (ex) {
-      setErr(authErrorMessage(ex, "Could not resend verification email."));
+      setErr(authErrorMessage(ex, "Could not send verification code."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+    setBusy(true);
+    try {
+      if (!isSignedIn || !user?.primaryEmailAddress) {
+        setErr("Sign in first, then enter the code.");
+        return;
+      }
+      await user.primaryEmailAddress.attemptVerification({ code: code.trim() });
+      go("/app");
+    } catch (ex) {
+      setErr(authErrorMessage(ex, "Invalid or expired code."));
     } finally {
       setBusy(false);
     }
   }
 
   const headline =
-    reason === "signin" ? "Verify your email to sign in" : "Check your email to verify";
+    reason === "signin" ? "Verify your email to sign in" : "Verify your email";
 
   const blurb =
     reason === "signin"
-      ? "This account still needs email verification before you can open Flap. Request a new link below, or sign in with a magic link."
-      : "Open the verification link we sent, then you can use the app. Prefer a magic link? Head back to sign in.";
+      ? "This account still needs email verification before you can open Flap. Request a code below."
+      : "Enter the one-time code from your email to finish verification.";
 
   return (
     <div className="auth-shell">
-      <div className="auth-card">
+      <form className="auth-card" onSubmit={(e) => void (awaitingCode ? verifyCode(e) : (e.preventDefault(), sendCode()))}>
         <a
           className="brand"
           href="/"
@@ -104,29 +119,39 @@ function VerifyEmailInner() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={Boolean(user?.primaryEmailAddress)}
             />
           </div>
-          <Button type="button" disabled={busy || !clerk.loaded} className="w-full" onClick={() => void resend()}>
-            {busy ? "Sending…" : "Resend verification email"}
+          {awaitingCode ? (
+            <div className="stack gap-1.5">
+              <Label htmlFor="verify-code">Verification code</Label>
+              <Input
+                id="verify-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                minLength={6}
+                maxLength={8}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+              />
+            </div>
+          ) : null}
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy
+              ? awaitingCode
+                ? "Verifying…"
+                : "Sending…"
+              : awaitingCode
+                ? "Verify code"
+                : "Send verification code"}
           </Button>
           <button type="button" className="auth-password-toggle" onClick={() => go("/login")}>
             Back to sign in
           </button>
         </div>
-        <p className="muted mt-4 text-xs leading-relaxed">
-          Prefer a faster path next time?{" "}
-          <a
-            href="/login"
-            onClick={(e) => {
-              e.preventDefault();
-              go("/login");
-            }}
-          >
-            Use a magic link
-          </a>{" "}
-          — it signs you in and verifies your email in one click.
-        </p>
-      </div>
+      </form>
     </div>
   );
 }

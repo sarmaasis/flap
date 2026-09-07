@@ -111,11 +111,13 @@ function collectCorpus(): string {
 // 9 pricing shared
 {
   assert.equal(PLANS.free.limits.domains, 2);
-  assert.equal(PLANS.solo.limits.domains, 5);
-  assert.equal(PLANS.pro.limits.domains, 15);
-  assert.equal(PLANS.solo.price_monthly, 5);
+  assert.equal(PLANS.solo.limits.domains, 50);
+  assert.equal(PLANS.pro.limits.domains, 50);
+  assert.equal(PLANS.solo.price_monthly, 6);
   assert.equal(PLANS.pro.price_monthly, 12);
   assert.equal(PLANS.team.price_monthly, 29);
+  assert.equal(PLANS.solo.limits.mailboxes, 3);
+  assert.equal(PLANS.pro.limits.mailboxes, 6);
   ok("9 shared plan configuration authoritative");
 }
 

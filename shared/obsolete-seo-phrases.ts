@@ -25,12 +25,15 @@ export const OBSOLETE_SETUP_PHRASES = [
   "publish Cloudflare Email Routing MX/SPF/DKIM",
 ] as const;
 
-/** Stale hard-coded plan numbers that contradict shared/plans.ts (current: Free 2 / Solo 5 $5 / Pro 15 $12 / Team 40 $29). */
+/** Stale hard-coded plan numbers that contradict shared/plans.ts (current: Free 2 / Solo 3 $6 / Pro 6 $12 / Team 12 $29). */
 export const OBSOLETE_PLAN_PHRASES = [
   "Solo 3, Builder 10",
   "Solo 3, Builder 10, Studio 40",
   "Solo $9",
   "Solo $7",
+  "Solo $5",
+  "Solo $4",
+  "Pro $9",
   "Builder $19",
   "Studio $39",
   "Builder 20",

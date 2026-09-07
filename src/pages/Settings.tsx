@@ -26,19 +26,68 @@ import {
 } from "../lib/api";
 import { ThemeToggle } from "../components/ThemeProvider";
 import { go } from "../lib/nav";
-import { absoluteUrl } from "../lib/clerk";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 
-type Tab = "setup" | "compose" | "contacts" | "filters" | "aliases" | "delivery" | "developers" | "privacy" | "billing" | "team" | "referrals";
+type Tab =
+  | "general"
+  | "preferences"
+  | "setup"
+  | "compose"
+  | "contacts"
+  | "filters"
+  | "aliases"
+  | "delivery"
+  | "developers"
+  | "privacy"
+  | "billing"
+  | "team"
+  | "referrals";
 
-function initialTab(): Tab {
+type SettingsSurface = "account" | "domains" | "billing" | "developer";
+
+function detectSurface(): SettingsSurface {
+  const path = window.location.pathname;
+  if (path === "/app/domains") return "domains";
+  if (path === "/app/billing") return "billing";
+  if (path === "/app/developer") return "developer";
+  return "account";
+}
+
+function initialTab(surface: SettingsSurface): Tab {
   if (window.location.pathname === "/settings/referrals") return "referrals";
+  if (surface === "domains") return "setup";
+  if (surface === "billing") return "billing";
+  if (surface === "developer") return "developers";
   const q = new URLSearchParams(window.location.search).get("tab");
-  const allowed: Tab[] = ["setup", "compose", "contacts", "filters", "aliases", "delivery", "developers", "privacy", "billing", "team", "referrals"];
-  return allowed.includes(q as Tab) ? (q as Tab) : "setup";
+  // Legacy redirects from old mega-settings
+  if (q === "setup") {
+    window.history.replaceState({}, "", "/app/domains");
+    return "setup";
+  }
+  if (q === "billing") {
+    window.history.replaceState({}, "", "/app/billing");
+    return "billing";
+  }
+  if (q === "developers") {
+    window.history.replaceState({}, "", "/app/developer");
+    return "developers";
+  }
+  const accountTabs: Tab[] = [
+    "general",
+    "preferences",
+    "compose",
+    "contacts",
+    "filters",
+    "aliases",
+    "delivery",
+    "privacy",
+    "team",
+    "referrals",
+  ];
+  return accountTabs.includes(q as Tab) ? (q as Tab) : "general";
 }
 
 function formatBytes(n: number): string {
@@ -163,9 +212,12 @@ function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
 
 export default function Settings() {
   const clerk = useClerk();
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [surface] = useState<SettingsSurface>(() => detectSurface());
+  const [tab, setTab] = useState<Tab>(() => initialTab(detectSurface()));
   const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const [email, setEmail] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [domains, setDomains] = useState<Domain[]>([]);
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [domainName, setDomainName] = useState("");
@@ -214,6 +266,7 @@ export default function Settings() {
   const [onboardingBanner, setOnboardingBanner] = useState(
     () => new URLSearchParams(window.location.search).get("onboarding") === "1",
   );
+  const [domainEntryMode, setDomainEntryMode] = useState<"choose" | "have" | "need">("choose");
   const [setupLoading, setSetupLoading] = useState(true);
   const [dnsStatus, setDnsStatus] = useState<{
     verified: boolean;
@@ -238,6 +291,8 @@ export default function Settings() {
   const [dnsPollNote, setDnsPollNote] = useState("");
   const [emailVerified, setEmailVerified] = useState(true);
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyCodeSent, setVerifyCodeSent] = useState(false);
   const dnsPollRef = useRef<{ cancelled: boolean; timer: ReturnType<typeof setTimeout> | null }>({
     cancelled: false,
     timer: null,
@@ -260,6 +315,7 @@ export default function Settings() {
         api.activation().catch(() => null),
       ]);
       setDomains(d.domains);
+      if (d.domains.length > 0) setDomainEntryMode("have");
       setPrefs(p.settings);
       if (act) {
         setActivation(act);
@@ -286,6 +342,8 @@ export default function Settings() {
     if (!force && loadedTabs.current.has(next)) return;
     try {
       switch (next) {
+        case "general":
+        case "preferences":
         case "setup":
           await api.billingSubscription().then(setBilling).catch(() => undefined);
           break;
@@ -417,14 +475,24 @@ export default function Settings() {
 
   useEffect(() => {
     refreshCore()
-      .then(() => loadTabData(initialTab()))
+      .then(() => loadTabData(tab))
       .catch(() => go("/login"));
+    setOrgName(localStorage.getItem("flap_org_name") || "");
+    setProfileName(localStorage.getItem("flap_profile_name") || "");
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "done") {
       setNotice("Checkout complete. Plan entitlements update when Dodo confirms the subscription webhook.");
+      if (surface !== "billing") {
+        go("/app/billing?checkout=done");
+        return;
+      }
       setTab("billing");
     }
     if (params.get("onboarding") === "1") {
+      if (surface !== "domains") {
+        go("/app/domains?onboarding=1");
+        return;
+      }
       setOnboardingBanner(true);
       setTab("setup");
       setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
@@ -432,16 +500,22 @@ export default function Settings() {
     if (params.get("verify") === "ok") {
       setEmailVerified(true);
       setNotice("Email verified. You can finish domain setup below.");
+      if (surface !== "domains") {
+        go("/app/domains?verify=ok");
+        return;
+      }
       setTab("setup");
     }
     if (params.get("verify") === "sent") {
       setEmailVerified(false);
-      setNotice("Check your inbox for a verification link from Flap (expires in 48 hours).");
-      setTab("setup");
+      setNotice("Check your inbox for a verification code from Clerk.");
+      if (surface === "account") setTab("general");
+      else setTab("setup");
     }
     if (params.get("verify") === "failed") {
-      setErr(params.get("reason") || "Email verification failed. Request a new link below.");
-      setTab("setup");
+      setErr(params.get("reason") || "Email verification failed. Request a new code below.");
+      if (surface === "account") setTab("general");
+      else setTab("setup");
     }
     if (params.get("joined") === "1") {
       setTab("team");
@@ -507,9 +581,22 @@ export default function Settings() {
   }, [dnsStatus?.verified]);
 
   function selectTab(id: Tab) {
+    if (id === "setup" && surface !== "domains") {
+      go("/app/domains");
+      return;
+    }
+    if (id === "billing" && surface !== "billing") {
+      go("/app/billing");
+      return;
+    }
+    if (id === "developers" && surface !== "developer") {
+      go("/app/developer");
+      return;
+    }
     setTab(id);
+    if (surface === "domains" || surface === "billing" || surface === "developer") return;
     const url = new URL(window.location.href);
-    if (id === "setup") url.searchParams.delete("tab");
+    if (id === "general") url.searchParams.delete("tab");
     else url.searchParams.set("tab", id);
     window.history.replaceState({}, "", `${url.pathname}${url.search}`);
   }
@@ -650,15 +737,34 @@ export default function Settings() {
         setNotice("Email is already verified.");
         return;
       }
-      const { startEmailLinkFlow } = addr.createEmailLinkFlow();
-      await startEmailLinkFlow({
-        redirectUrl: absoluteUrl(
-          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
-        ),
-      });
-      setNotice("Verification email sent.");
+      await addr.prepareVerification({ strategy: "email_code" });
+      setVerifyCodeSent(true);
+      setNotice("Verification code sent — enter it below.");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not resend verification.");
+    } finally {
+      setVerifyBusy(false);
+    }
+  }
+
+  async function submitVerifyCode() {
+    setVerifyBusy(true);
+    setErr("");
+    try {
+      const addr = clerk.user?.primaryEmailAddress;
+      if (!addr) {
+        setErr("Sign in again to verify.");
+        return;
+      }
+      await addr.attemptVerification({ code: verifyCode.trim() });
+      setNotice("Email verified.");
+      setVerifyCode("");
+      setVerifyCodeSent(false);
+      setEmailVerified(true);
+      await refreshCore();
+      await clerk.user?.reload();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Invalid or expired code.");
     } finally {
       setVerifyBusy(false);
     }
@@ -708,19 +814,52 @@ export default function Settings() {
   const hasMailbox = mailboxes.length > 0;
   const domainMailboxes = mailboxes.filter((m) => m.domain_id === domainId);
 
-  const tabs: Array<[Tab, string]> = [
-    ["setup", "Setup"],
-    ["compose", "Compose"],
-    ["contacts", "Contacts"],
-    ["filters", "Rules"],
-    ["aliases", "Aliases"],
-    ["delivery", "Delivery"],
-    ["developers", "Developers"],
-    ["privacy", "Privacy"],
-    ["billing", "Billing"],
-    ["team", "Team"],
-    ["referrals", "Referrals"],
-  ];
+  const tabs: Array<[Tab, string]> =
+    surface === "domains"
+      ? [["setup", "Domains"]]
+      : surface === "billing"
+        ? [["billing", "Billing"]]
+        : surface === "developer"
+          ? [["developers", "Developer"]]
+          : [
+              ["general", "General"],
+              ["preferences", "Preferences"],
+              ["team", "Team"],
+              ["compose", "Compose"],
+              ["contacts", "Contacts"],
+              ["filters", "Rules"],
+              ["aliases", "Aliases"],
+              ["delivery", "Delivery"],
+              ["privacy", "Privacy"],
+              ["referrals", "Referrals"],
+            ];
+
+  const shellCurrent =
+    surface === "domains"
+      ? "domains"
+      : surface === "billing"
+        ? "billing"
+        : surface === "developer"
+          ? "developer"
+          : "settings";
+
+  const pageTitle =
+    surface === "domains"
+      ? "Domains"
+      : surface === "billing"
+        ? "Billing"
+        : surface === "developer"
+          ? "Developer"
+          : "Settings";
+
+  const pageLede =
+    surface === "domains"
+      ? "Connect domains and publish MX/SPF/DKIM. Manage verification status here."
+      : surface === "billing"
+        ? "Plans, usage, and invoices."
+        : surface === "developer"
+          ? "API keys, webhooks, and agent integrations."
+          : "Manage your account and organization.";
 
   async function startCheckout(planId: string) {
     setErr("");
@@ -749,20 +888,19 @@ export default function Settings() {
   }
 
   return (
-    <AppShell email={email} current="settings" onLogout={() => void logout()}>
-      <main className="settings">
+    <AppShell email={email} current={shellCurrent} onLogout={() => void logout()}>
+      <main className="settings settings-shipmail">
         <div className="settings-shell">
         <header className="settings-header">
           <div className="min-w-0">
-            <p className="eyebrow">Workspace</p>
-            <h1>Settings</h1>
-            <p className="lede">Domain, routing, delivery, and developer hooks — one place.</p>
+            <h1>{pageTitle}</h1>
+            <p className="lede">{pageLede}</p>
           </div>
           <div className="md:hidden shrink-0">
             <ThemeToggle />
           </div>
         </header>
-        {onboardingBanner || (activation && !activation.onboarding_dismissed && !activation.activated) ? (
+        {surface === "domains" && (onboardingBanner || (activation && !activation.onboarding_dismissed && !activation.activated)) ? (
           <div className="onboarding-banner" role="status">
             <div>
               <strong>Your Flap setup</strong>
@@ -792,38 +930,246 @@ export default function Settings() {
             </Button>
           </div>
         ) : null}
-        <Tabs value={tab} onValueChange={(v) => selectTab(v as Tab)} className="settings-tabs-root">
-          <TabsList className="settings-tabs-list h-auto w-full justify-start gap-0.5 p-0.5">
-            {tabs.map(([id, label]) => (
-              <TabsTrigger
-                key={id}
-                value={id}
-                className="h-7 shrink-0 px-2.5 py-1 text-[12px] font-medium tracking-normal normal-case"
-              >
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        {tabs.length > 1 ? (
+          <Tabs value={tab} onValueChange={(v) => selectTab(v as Tab)} className="settings-tabs-root settings-tabs-underline">
+            <TabsList className="settings-tabs-list h-auto w-full justify-start gap-1 border-b border-[var(--line)] bg-transparent p-0">
+              {tabs.map(([id, label]) => (
+                <TabsTrigger
+                  key={id}
+                  value={id}
+                  className="h-9 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-3 text-[13px] font-medium tracking-normal normal-case data-[state=active]:border-[var(--cta)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-none"
+                >
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        ) : null}
         <div ref={bannerRef} className="sticky top-0 z-20 -mx-1 space-y-2 bg-[var(--bg)]/95 px-1 py-1 backdrop-blur-sm">
           {err ? <div className="err">{err}</div> : null}
           {notice ? <div className="notice" role="status">{notice}</div> : null}
         </div>
+
+        {tab === "general" ? (
+          <div className="settings-general stack gap-8">
+            <section className="settings-block">
+              <h2>Workspace</h2>
+              <p className="muted text-sm">Manage your organization settings.</p>
+              <div className="settings-card">
+                <label className="stack gap-1.5">
+                  <span className="text-sm font-medium">Organization name</span>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      className="input"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      placeholder="Acme Inc."
+                      style={{ maxWidth: 320 }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem("flap_org_name", orgName.trim());
+                        setNotice("Organization name saved on this device.");
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            <section className="settings-block">
+              <h2>Profile</h2>
+              <p className="muted text-sm">Your personal information.</p>
+              <div className="settings-card stack gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="settings-avatar" aria-hidden>
+                    {(profileName || email || "?").slice(0, 2).toUpperCase()}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">Avatar</p>
+                    <p className="muted text-xs">Uses your initials for now. Upload comes later.</p>
+                  </div>
+                </div>
+                <label className="stack gap-1.5">
+                  <span className="text-sm font-medium">Full name</span>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      className="input"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="Jane Smith"
+                      style={{ maxWidth: 320 }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem("flap_profile_name", profileName.trim());
+                        setNotice("Profile name saved on this device.");
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            <section className="settings-block">
+              <h2>Account Security</h2>
+              <p className="muted text-sm">Manage how you sign in and protect your account.</p>
+              <div className="settings-card stack gap-3">
+                <h3 className="text-sm font-semibold">Login email</h3>
+                <p className="muted text-xs">Signed in with Clerk. Use Account → Security in Clerk for 2FA when enabled on your instance.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{email || "—"}</span>
+                  <Badge>Primary</Badge>
+                  {emailVerified ? <Badge variant="secondary">Verified</Badge> : <Badge variant="secondary">Unverified</Badge>}
+                </div>
+                {!emailVerified ? (
+                  <Button size="sm" type="button" disabled={verifyBusy} onClick={() => void resendVerify()}>
+                    {verifyBusy ? "Sending…" : "Send verification code"}
+                  </Button>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="settings-block">
+              <h2>Export data</h2>
+              <p className="muted text-sm">Download a copy of workspace data.</p>
+              <div className="settings-card flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Full account export</p>
+                  <p className="muted text-xs">JSON backup from Privacy, plus mailbox .mbox downloads.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => selectTab("privacy")}>
+                  Open Privacy
+                </Button>
+              </div>
+            </section>
+
+            <section className="settings-block">
+              <h2>Danger Zone</h2>
+              <p className="muted text-sm">Permanently delete your account and associated data.</p>
+              <div className="settings-card settings-card-danger flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">Delete account</p>
+                  <p className="muted text-xs">Cancels billing access and removes workspace data. Prefer export first.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => selectTab("privacy")}>
+                  Manage deletion
+                </Button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "preferences" ? (
+          <div className="settings-general stack gap-8">
+            <section className="settings-block">
+              <h2>Appearance</h2>
+              <p className="muted text-sm">Theme follows the app shell. Marketing stays paper-light.</p>
+              <div className="settings-card">
+                <ThemeToggle />
+              </div>
+            </section>
+            <section className="settings-block">
+              <h2>Mail preferences</h2>
+              <p className="muted text-sm">Vacation responder, notifications, and undo-send.</p>
+              <div className="settings-card stack gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(prefs.vacation_enabled)}
+                    onChange={(e) => setPrefs({ ...prefs, vacation_enabled: e.target.checked ? 1 : 0 })}
+                  />
+                  Vacation responder on
+                </label>
+                <textarea
+                  className="input"
+                  rows={4}
+                  value={prefs.vacation_body}
+                  onChange={(e) => setPrefs({ ...prefs, vacation_body: e.target.value })}
+                  placeholder="Out of office…"
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(prefs.notify_browser)}
+                    onChange={(e) => setPrefs({ ...prefs, notify_browser: e.target.checked ? 1 : 0 })}
+                  />
+                  Browser notifications
+                </label>
+                <label className="stack gap-1.5 text-sm">
+                  Undo send (seconds)
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={prefs.undo_send_seconds}
+                    onChange={(e) => setPrefs({ ...prefs, undo_send_seconds: Number(e.target.value) || 0 })}
+                    style={{ maxWidth: 120 }}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void api
+                      .savePrefs({
+                        vacation_enabled: Boolean(prefs.vacation_enabled),
+                        vacation_body: prefs.vacation_body,
+                        notify_browser: Boolean(prefs.notify_browser),
+                        undo_send_seconds: prefs.undo_send_seconds,
+                      })
+                      .then(() => setNotice("Preferences saved."))
+                      .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not save."));
+                  }}
+                >
+                  Save preferences
+                </Button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {tab === "setup" ? (
           <>
             {!emailVerified ? (
               <div className="notice dns-issues" role="status">
                 <p>
-                  Confirm <strong>{email}</strong> via the verification link we sent. Referral rewards and some activation steps wait on this.
+                  Confirm <strong>{email}</strong> with a one-time code. Referral rewards and some activation steps wait on this.
                 </p>
-                <p style={{ marginTop: 8 }}>
-                  <Button size="sm" type="button" disabled={verifyBusy} onClick={() => void resendVerify()}>
-                    {verifyBusy ? "Sending…" : "Resend verification email"}
-                  </Button>
-                </p>
+                {verifyCodeSent ? (
+                  <p style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                      value={verifyCode}
+                      onChange={(e) => setVerifyCode(e.target.value)}
+                      style={{ maxWidth: 140 }}
+                    />
+                    <Button size="sm" type="button" disabled={verifyBusy || verifyCode.trim().length < 4} onClick={() => void submitVerifyCode()}>
+                      {verifyBusy ? "Verifying…" : "Verify code"}
+                    </Button>
+                    <Button size="sm" type="button" variant="secondary" disabled={verifyBusy} onClick={() => void resendVerify()}>
+                      Resend code
+                    </Button>
+                  </p>
+                ) : (
+                  <p style={{ marginTop: 8 }}>
+                    <Button size="sm" type="button" disabled={verifyBusy} onClick={() => void resendVerify()}>
+                      {verifyBusy ? "Sending…" : "Send verification code"}
+                    </Button>
+                  </p>
+                )}
               </div>
             ) : null}
+            {(hasDomain || domainEntryMode !== "choose") ? (
             <ol className="setup-steps" aria-label="Setup progress">
               <li className={hasDomain ? "complete" : "current"}>
                 <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "Any domain you control"}</small></div>
@@ -838,6 +1184,7 @@ export default function Settings() {
                 <span>4</span><div><strong>Send &amp; receive a test</strong><small>Prove end-to-end, then upgrade only for more capacity</small></div>
               </li>
             </ol>
+            ) : null}
             {setupLoading ? (
               <div className="skeleton-stack" aria-busy="true" aria-label="Loading setup">
                 <div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" />
@@ -845,12 +1192,51 @@ export default function Settings() {
             ) : null}
             <div className="settings-panel settings-measure">
             <section className="settings-card" aria-labelledby="domains-title">
-              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>Add any domain you control. Publish the DNS records Flap shows at your registrar or DNS host — then create mailboxes here. Click a domain to configure its DNS below.</p></div></div>
+              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>{domains.length === 0 && domainEntryMode === "choose" ? "Connect a domain you already own, or buy one elsewhere first." : "Add any domain you control. Publish the DNS records Flap shows at your registrar or DNS host — then create mailboxes here."}</p></div></div>
+              {!setupLoading && domains.length === 0 && domainEntryMode === "choose" ? (
+                <div className="domain-entry-grid" role="group" aria-label="How do you want to start?">
+                  <button type="button" className="domain-entry-card" onClick={() => setDomainEntryMode("have")}>
+                    <strong>I have a domain</strong>
+                    <span className="muted">Connect example.com and publish MX, SPF, and DKIM at your DNS host.</span>
+                  </button>
+                  <button type="button" className="domain-entry-card" onClick={() => setDomainEntryMode("need")}>
+                    <strong>I need a domain</strong>
+                    <span className="muted">Buy one at your registrar, then come back here to connect it. Flap does not sell domains.</span>
+                  </button>
+                </div>
+              ) : null}
+              {!setupLoading && domains.length === 0 && domainEntryMode === "need" ? (
+                <div className="domain-need-panel" style={{ marginTop: 12 }}>
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    Register a domain at Porkbun, Namecheap, Cloudflare Registrar, or wherever you prefer. When you own it, connect it here — DNS stays at your registrar.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => setDomainEntryMode("have")}>
+                      I bought a domain — connect it
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setDomainEntryMode("choose")}>
+                      Back
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => go("/guides")}>
+                      DNS guides
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {domains.length > 0 || domainEntryMode === "have" ? (
+              <>
               <form className="row-form" onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
                 <Button size="sm" type="submit">Add domain</Button>
               </form>
+              {domains.length === 0 && domainEntryMode === "have" ? (
+                <p className="muted" style={{ marginTop: 8 }}>
+                  <button type="button" className="text-button" onClick={() => setDomainEntryMode("choose")}>
+                    ← Back to choices
+                  </button>
+                </p>
+              ) : null}
               {billing ? (
                 <p className="muted" style={{ marginTop: 8 }}>
                   {billing.plan.name} · {billing.usage.domains} / {billing.limits.domains} domains used
@@ -917,7 +1303,7 @@ export default function Settings() {
                                   selectDomain(d.id);
                                 }}
                               >
-                                <span className="domain-swatch" style={{ background: d.color || "#1c6e5c" }} aria-hidden />
+                                <span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />
                                 {d.name}
                               </button>
                               {legacy ? (
@@ -940,7 +1326,7 @@ export default function Settings() {
                             <td onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="color"
-                                value={d.color && /^#/.test(d.color) ? d.color : "#1c6e5c"}
+                                value={d.color && /^#/.test(d.color) ? d.color : "#737168"}
                                 aria-label={`Color for ${d.name}`}
                                 onChange={(e) => {
                                   void api.updateDomain(d.id, { color: e.target.value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color."));
@@ -1007,11 +1393,17 @@ export default function Settings() {
                     </tbody>
                   </table>
                 </div>
-              ) : setupLoading ? null : <p className="empty-state">No domains yet. Add the domain you plan to receive mail on.</p>}
+              ) : setupLoading || domainEntryMode === "choose" || domainEntryMode === "need" ? null : (
+                <p className="empty-state">Enter your domain above to start receiving mail.</p>
+              )}
               <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
                 Plus-addressing works automatically: mail to <code>hello+stripe@yourdomain.com</code> lands in <code>hello@</code>.
               </p>
+              </>
+              ) : null}
             </section>
+            {hasDomain ? (
+            <>
             <section className="settings-card" aria-labelledby="mailboxes-title">
               <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Flap accepts mail for addresses listed here, plus aliases and catch-all when enabled.</p></div></div>
               <form className="row-form" onSubmit={addMailbox}>
@@ -1347,6 +1739,8 @@ export default function Settings() {
                 <p className="empty-state">Add a domain first — then Flap will show the exact DNS rows to paste.</p>
               )}
             </section>
+            </>
+            ) : null}
             </div>
           </>
         ) : null}
@@ -1455,7 +1849,7 @@ export default function Settings() {
                     <tbody>
                       {(deliveryInfo.domains || []).map((d) => (
                         <tr key={d.id}>
-                          <td><span className="domain-swatch" style={{ background: d.color || "#1c6e5c" }} aria-hidden />{d.name}</td>
+                          <td><span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />{d.name}</td>
                           <td>{d.identity_verified_at ? "✓" : "—"}</td>
                           <td>{d.mx_verified_at ? "✓" : "—"}</td>
                           <td>{d.receiving_ready_at ? "✓" : "—"}</td>
@@ -1512,9 +1906,11 @@ export default function Settings() {
         ) : null}
 
         {tab === "developers" ? (
-          <div className="settings-panel settings-measure">
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>API keys</h2><p>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p></div></div>
+          <div className="settings-general settings-measure stack gap-8">
+            <section className="settings-block">
+              <h2>API keys</h2>
+              <p className="muted text-sm">Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p>
+              <div className="settings-card">
               <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("keyname") as HTMLInputElement; void api.createKey(input.value || "Transactional").then((res) => { setNewToken(res.key.token ?? ""); input.value = ""; return refresh(); }); }}>
                 <input name="keyname" placeholder="Key name" />
                 <Button size="sm" type="submit">Create key</Button>
@@ -1523,9 +1919,12 @@ export default function Settings() {
               {keys.length ? <table className="table"><thead><tr><th>Name</th><th>Prefix</th><th /></tr></thead><tbody>
                 {keys.map((k) => <tr key={k.id}><td>{k.name}</td><td><code>{k.key_prefix}…</code></td><td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</Button></td></tr>)}
               </tbody></table> : <p className="empty-state">No API keys yet.</p>}
+              </div>
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Webhooks</h2><p>HTTPS POST on <code>mail.received</code>. Signature: <code>x-flap-signature</code> = SHA-256 hex of <code>secret</code> + <code>.</code> + raw JSON body. See <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>docs</a>.</p></div></div>
+            <section className="settings-block">
+              <h2>Webhooks</h2>
+              <p className="muted text-sm">HTTPS POST on <code>mail.received</code>. Signature: <code>x-flap-signature</code> = SHA-256 hex of <code>secret</code> + <code>.</code> + raw JSON body. See <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>docs</a>.</p>
+              <div className="settings-card">
               <form className="stack-form" onSubmit={(e) => {
                 e.preventDefault();
                 const form = e.currentTarget;
@@ -1588,6 +1987,7 @@ export default function Settings() {
                   </Fragment>
                 ))}
               </tbody></table> : <p className="empty-state">No webhooks yet.</p>}
+              </div>
             </section>
           </div>
         ) : null}
@@ -1741,7 +2141,7 @@ export default function Settings() {
               <div className="section-heading">
                 <div>
                   <h2>Appearance</h2>
-                  <p>Theme follows your preference. Dark mode keeps Flap teal.</p>
+                  <p>Theme follows your preference. Dark mode keeps Flap orange accents.</p>
                 </div>
               </div>
               <ThemeToggle />
@@ -1877,16 +2277,14 @@ export default function Settings() {
         
 
         {tab === "billing" ? (
-          <div className="settings-panel settings-measure">
-          <section className="settings-card">
-            <div className="section-heading">
-              <div>
-                <h2>Plan & usage</h2>
-                <p>Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
-              </div>
-              {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : null}
-            </div>
-            <div className="mb-5 inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] p-1">
+          <div className="settings-general settings-measure stack gap-8">
+          <section className="settings-block">
+            <h2>Plan &amp; usage</h2>
+            <p className="muted text-sm">Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
+            <div className="settings-card">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : <span className="muted text-sm">Loading…</span>}
+              <div className="inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] p-1">
               <Button
                 type="button"
                 size="sm"
@@ -1903,8 +2301,9 @@ export default function Settings() {
                 className="min-w-[7rem]"
                 onClick={() => setBillingInterval("year")}
               >
-                Annual (−20%)
+                Annual (2 mo free)
               </Button>
+            </div>
             </div>
             {!checkoutConfigured ? (
               <div className="deferred-banner" style={{ marginBottom: 16 }}>
@@ -1986,26 +2385,31 @@ export default function Settings() {
                 </p>
               )}
             </div>
-            <div className="notice" style={{ marginBottom: 16 }} role="note">
+            <div className="notice" style={{ marginBottom: 0 }} role="note">
               <strong>Cancel &amp; export</strong>
               <p style={{ margin: "6px 0 0" }}>
                 You can export anytime. After cancel, keep access through the paid period; download your mailbox before it ends.
               </p>
             </div>
-            <div className="grid-2">
+            </div>
+          </section>
+          <section className="settings-block">
+            <h2>Upgrade</h2>
+            <p className="muted text-sm">Same product on every paid plan. Capacity changes with Solo, Pro, Team, and Scale.</p>
+            <div className="grid-2 mt-3">
               {plans.filter((p) => p.id !== "free").map((plan) => {
                 const available = plan.checkout_available !== false && checkoutConfigured;
                 const isCurrent = billing?.plan_id === plan.id;
-                const yearly = plan.price_yearly ?? Math.round(plan.price_monthly * 12 * 0.8);
+                const yearly = plan.price_yearly ?? Math.round(plan.price_monthly * 10);
                 const priceLabel =
                   billingInterval === "year"
                     ? `$${yearly}/yr`
                     : `$${plan.price_monthly}/mo`;
                 const priceHint =
                   billingInterval === "year" && plan.price_monthly > 0
-                    ? `≈ $${Math.round((yearly / 12) * 100) / 100}/mo billed annually`
+                    ? `≈ $${Math.round((yearly / 12) * 100) / 100}/mo · 10× monthly`
                     : billingInterval === "month" && plan.price_monthly > 0
-                      ? `or $${yearly}/yr (−20%)`
+                      ? `or $${yearly}/yr (2 months free)`
                       : null;
                 return (
                   <div key={plan.id} className="settings-card" style={{ margin: 0, padding: 16 }}>
@@ -2049,26 +2453,26 @@ export default function Settings() {
         ) : null}
 
         {tab === "team" ? (
-          <section className="settings-card settings-measure">
-            <div className="section-heading">
-              <div>
-                <h2>Team &amp; shared mailboxes</h2>
-                <p>
+          <div className="settings-general settings-measure stack gap-8">
+            <section className="settings-block">
+              <h2>Team &amp; shared mailboxes</h2>
+              <p className="muted text-sm">
                   {teamInfo?.teams_unlocked
                     ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
-                    : "Upgrade to Team to invite members and share mailboxes. Free and Solo stay solo; Pro includes up to 5 seats."}
-                </p>
-              </div>
+                    : "Upgrade to Pro or Team to invite members and share mailboxes. Free and Solo stay solo-friendly."}
+              </p>
+              <div className="settings-card">
+              <div className="mb-3 flex justify-end">
               <Badge variant={teamInfo?.teams_unlocked ? "default" : "secondary"}>
-                {teamInfo?.teams_unlocked ? "Team plan" : "Solo"}
+                {teamInfo?.teams_unlocked ? "Team unlocked" : "Solo"}
               </Badge>
-            </div>
+              </div>
 
             {!teamInfo?.teams_unlocked ? (
               <div className="deferred-banner">
                 Team seats unlock on Pro (up to 5) and Team (unlimited). You can still manage your own mailboxes on Free or Solo.
                 <div style={{ marginTop: 12 }}>
-                  <Button size="sm" onClick={() => setTab("billing")}>View Team plan</Button>
+                  <Button size="sm" onClick={() => go("/app/billing")}>View Team plan</Button>
                 </div>
               </div>
             ) : null}
@@ -2238,9 +2642,11 @@ export default function Settings() {
                 </tbody>
               </table>
             ) : (
-              <p className="empty-state">Create a mailbox in Setup first.</p>
+              <p className="empty-state">Create a mailbox under Domains first.</p>
             )}
-          </section>
+              </div>
+            </section>
+          </div>
         ) : null}
 
         {tab === "referrals" ? (

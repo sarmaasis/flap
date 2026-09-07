@@ -5,25 +5,25 @@ export const SUPPORT_EMAIL = "support@useflap.online";
 
 export const MARKETING = {
   product_name: "Flap",
-  one_line: "Professional email on every domain you ship.",
+  one_line: "Modern email for your business.",
   short_description:
-    "Send and receive email across all your startup domains from one inbox, without setting up a separate email workspace for every project.",
+    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents — on your own domain.",
   long_description:
-    "Flap is custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain, send as you@yourstartup.com, and keep one inbox - instead of paying for a separate Google Workspace (or similar) for each launch.",
-  primary_tagline: "Professional email on every domain you ship.",
+    "Flap is custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain, send as you@yourstartup.com, and keep webmail, calendar, newsletters, bookings, and an agent API in one subscription.",
+  primary_tagline: "Modern email for your business.",
   founder_tagline: "Email infrastructure for people who keep launching things.",
-  product_hunt_tagline: "Professional email on every domain you ship",
+  product_hunt_tagline: "Modern email for your business",
   hero_subheadline:
-    "Connect all your domains and send & receive email as you@yourstartup.com without paying for a separate Workspace account for every project.",
-  microcopy: "Multiple domains. One inbox. Setup in minutes.",
-  seo_title: "Flap - Professional email on every domain you ship",
+    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents. Everything on your own domain.",
+  microcopy: "Same stack on every plan. Pick how many mailboxes you need.",
+  seo_title: "Flap - Modern email for your business",
   seo_description:
-    "Custom-domain email for founders who launch multiple projects. One inbox across all your domains - faster and cheaper than a Workspace per startup.",
+    "Custom-domain email with webmail, calendar, newsletters, bookings, AI assistant, and API. From $6/mo. Free includes real mailboxes.",
   key_features: [
-    "Multiple domains in one inbox",
-    "Shared inboxes and seats on Pro/Team",
-    "Catch-all, aliases, and filters",
-    "AI drafts with confirm-before-send",
+    "Webmail across every domain",
+    "Calendars & booking pages",
+    "Newsletters from your domain",
+    "AI assistant (confirm-before-send)",
     "API, webhooks, MCP, thin SDKs",
     "Guided DNS setup on Amazon SES",
   ],

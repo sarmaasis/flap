@@ -61,7 +61,7 @@ DODO_PRODUCT_SCALE=pdt_…
    - Mailgun secrets optional (legacy domains only during migration)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
    - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_PRO`, `DODO_PRODUCT_TEAM`, `DODO_PRODUCT_SCALE` (optional `*_ANNUAL`)
-   - OAuth / magic link: enable Email link + Google/GitHub in the Clerk Dashboard (allowed origins + redirect URLs `/sso-callback`, `/auth/verify`)
+   - Email code: enable **Email verification code** in the Clerk Dashboard (User & authentication → Email). Google/GitHub OAuth and magic links are not used by Flap. Allowed origins should include `APP_URL`.
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
 4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**, **0022_clerk**, and **0023_booking_newsletters**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
@@ -115,7 +115,8 @@ This is a Vite SPA on Cloudflare Assets - not full React SSR. Build-time prerend
 
 ## Notes
 
-- Sign-in is magic link and optional Google/GitHub OAuth via **Clerk** (no password auth). Clerk sends account auth email; Flap SEB is for product/system mail via `SYSTEM_FROM_EMAIL`.
+- Sign-in is **email one-time code** via **Clerk** (no password / no Google/GitHub / no magic links in the Flap UI). Clerk sends the code email; Flap SEB is for product/system mail via `SYSTEM_FROM_EMAIL`.
+- `/auth/verify` remains for any old Clerk email links and directs users back to sign in with a code.
 - Customer domains send/receive on **Amazon SES**; the Flap app runs on Cloudflare Workers (D1/R2). DNS stays at any registrar.
 - Referral rewards require verified email + a connected domain; self/disposable emails and shared Dodo customer / payment fingerprints are blocked.
 

@@ -446,7 +446,7 @@ export function registerBillingRoutes(app: Hono<App>) {
     }
     let returnUrl: string;
     try {
-      returnUrl = billingReturnUrl(c, "/app/settings?tab=billing&checkout=success");
+      returnUrl = billingReturnUrl(c, "/app/billing?checkout=done");
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : "APP_URL is misconfigured." }, 400);
     }
@@ -481,7 +481,7 @@ export function registerBillingRoutes(app: Hono<App>) {
     }
     let returnUrl: string;
     try {
-      returnUrl = billingReturnUrl(c, "/app/settings?tab=billing");
+      returnUrl = billingReturnUrl(c, "/app/billing");
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : "APP_URL is misconfigured." }, 400);
     }

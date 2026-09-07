@@ -1,18 +1,18 @@
-import { AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
-import { ClerkMissingCard, useClerkReady } from "../lib/clerk";
+import { useEffect } from "react";
+import { go } from "../lib/nav";
 
-function SsoCallbackInner() {
+/**
+ * Legacy OAuth return URL. Flap is magic-link only; redirect to sign-in.
+ * Kept so old bookmarks / Clerk dashboard redirect allowlists do not 404.
+ */
+export default function SsoCallback() {
+  useEffect(() => {
+    go("/login");
+  }, []);
+
   return (
     <div className="auth-shell">
-      <p className="muted">Finishing sign-in…</p>
-      <AuthenticateWithRedirectCallback />
+      <p className="muted">Redirecting to sign in…</p>
     </div>
   );
-}
-
-/** OAuth return URL for Clerk authenticateWithRedirect. */
-export default function SsoCallback() {
-  const ready = useClerkReady();
-  if (!ready) return <ClerkMissingCard />;
-  return <SsoCallbackInner />;
 }

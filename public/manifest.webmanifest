@@ -1,7 +1,7 @@
 {
   "name": "Flap",
   "short_name": "Flap",
-  "description": "One inbox for every startup you build.",
+  "description": "Professional email on every domain you ship.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

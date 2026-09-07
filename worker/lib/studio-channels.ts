@@ -331,6 +331,39 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     });
   });
 
+  app.post("/api/newsletters", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    if (!planAtLeast(plan.plan_id, "solo")) {
+      return c.json({ error: "Newsletters require Solo or higher." }, 402);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as {
+      subject?: string;
+      html_body?: string;
+      domain_id?: string;
+    };
+    const subject = (body.subject || "").trim().slice(0, 200);
+    if (!subject) return c.json({ error: "subject required." }, 400);
+    const id = randomId("nl");
+    await c.env.DB.prepare(
+      `INSERT INTO newsletter_blasts (id, user_id, domain_id, subject, html_body, recipient_tag, status, capped_count, created_at)
+       VALUES (?, ?, ?, ?, ?, '', 'draft', 0, ?)`,
+    )
+      .bind(
+        id,
+        ctx.workspaceId,
+        body.domain_id || "",
+        subject,
+        (body.html_body || "").slice(0, 200_000),
+        nowMs(),
+      )
+      .run()
+      .catch(() => undefined);
+    return c.json({ item: { id, subject, status: "draft" } }, 201);
+  });
+
   // --- IMAP/SMTP credential stubs (honest Partial) ---
   app.get("/api/mailboxes/:id/client-credentials", async (c) => {
     const user = await requireUser(c);

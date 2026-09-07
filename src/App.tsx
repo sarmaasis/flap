@@ -37,6 +37,13 @@ const HubIndexPage = lazy(() => import("./pages/HubIndexPage"));
 const HubPage = lazy(() => import("./pages/HubPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const ResearchPage = lazy(() => import("./pages/ResearchPage"));
+const GetStartedAppPage = lazy(() => import("./pages/GetStartedAppPage"));
+const CalendarAppPage = lazy(() => import("./pages/CalendarAppPage"));
+const AiAssistantPage = lazy(() => import("./pages/AiAssistantPage"));
+const NewslettersAppPage = lazy(() => import("./pages/NewslettersAppPage"));
+const BookingsAppPage = lazy(() => import("./pages/BookingsAppPage"));
+const MailboxesAppPage = lazy(() => import("./pages/MailboxesAppPage"));
+const AnalyticsAppPage = lazy(() => import("./pages/AnalyticsAppPage"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -70,11 +77,74 @@ export default function App() {
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;
-  if (path === "/app/settings" || path === "/settings/referrals") {
+  if (path === "/app/settings" || path === "/settings/referrals" || path === "/app/domains" || path === "/app/billing" || path === "/app/developer") {
     return (
       <Screen>
         <RequireVerified>
           <Settings />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/get-started") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <GetStartedAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/calendar") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <CalendarAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/ai" || path === "/app/assistant") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <AiAssistantPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/newsletters") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <NewslettersAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/bookings") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <BookingsAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/mailboxes") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <MailboxesAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/analytics") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <AnalyticsAppPage />
         </RequireVerified>
       </Screen>
     );

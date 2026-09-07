@@ -109,7 +109,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
       .first<{ name: string; receiving_ready_at: number | null; sending_ready_at: number | null }>();
     const ok = Boolean(row?.receiving_ready_at);
     const label = ok ? "receiving" : "setup";
-    const color = ok ? "#1c6e5c" : "#b47828";
+    const color = ok ? "#0a7b6f" : "#b47828";
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="24" role="img"><rect width="160" height="24" rx="4" fill="#111"/><text x="8" y="16" fill="#fff" font-size="11" font-family="sans-serif">Flap</text><rect x="48" width="112" height="24" fill="${color}"/><text x="56" y="16" fill="#fff" font-size="11" font-family="sans-serif">${String(row?.name ?? "domain").slice(0, 18)} ${label}</text></svg>`;
     return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=300" } });
   });
