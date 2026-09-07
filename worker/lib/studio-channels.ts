@@ -182,6 +182,157 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     });
   });
 
+  // --- Calendar events (native Flap calendar) ---
+  app.get("/api/calendar/events", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const fromRaw = Number(c.req.query("from") || 0);
+    const toRaw = Number(c.req.query("to") || 0);
+    const from = Number.isFinite(fromRaw) && fromRaw > 0 ? fromRaw : nowMs() - 7 * 86400000;
+    const to = Number.isFinite(toRaw) && toRaw > 0 ? toRaw : nowMs() + 40 * 86400000;
+    const rows = await c.env.DB.prepare(
+      `SELECT id, mailbox_id, uid, title, description, location, starts_at, ends_at, all_day, status, created_at, updated_at
+       FROM calendar_events
+       WHERE user_id = ? AND starts_at < ? AND ends_at > ?
+       ORDER BY starts_at ASC
+       LIMIT 500`,
+    )
+      .bind(ctx.workspaceId, to, from)
+      .all();
+    return c.json({ events: rows.results ?? [] });
+  });
+
+  app.post("/api/calendar/events", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = (await c.req.json().catch(() => ({}))) as {
+      title?: string;
+      description?: string;
+      location?: string;
+      starts_at?: number;
+      ends_at?: number;
+      all_day?: boolean;
+      mailbox_id?: string;
+    };
+    const title = (body.title || "").trim().slice(0, 200);
+    const startsAt = Number(body.starts_at);
+    const endsAt = Number(body.ends_at);
+    if (!title) return c.json({ error: "Title is required." }, 400);
+    if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
+      return c.json({ error: "Valid start and end times are required." }, 400);
+    }
+    const id = randomId("cevt");
+    const uid = `${id}@flap`;
+    const now = nowMs();
+    await c.env.DB.prepare(
+      `INSERT INTO calendar_events
+        (id, user_id, mailbox_id, uid, title, description, location, starts_at, ends_at, all_day, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)`,
+    )
+      .bind(
+        id,
+        ctx.workspaceId,
+        (body.mailbox_id || "").slice(0, 64),
+        uid,
+        title,
+        (body.description || "").slice(0, 4000),
+        (body.location || "").slice(0, 400),
+        startsAt,
+        endsAt,
+        body.all_day ? 1 : 0,
+        now,
+        now,
+      )
+      .run();
+    const event = await c.env.DB.prepare(
+      `SELECT id, mailbox_id, uid, title, description, location, starts_at, ends_at, all_day, status, created_at, updated_at
+       FROM calendar_events WHERE id = ? AND user_id = ?`,
+    )
+      .bind(id, ctx.workspaceId)
+      .first();
+    return c.json({ event }, 201);
+  });
+
+  app.patch("/api/calendar/events/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const id = c.req.param("id");
+    const existing = await c.env.DB.prepare(
+      "SELECT id, title, description, location, starts_at, ends_at, all_day, mailbox_id FROM calendar_events WHERE id = ? AND user_id = ?",
+    )
+      .bind(id, ctx.workspaceId)
+      .first<{
+        id: string;
+        title: string;
+        description: string;
+        location: string;
+        starts_at: number;
+        ends_at: number;
+        all_day: number;
+        mailbox_id: string;
+      }>();
+    if (!existing) return c.json({ error: "Event not found." }, 404);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      title?: string;
+      description?: string;
+      location?: string;
+      starts_at?: number;
+      ends_at?: number;
+      all_day?: boolean;
+      mailbox_id?: string;
+      status?: string;
+    };
+    const title = body.title !== undefined ? body.title.trim().slice(0, 200) : existing.title;
+    const startsAt = body.starts_at !== undefined ? Number(body.starts_at) : existing.starts_at;
+    const endsAt = body.ends_at !== undefined ? Number(body.ends_at) : existing.ends_at;
+    if (!title) return c.json({ error: "Title is required." }, 400);
+    if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) {
+      return c.json({ error: "Valid start and end times are required." }, 400);
+    }
+    await c.env.DB.prepare(
+      `UPDATE calendar_events SET
+         title = ?, description = ?, location = ?, starts_at = ?, ends_at = ?, all_day = ?,
+         mailbox_id = ?, status = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    )
+      .bind(
+        title,
+        body.description !== undefined ? body.description.slice(0, 4000) : existing.description,
+        body.location !== undefined ? body.location.slice(0, 400) : existing.location,
+        startsAt,
+        endsAt,
+        body.all_day !== undefined ? (body.all_day ? 1 : 0) : existing.all_day,
+        body.mailbox_id !== undefined ? body.mailbox_id.slice(0, 64) : existing.mailbox_id,
+        (body.status || "confirmed").slice(0, 32),
+        nowMs(),
+        id,
+        ctx.workspaceId,
+      )
+      .run();
+    const event = await c.env.DB.prepare(
+      `SELECT id, mailbox_id, uid, title, description, location, starts_at, ends_at, all_day, status, created_at, updated_at
+       FROM calendar_events WHERE id = ? AND user_id = ?`,
+    )
+      .bind(id, ctx.workspaceId)
+      .first();
+    return c.json({ event });
+  });
+
+  app.delete("/api/calendar/events/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const id = c.req.param("id");
+    const result = await c.env.DB.prepare("DELETE FROM calendar_events WHERE id = ? AND user_id = ?")
+      .bind(id, ctx.workspaceId)
+      .run();
+    if (!result.meta.changes) return c.json({ error: "Event not found." }, 404);
+    return c.json({ ok: true });
+  });
+
   // --- ICS RSVP helper (P1#8) ---
   app.post("/api/calendar/rsvp", async (c) => {
     const user = await requireUser(c);

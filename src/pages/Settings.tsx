@@ -854,7 +854,7 @@ export default function Settings() {
 
   const pageLede =
     surface === "domains"
-      ? "Connect domains and publish MX/SPF/DKIM. Manage verification status here."
+      ? "Add domains, publish DNS, manage addresses."
       : surface === "billing"
         ? "Plans, usage, and invoices."
         : surface === "developer"
@@ -900,24 +900,16 @@ export default function Settings() {
             <ThemeToggle />
           </div>
         </header>
-        {surface === "domains" && (onboardingBanner || (activation && !activation.onboarding_dismissed && !activation.activated)) ? (
+        {surface === "domains" && onboardingBanner ? (
           <div className="onboarding-banner" role="status">
             <div>
-              <strong>Your Flap setup</strong>
-              <ul className="setup-checklist mt-2 text-sm">
-                <li className="complete">Create account</li>
-                <li className={emailVerified ? "complete" : ""}>Verify account email</li>
-                <li className={hasDomain ? "complete" : ""}>Add first domain</li>
-                <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : ""}>
-                  Publish DNS records
-                </li>
-                <li className={dnsStatus?.receiving?.receiving_ready ? "complete" : ""}>Verify receiving</li>
-                <li className={hasMailbox ? "complete" : ""}>Create an address</li>
-                <li className={dnsStatus?.sending?.sending_ready ? "complete" : ""}>Verify sending</li>
-                <li className={activation?.steps.first_email_sent || activation?.steps.first_email_received ? "complete" : ""}>
-                  Send and receive a test email
-                </li>
-              </ul>
+              <strong>Finish setup</strong>
+              <p className="muted" style={{ margin: "4px 0 0" }}>
+                Add a domain, publish DNS, create an address, then send a test.{" "}
+                <button type="button" className="text-button" onClick={() => go("/app/get-started")}>
+                  Get started checklist
+                </button>
+              </p>
             </div>
             <Button size="sm"
               type="button"
@@ -1169,21 +1161,19 @@ export default function Settings() {
                 )}
               </div>
             ) : null}
-            {(hasDomain || domainEntryMode !== "choose") ? (
-            <ol className="setup-steps" aria-label="Setup progress">
-              <li className={hasDomain ? "complete" : "current"}>
-                <span>1</span><div><strong>Add a domain</strong><small>{hasDomain ? `${domains.length} configured` : "Any domain you control"}</small></div>
-              </li>
-              <li className={dnsStatus?.receiving?.identity_verified || dnsStatus?.verified ? "complete" : hasDomain ? "current" : ""}>
-                <span>2</span><div><strong>Publish DNS records</strong><small>Copy the table below into your DNS panel</small></div>
-              </li>
-              <li className={hasMailbox ? "complete" : hasDomain ? "current" : ""}>
-                <span>3</span><div><strong>Create an address</strong><small>{hasMailbox ? `${mailboxes.length} mailbox${mailboxes.length === 1 ? "" : "es"}` : "hello@your-domain.com — no extra DNS"}</small></div>
-              </li>
-              <li className={activation?.steps.first_email_received || activation?.steps.first_email_sent ? "complete" : hasMailbox ? "current" : ""}>
-                <span>4</span><div><strong>Send &amp; receive a test</strong><small>Prove end-to-end, then upgrade only for more capacity</small></div>
-              </li>
-            </ol>
+            {(onboardingBanner && (hasDomain || domainEntryMode !== "choose")) ? (
+            <div className="domains-progress-line muted" role="status">
+              {[
+                hasDomain,
+                Boolean(dnsStatus?.receiving?.identity_verified || dnsStatus?.verified),
+                hasMailbox,
+                Boolean(activation?.steps.first_email_received || activation?.steps.first_email_sent),
+              ].filter(Boolean).length}
+              /4 setup ·{" "}
+              <button type="button" className="text-button" onClick={() => go("/app/get-started")}>
+                Open Get started
+              </button>
+            </div>
             ) : null}
             {setupLoading ? (
               <div className="skeleton-stack" aria-busy="true" aria-label="Loading setup">
@@ -1192,7 +1182,7 @@ export default function Settings() {
             ) : null}
             <div className="settings-panel settings-measure">
             <section className="settings-card" aria-labelledby="domains-title">
-              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>{domains.length === 0 && domainEntryMode === "choose" ? "Connect a domain you already own, or buy one elsewhere first." : "Add any domain you control. Publish the DNS records Flap shows at your registrar or DNS host — then create mailboxes here."}</p></div></div>
+              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>{domains.length === 0 && domainEntryMode === "choose" ? "Connect a domain you own, or buy one elsewhere first." : "Domains you control. Select one to manage DNS and mailboxes."}</p></div></div>
               {!setupLoading && domains.length === 0 && domainEntryMode === "choose" ? (
                 <div className="domain-entry-grid" role="group" aria-label="How do you want to start?">
                   <button type="button" className="domain-entry-card" onClick={() => setDomainEntryMode("have")}>
@@ -1239,7 +1229,7 @@ export default function Settings() {
               ) : null}
               {billing ? (
                 <p className="muted" style={{ marginTop: 8 }}>
-                  {billing.plan.name} · {billing.usage.domains} / {billing.limits.domains} domains used
+                  {billing.plan.name} · {billing.usage.domains} / {billing.limits.domains} domains
                   {billing.plan_id === "free" && billing.usage.domains >= billing.limits.domains ? (
                     <>
                       {" · "}
@@ -1254,27 +1244,19 @@ export default function Settings() {
                           selectTab("billing");
                         }}
                       >
-                        Need another domain? Upgrade to Solo
+                        Upgrade for more
                       </button>
                     </>
                   ) : null}
-                  {" · "}Upgrades unlock capacity only — no DNS migration.
                 </p>
-              ) : (
-                <p className="muted" style={{ marginTop: 8 }}>
-                  All plans use the same mail setup. Upgrades unlock more domains/mailboxes/sends — never a DNS cutover.
-                </p>
-              )}
+              ) : null}
               {domains.length ? (
                 <div className="table-wrap">
-                  <table className="table">
+                  <table className="table domains-table">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Color</th>
-                        <th>Mute</th>
-                        <th>Receiving</th>
-                        <th>Sending</th>
+                        <th>Domain</th>
+                        <th>Status</th>
                         <th>Catch-all</th>
                         <th><span className="sr-only">Actions</span></th>
                       </tr>
@@ -1286,6 +1268,12 @@ export default function Settings() {
                         const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
                         const muted = Boolean(d.muted_until && d.muted_until > Date.now());
                         const selected = domainId === d.id;
+                        const statusLabel =
+                          receivingReady && sendingReady
+                            ? "Ready"
+                            : receivingReady
+                              ? "Receiving ready"
+                              : "Setup required";
                         return (
                           <tr
                             key={d.id}
@@ -1306,6 +1294,7 @@ export default function Settings() {
                                 <span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />
                                 {d.name}
                               </button>
+                              {muted ? <div className="muted" style={{ fontSize: 12 }}>Muted</div> : null}
                               {legacy ? (
                                 <div className="muted" style={{ fontSize: 12 }}>
                                   Legacy setup
@@ -1323,33 +1312,11 @@ export default function Settings() {
                                 </div>
                               ) : null}
                             </td>
-                            <td onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="color"
-                                value={d.color && /^#/.test(d.color) ? d.color : "#737168"}
-                                aria-label={`Color for ${d.name}`}
-                                onChange={(e) => {
-                                  void api.updateDomain(d.id, { color: e.target.value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color."));
-                                }}
-                              />
+                            <td>
+                              <span className={receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}>
+                                {statusLabel}
+                              </span>
                             </td>
-                            <td onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                type="button"
-                                onClick={() => {
-                                  void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
-                                    setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days — new mail goes to Archive.`);
-                                    return refresh();
-                                  }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute."));
-                                }}
-                              >
-                                {muted ? "Unmute" : "Mute 7d"}
-                              </Button>
-                            </td>
-                            <td>{receivingReady ? "✓ Ready" : "⚠ Setup required"}</td>
-                            <td>{sendingReady ? "✓ Ready" : "⚠ Setup required"}</td>
                             <td onClick={(e) => e.stopPropagation()}>
                               <select
                                 value={d.catch_all_mailbox_id ?? ""}
@@ -1366,26 +1333,49 @@ export default function Settings() {
                               </select>
                             </td>
                             <td onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="danger"
-                                type="button"
-                                onClick={() => {
-                                  if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) {
-                                    void api.deleteDomain(d.id).then(async () => {
-                                      if (domainId === d.id) {
-                                        stopDnsPoll();
-                                        setDnsStatus(null);
-                                        setDns(null);
-                                        setDomainId("");
-                                      }
-                                      await refresh();
-                                    });
-                                  }
-                                }}
-                              >
-                                Remove
-                              </Button>
+                              <div className="domains-row-actions">
+                                <input
+                                  type="color"
+                                  value={d.color && /^#/.test(d.color) ? d.color : "#737168"}
+                                  aria-label={`Color for ${d.name}`}
+                                  onChange={(e) => {
+                                    void api.updateDomain(d.id, { color: e.target.value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color."));
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  type="button"
+                                  onClick={() => {
+                                    void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
+                                      setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days — new mail goes to Archive.`);
+                                      return refresh();
+                                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute."));
+                                  }}
+                                >
+                                  {muted ? "Unmute" : "Mute"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) {
+                                      void api.deleteDomain(d.id).then(async () => {
+                                        if (domainId === d.id) {
+                                          stopDnsPoll();
+                                          setDnsStatus(null);
+                                          setDns(null);
+                                          setDomainId("");
+                                        }
+                                        await refresh();
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1396,16 +1386,20 @@ export default function Settings() {
               ) : setupLoading || domainEntryMode === "choose" || domainEntryMode === "need" ? null : (
                 <p className="empty-state">Enter your domain above to start receiving mail.</p>
               )}
-              <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
-                Plus-addressing works automatically: mail to <code>hello+stripe@yourdomain.com</code> lands in <code>hello@</code>.
-              </p>
+              <details className="domains-tips">
+                <summary>Tips</summary>
+                <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+                  Plus-addressing works automatically: mail to <code>hello+stripe@yourdomain.com</code> lands in <code>hello@</code>.
+                  Upgrades add capacity only — never a DNS cutover.
+                </p>
+              </details>
               </>
               ) : null}
             </section>
             {hasDomain ? (
             <>
             <section className="settings-card" aria-labelledby="mailboxes-title">
-              <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Flap accepts mail for addresses listed here, plus aliases and catch-all when enabled.</p></div></div>
+              <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Addresses Flap accepts for your domains.</p></div></div>
               <form className="row-form" onSubmit={addMailbox}>
                 <label className="sr-only" htmlFor="local-part">Mailbox name</label>
                 <input id="local-part" placeholder="hello" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
@@ -1428,22 +1422,14 @@ export default function Settings() {
                     <thead>
                       <tr>
                         <th>Address</th>
-                        <th>Receiving</th>
-                        <th>Sending</th>
                         <th>From name</th>
                         <th><span className="sr-only">Actions</span></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {mailboxes.map((m) => {
-                        const d = domains.find((x) => x.id === m.domain_id);
-                        const recv = d?.receiving_ready_at ? "✓ Ready" : "⚠ Setup required";
-                        const send = d?.sending_ready_at ? "✓ Ready" : "⚠ Setup required";
-                        return (
+                      {mailboxes.map((m) => (
                           <tr key={m.id}>
                             <td>{m.address}</td>
-                            <td>{recv}</td>
-                            <td>{send}</td>
                             <td>
                               <input
                                 defaultValue={m.display_name ?? ""}
@@ -1467,8 +1453,7 @@ export default function Settings() {
                               </Button>
                             </td>
                           </tr>
-                        );
-                      })}
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -1479,9 +1464,7 @@ export default function Settings() {
                 <div>
                   <h2 id="routing-title">DNS records</h2>
                   <p>
-                    Open the DNS panel for <strong>{selectedName || "your domain"}</strong> (wherever the nameservers point).
-                    Add one row per line below. Use the <strong>Host</strong> column in the Name/Host field —{" "}
-                    <code>@</code> means the root of the domain.
+                    Paste these rows at your DNS host for <strong>{selectedName || "your domain"}</strong>. Host <code>@</code> is the root.
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1497,7 +1480,7 @@ export default function Settings() {
               </div>
               {hasDomain ? (
                 <div className="dns-domain-bar">
-                  <label htmlFor="dns-configure-domain">Configure</label>
+                  <label htmlFor="dns-configure-domain">Domain</label>
                   <select
                     id="dns-configure-domain"
                     value={domainId}
@@ -1510,30 +1493,30 @@ export default function Settings() {
                       </option>
                     ))}
                   </select>
-                  {domains.length > 1 ? (
-                    <span className="muted" style={{ fontSize: 12 }}>
-                      {domains.length} domains — DNS below is only for the selected domain.
-                    </span>
-                  ) : null}
                 </div>
               ) : null}
-              <div className="notice" style={{ marginBottom: 12, fontSize: 13 }} role="note">
-                <strong>Where to find DNS</strong>
-                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              <details className="domains-tips">
+                <summary>Where to find DNS</summary>
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13 }}>
                   {REGISTRAR_DNS_TIPS.map((t) => (
                     <li key={t.name}><strong>{t.name}:</strong> {t.tip}</li>
                   ))}
                 </ul>
-              </div>
+                {dnsStatus?.guide_path ? (
+                  <p style={{ marginTop: 8 }}>
+                    <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
+                      Step-by-step guide for {dnsProviderGuideLabel(dnsStatus.provider)}
+                    </a>
+                  </p>
+                ) : null}
+              </details>
               {selectedDomain?.receiving_ready_at ? (
                 <div className="notice" role="status" style={{ marginBottom: 12 }}>
                   <p style={{ margin: 0 }}>
-                    <strong>Receiving is ready for {selectedName}.</strong>{" "}
-                    {domainMailboxes.length === 0 && !hasMailbox
-                      ? "Create your first mailbox or alias to start using this domain."
-                      : domainMailboxes.length === 0
-                        ? "Add a mailbox on this domain, then send yourself a test."
-                        : "Send yourself a test from Flap to confirm end-to-end delivery."}
+                    <strong>Receiving ready</strong>
+                    {domainMailboxes.length === 0
+                      ? " — create a mailbox, then send a test."
+                      : " — send yourself a test to confirm delivery."}
                   </p>
                   <div className="row-form" style={{ marginTop: 10, flexWrap: "wrap" }}>
                     {domainMailboxes.length === 0 ? (
@@ -1544,7 +1527,7 @@ export default function Settings() {
                           setNotice("Pick a local-part (e.g. hello) and add a mailbox.");
                         }}
                       >
-                        Create first mailbox/alias
+                        Create mailbox
                       </Button>
                     ) : (
                       <Button size="sm" type="button" onClick={() => openSendTest()}>
@@ -1587,43 +1570,9 @@ export default function Settings() {
                     </div>
                   ) : null}
                   {dnsStatus.verified ? (
-                    <>
-                      <p style={{ marginTop: 10 }}>Receiving looks good. Create an address and send a real test email to finish onboarding.</p>
-                      {postVerifyShare ? (
-                        <div className="notice" style={{ marginTop: 12 }} role="status">
-                          <strong>{postVerifyShare.title}</strong>
-                          <p style={{ marginTop: 6 }}>{postVerifyShare.share_text}</p>
-                          <p style={{ marginTop: 8 }}>
-                            <code>{postVerifyShare.share_url}</code>
-                          </p>
-                          <div className="row-form" style={{ marginTop: 10 }}>
-                            <Button size="sm"
-                              type="button"
-                              onClick={() => {
-                                void navigator.clipboard?.writeText(postVerifyShare.share_url).catch(() => undefined);
-                                setNotice("Referral link copied.");
-                              }}
-                            >
-                              Copy invite link
-                            </Button>
-                            <Button size="sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                try {
-                                  localStorage.setItem("flap_ref_prompt_dismissed", "1");
-                                } catch {
-                                  /* ignore */
-                                }
-                                setPostVerifyShare(null);
-                              }}
-                            >
-                              Dismiss
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </>
+                    <p style={{ marginTop: 10 }} className="muted">
+                      Receiving looks good. Create an address and send a test if you haven’t yet.
+                    </p>
                   ) : dnsStatus.issues.length ? (
                     <>
                       <p className="dns-step-title" style={{ marginTop: 12 }}>What to fix</p>
@@ -1644,18 +1593,42 @@ export default function Settings() {
                       </ul>
                     </>
                   ) : null}
-                  {dnsStatus.guide_path ? (
-                    <p style={{ marginTop: 10 }}>
-                      <a href={dnsStatus.guide_path} onClick={(e) => { e.preventDefault(); go(dnsStatus.guide_path!); }}>
-                        Step-by-step guide for {dnsProviderGuideLabel(dnsStatus.provider)}
-                      </a>
-                    </p>
-                  ) : null}
                 </div>
+              ) : null}
+              {postVerifyShare && dnsStatus?.verified ? (
+                <details className="domains-tips" open={false}>
+                  <summary>{postVerifyShare.title}</summary>
+                  <p className="muted" style={{ marginTop: 8 }}>{postVerifyShare.share_text}</p>
+                  <p style={{ marginTop: 8 }}><code>{postVerifyShare.share_url}</code></p>
+                  <div className="row-form" style={{ marginTop: 10 }}>
+                    <Button size="sm"
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(postVerifyShare.share_url).catch(() => undefined);
+                        setNotice("Referral link copied.");
+                      }}
+                    >
+                      Copy invite link
+                    </Button>
+                    <Button size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem("flap_ref_prompt_dismissed", "1");
+                        } catch {
+                          /* ignore */
+                        }
+                        setPostVerifyShare(null);
+                      }}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </details>
               ) : null}
               {dns ? (
                 <div className="dns">
-                  <p>{dns.note}</p>
                   {(() => {
                     const domain = selectedName || "";
                     const rows = buildDnsTableRows(dns, domain);
@@ -1664,7 +1637,7 @@ export default function Settings() {
                       <>
                         {pendingValues ? (
                           <p className="notice dns-issues" style={{ marginTop: 12 }}>
-                            Some values are still being prepared for this domain. Wait a minute, refresh this page, then copy the real tokens — do not publish the placeholder text.
+                            Some values are still being prepared. Refresh in a minute — don’t publish placeholder text.
                           </p>
                         ) : null}
                         <div className="row-form" style={{ marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1676,12 +1649,11 @@ export default function Settings() {
                               setNotice("All DNS records copied.");
                             }}
                           >
-                            Copy all records
+                            Copy all
                           </Button>
                         </div>
                         <p className="dns-step-help">
-                          In your DNS UI: set Type, set Host/Name to the Host column, paste Value. TTL can stay default.
-                          After saving, click <strong>Check setup</strong> (propagation can take a few minutes).
+                          Set Type + Host, paste Value, then click Check setup.
                         </p>
                         <table className="dns-table">
                           <thead>
@@ -1726,17 +1698,17 @@ export default function Settings() {
                             ))}
                           </tbody>
                         </table>
-                        <p className="muted" style={{ marginTop: 8 }}>
-                          {dns.send_note} Extra addresses (support@, hello@) never need new DNS — create them under Mailboxes only.
+                        <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                          Extra addresses never need new DNS — add them under Mailboxes.
                         </p>
                       </>
                     );
                   })()}
                 </div>
               ) : hasDomain ? (
-                <p className="empty-state">Select a domain above to see the exact DNS rows to add.</p>
+                <p className="empty-state">Select a domain to see DNS rows.</p>
               ) : (
-                <p className="empty-state">Add a domain first — then Flap will show the exact DNS rows to paste.</p>
+                <p className="empty-state">Add a domain first.</p>
               )}
             </section>
             </>

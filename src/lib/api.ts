@@ -29,6 +29,20 @@ export type Domain = {
   migration_from?: string | null;
   migration_state?: string | null;
 };
+export type CalendarEvent = {
+  id: string;
+  mailbox_id: string;
+  uid: string;
+  title: string;
+  description: string;
+  location: string;
+  starts_at: number;
+  ends_at: number;
+  all_day: number;
+  status: string;
+  created_at: number;
+  updated_at: number;
+};
 export type FolderCounts = Record<string, { total: number; unread: number }>;
 export type MailSummary = {
   id: string;
@@ -463,6 +477,42 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  calendarEvents: (from: number, to: number) =>
+    req<{ events: CalendarEvent[] }>(
+      `/api/calendar/events?from=${encodeURIComponent(String(from))}&to=${encodeURIComponent(String(to))}`,
+    ),
+  createCalendarEvent: (body: {
+    title: string;
+    starts_at: number;
+    ends_at: number;
+    description?: string;
+    location?: string;
+    all_day?: boolean;
+    mailbox_id?: string;
+  }) =>
+    req<{ event: CalendarEvent }>("/api/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateCalendarEvent: (
+    id: string,
+    body: Partial<{
+      title: string;
+      starts_at: number;
+      ends_at: number;
+      description: string;
+      location: string;
+      all_day: boolean;
+      mailbox_id: string;
+      status: string;
+    }>,
+  ) =>
+    req<{ event: CalendarEvent }>(`/api/calendar/events/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteCalendarEvent: (id: string) =>
+    req<{ ok: boolean }>(`/api/calendar/events/${id}`, { method: "DELETE" }),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
   savePrefs: (body: {
     vacation_enabled?: boolean;
