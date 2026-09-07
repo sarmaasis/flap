@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth, useClerk } from "@clerk/clerk-react";
-import AppShell, { type AppNavId } from "../components/AppShell";
+import AppShell, { type AppNavId } from "./AppShell";
 import { api } from "../lib/api";
+import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
-import { Button } from "../components/ui/button";
+import { Button } from "./ui/button";
 
 /** Shared authenticated shell for non-inbox app surfaces. */
 export default function AppFeaturePage({
@@ -19,7 +20,7 @@ export default function AppFeaturePage({
   children: ReactNode;
   actions?: ReactNode;
 }) {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
   const clerk = useClerk();
   const [email, setEmail] = useState("");
 
@@ -29,11 +30,21 @@ export default function AppFeaturePage({
       go("/login");
       return;
     }
-    api
-      .me()
-      .then((me) => setEmail(me.user.email))
-      .catch(() => go("/login"));
-  }, [isLoaded, isSignedIn]);
+    let cancelled = false;
+    void (async () => {
+      await waitForClerkToken(() => getToken());
+      if (cancelled) return;
+      try {
+        const me = await api.me();
+        if (!cancelled) setEmail(me.user.email);
+      } catch {
+        if (!cancelled) go("/login");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, isSignedIn, getToken]);
 
   async function onLogout() {
     try {

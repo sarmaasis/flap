@@ -40,7 +40,21 @@ createRoot(document.getElementById("root")!).render(
 );
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
-  });
+  if (import.meta.env.PROD) {
+    window.addEventListener("load", () => {
+      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    });
+  } else {
+    // A worker left over from an earlier session answers /src/** and pre-bundled dep
+    // requests from its own cache, which replays a module graph the dev server has
+    // already re-optimized away. Tear it down instead of registering a new one.
+    void navigator.serviceWorker.getRegistrations().then((regs) => {
+      for (const reg of regs) void reg.unregister();
+    });
+    if ("caches" in window) {
+      void caches.keys().then((keys) => {
+        for (const key of keys) void caches.delete(key);
+      });
+    }
+  }
 }

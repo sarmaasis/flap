@@ -19,6 +19,10 @@
 		// index (Vite dev has no prerender). Unknown paths still hit Assets 404-page.
 		"run_worker_first": [
 			"/api/*",
+			// Exact /dav plus children. Do NOT add "/dav/" — Cloudflare rejects it as
+			// redundant with "/dav/*" and @cloudflare/vite-plugin then fails to start.
+			"/dav",
+			"/dav/*",
 			"/app",
 			"/app/*",
 			"/signup",

@@ -87,14 +87,22 @@ async function serveSpaShell(c: { env: Env; req: { raw: Request; url: string } }
   const tryUrls = ["/spa-shell", "/", "/index.html"];
   let body: ReadableStream | null = null;
   for (const path of tryUrls) {
-    const res = await c.env.ASSETS.fetch(new Request(new URL(path, origin), { redirect: "follow" }));
-    if (res.ok && res.body) {
-      body = res.body;
-      break;
+    try {
+      const res = await c.env.ASSETS.fetch(new Request(new URL(path, origin), { redirect: "follow" }));
+      if (res.ok && res.body) {
+        body = res.body;
+        break;
+      }
+    } catch (err) {
+      // Dev-only: after a bad wrangler.jsonc HMR, ASSETS.fetch can throw "fetch failed".
+      console.error("[spa-shell] ASSETS.fetch failed for", path, err);
     }
   }
   if (!body) {
-    return new Response("Flap SPA shell unavailable", { status: 500, headers: { "content-type": "text/plain" } });
+    return new Response("Flap SPA shell unavailable — restart `npm run dev` if this persists after a wrangler config change.", {
+      status: 500,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
   }
   return new Response(body, {
     status: 200,

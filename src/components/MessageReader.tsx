@@ -20,6 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import type { Attachment, Label, MailFull, MailSummary, MessageNote } from "../lib/api";
+import { api } from "../lib/api";
 import { extractEmail, fmtDate, initials, senderName } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
@@ -168,10 +169,33 @@ export default function MessageReader({
   onOpenBilling,
 }: MessageReaderProps) {
   const [newLabel, setNewLabel] = useState("");
+  const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [rsvpNotice, setRsvpNotice] = useState("");
+  const [rsvpError, setRsvpError] = useState("");
   const viaLabel = domainName || undefined;
   const fromDisplay = senderName(message.from_addr);
   const fromEmail = extractEmail(message.from_addr) || message.from_addr;
   const accent = domainColor || "var(--cta)";
+  const calendarInvite = attachments.find(
+    (a) => /calendar/i.test(a.content_type || "") || /\.ics$/i.test(a.filename || ""),
+  );
+
+  async function sendRsvp(response: "accept" | "decline" | "maybe") {
+    setRsvpBusy(true);
+    setRsvpError("");
+    setRsvpNotice("");
+    try {
+      const res = await api.calendarRsvp(message.id, response);
+      const label = response === "accept" ? "Accepted" : response === "decline" ? "Declined" : "Marked tentative";
+      setRsvpNotice(
+        res.event_id ? `${label}. Event saved to your Flap calendar.` : `${label}. Reply sent to the organizer.`,
+      );
+    } catch (ex) {
+      setRsvpError(ex instanceof Error ? ex.message : "Could not send RSVP.");
+    } finally {
+      setRsvpBusy(false);
+    }
+  }
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -381,6 +405,35 @@ export default function MessageReader({
           <p className="message-attachments-missing">
             This message had attachments, but R2 is not bound so files were not stored.
           </p>
+        ) : null}
+
+        {calendarInvite ? (
+          <div className="message-invite-rsvp" role="group" aria-label="Calendar invitation">
+            <p className="message-invite-lede">
+              Calendar invite · {calendarInvite.filename}
+            </p>
+            <div className="message-quick-reply">
+              <Button type="button" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("accept")}>
+                Accept
+              </Button>
+              <Button type="button" variant="outline" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("maybe")}>
+                Maybe
+              </Button>
+              <Button type="button" variant="outline" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("decline")}>
+                Decline
+              </Button>
+            </div>
+            {rsvpNotice ? (
+              <p className="notice" role="status">
+                {rsvpNotice}
+              </p>
+            ) : null}
+            {rsvpError ? (
+              <p className="error" role="alert">
+                {rsvpError}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="message-quick-reply">

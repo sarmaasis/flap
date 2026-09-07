@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "../lib/api";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, getClerkToken } from "../lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 type Theme = "system" | "light" | "dark";
@@ -25,8 +25,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem("flap-theme", theme);
-    void api.setTheme(theme).catch(() => undefined);
   }, [theme]);
+
+  // This provider sits above ClerkProvider so the theme paints before auth
+  // bootstraps, which means no session token exists while it mounts. Mirror the
+  // choice to the account only when the user actually picks one and a token is
+  // available; localStorage is what drives rendering either way.
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next);
+    void (async () => {
+      if (!(await getClerkToken())) return;
+      await api.setTheme(next).catch(() => undefined);
+    })();
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -37,11 +48,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, [theme]);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeState }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

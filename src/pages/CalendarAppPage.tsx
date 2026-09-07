@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Download, KeyRound, Plus, Trash2 } from "lucide-react";
 import AppFeaturePage from "../components/AppFeaturePage";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { api, type CalendarEvent } from "../lib/api";
+import { api, type CalendarAppToken, type CalendarEvent } from "../lib/api";
 import { go } from "../lib/nav";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -55,6 +55,7 @@ function downloadIcs(event: CalendarEvent) {
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Flap//Calendar//EN",
+    "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${event.uid || `${event.id}@flap`}`,
     `DTSTAMP:${icsDate(new Date())}`,
@@ -63,6 +64,10 @@ function downloadIcs(event: CalendarEvent) {
     `SUMMARY:${escapeIcs(event.title)}`,
     event.description ? `DESCRIPTION:${escapeIcs(event.description)}` : "",
     event.location ? `LOCATION:${escapeIcs(event.location)}` : "",
+    ...(event.attendees || []).map(
+      (a) =>
+        `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=${a.partstat || "NEEDS-ACTION"}:mailto:${a.email}`,
+    ),
     "END:VEVENT",
     "END:VCALENDAR",
     "",
@@ -75,6 +80,17 @@ function downloadIcs(event: CalendarEvent) {
   link.download = `${event.title.replace(/[^\w.-]+/g, "-").slice(0, 40) || "flap-event"}.ics`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function parseAttendeeEmails(raw: string): string[] {
+  return [
+    ...new Set(
+      raw
+        .split(/[,;\n]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => s.includes("@")),
+    ),
+  ];
 }
 
 export default function CalendarAppPage() {
@@ -91,6 +107,13 @@ export default function CalendarAppPage() {
   const [date, setDate] = useState(dateKey(new Date()));
   const [time, setTime] = useState("09:00");
   const [duration, setDuration] = useState("30");
+  const [attendees, setAttendees] = useState("");
+  const [sendInvites, setSendInvites] = useState(true);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [tokens, setTokens] = useState<CalendarAppToken[]>([]);
+  const [caldavUrl, setCaldavUrl] = useState("");
+  const [freshToken, setFreshToken] = useState("");
+  const [tokenBusy, setTokenBusy] = useState(false);
   const today = new Date();
 
   const days = useMemo(() => {
@@ -131,6 +154,16 @@ export default function CalendarAppPage() {
     void loadEvents();
   }, [loadEvents]);
 
+  async function loadTokens() {
+    try {
+      const res = await api.calendarTokens();
+      setTokens(res.tokens || []);
+      setCaldavUrl(res.caldav_url || "");
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "Could not load CalDAV settings.");
+    }
+  }
+
   function move(direction: number) {
     const next = new Date(anchor);
     if (view === "month") {
@@ -146,6 +179,8 @@ export default function CalendarAppPage() {
     setDate(forDate || dateKey(anchor));
     setTime(forTime || "09:00");
     setDuration("30");
+    setAttendees("");
+    setSendInvites(true);
     setOpen(true);
   }
 
@@ -156,6 +191,8 @@ export default function CalendarAppPage() {
     setDate(dateKey(start));
     setTime(`${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`);
     setDuration(String(Math.max(5, Math.round((event.ends_at - event.starts_at) / 60000))));
+    setAttendees((event.attendees || []).map((a) => a.email).join(", "));
+    setSendInvites(Boolean(event.attendees?.length));
     setOpen(true);
   }
 
@@ -164,29 +201,42 @@ export default function CalendarAppPage() {
     const start = new Date(`${date}T${time}`);
     if (!title.trim() || !Number.isFinite(start.getTime())) return;
     const endsAt = start.getTime() + Number(duration) * 60000;
+    const guestList = parseAttendeeEmails(attendees);
     setSaving(true);
     setError("");
     try {
+      const payload = {
+        title: title.trim(),
+        starts_at: start.getTime(),
+        ends_at: endsAt,
+        attendees: guestList,
+        send_invites: sendInvites && guestList.length > 0,
+      };
       if (selected) {
-        const res = await api.updateCalendarEvent(selected.id, {
-          title: title.trim(),
-          starts_at: start.getTime(),
-          ends_at: endsAt,
-        });
+        const res = await api.updateCalendarEvent(selected.id, payload);
         setEvents((prev) => prev.map((ev) => (ev.id === selected.id ? res.event : ev)));
-        setNotice("Event updated.");
+        setNotice(
+          res.invite_sent
+            ? `Event updated. Invitations sent to ${res.invite_sent}.`
+            : res.invite_error
+              ? `Event updated, but invites failed: ${res.invite_error}`
+              : "Event updated.",
+        );
       } else {
-        const res = await api.createCalendarEvent({
-          title: title.trim(),
-          starts_at: start.getTime(),
-          ends_at: endsAt,
-        });
+        const res = await api.createCalendarEvent(payload);
         setEvents((prev) => [...prev, res.event].sort((a, b) => a.starts_at - b.starts_at));
-        setNotice("Event saved to Flap.");
+        setNotice(
+          res.invite_sent
+            ? `Event saved. Invitations sent to ${res.invite_sent}.`
+            : res.invite_error
+              ? `Event saved, but invites failed: ${res.invite_error}`
+              : "Event saved to Flap.",
+        );
       }
       setOpen(false);
       setSelected(null);
       setTitle("");
+      setAttendees("");
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "Could not save event.");
     } finally {
@@ -196,18 +246,52 @@ export default function CalendarAppPage() {
 
   async function removeEvent() {
     if (!selected) return;
-    if (!window.confirm(`Delete “${selected.title}”?`)) return;
+    const hasGuests = Boolean(selected.attendees?.length);
+    const notify = hasGuests && window.confirm("Notify attendees that this event is cancelled?");
+    if (!hasGuests && !window.confirm(`Delete “${selected.title}”?`)) return;
+    if (hasGuests && !notify && !window.confirm(`Delete “${selected.title}” without notifying guests?`)) return;
     setSaving(true);
     try {
-      await api.deleteCalendarEvent(selected.id);
+      await api.deleteCalendarEvent(selected.id, notify);
       setEvents((prev) => prev.filter((ev) => ev.id !== selected.id));
       setOpen(false);
       setSelected(null);
-      setNotice("Event deleted.");
+      setNotice(notify ? "Event cancelled and guests notified." : "Event deleted.");
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "Could not delete event.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createToken() {
+    setTokenBusy(true);
+    setError("");
+    try {
+      const res = await api.createCalendarToken("CalDAV");
+      setFreshToken(res.token.token);
+      setCaldavUrl(res.caldav_url);
+      await loadTokens();
+      setNotice("CalDAV app password created. Copy it now — it is shown only once.");
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "Could not create CalDAV password.");
+    } finally {
+      setTokenBusy(false);
+    }
+  }
+
+  async function revokeToken(id: string) {
+    if (!window.confirm("Revoke this CalDAV app password?")) return;
+    setTokenBusy(true);
+    try {
+      await api.deleteCalendarToken(id);
+      if (freshToken) setFreshToken("");
+      await loadTokens();
+      setNotice("CalDAV app password revoked.");
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "Could not revoke password.");
+    } finally {
+      setTokenBusy(false);
     }
   }
 
@@ -217,7 +301,7 @@ export default function CalendarAppPage() {
     <AppFeaturePage
       current="calendar"
       title={anchor.toLocaleString(undefined, { month: "long", year: "numeric" })}
-      subtitle="Events save in Flap. Export .ics anytime. CalDAV sync and invitations are not available yet."
+      subtitle="Save events, send invitations, and sync with CalDAV (Solo+)."
       actions={
         <>
           <Button variant="ghost" size="icon" aria-label={`Previous ${view}`} onClick={() => move(-1)}>
@@ -236,6 +320,16 @@ export default function CalendarAppPage() {
               </button>
             ))}
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSyncOpen(true);
+              void loadTokens();
+            }}
+          >
+            <KeyRound className="h-4 w-4" />
+            CalDAV
+          </Button>
           <Button variant="secondary" onClick={() => go("/app/bookings")}>
             Booking pages
           </Button>
@@ -357,7 +451,7 @@ export default function CalendarAppPage() {
           <DialogHeader>
             <DialogTitle>{selected ? "Edit event" : "New event"}</DialogTitle>
             <DialogDescription>
-              Saved in your Flap calendar. You can also download an .ics file for other apps. Invitations are not sent yet.
+              Save to Flap and optionally email .ics invitations (Solo+). Guests can Accept / Decline from their inbox.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => void saveEvent(e)} className="stack gap-3">
@@ -379,10 +473,31 @@ export default function CalendarAppPage() {
               Duration in minutes
               <Input type="number" min="5" max="1440" required value={duration} onChange={(e) => setDuration(e.target.value)} />
             </label>
+            <label>
+              Invite guests
+              <Input
+                value={attendees}
+                onChange={(e) => setAttendees(e.target.value)}
+                placeholder="alex@startup.com, jordan@client.com"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={sendInvites} onChange={(e) => setSendInvites(e.target.checked)} />
+              Email invitations when guests are listed
+            </label>
+            {selected?.attendees?.length ? (
+              <ul className="muted text-sm" style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                {selected.attendees.map((a) => (
+                  <li key={a.email}>
+                    {a.email} · {(a.partstat || "NEEDS-ACTION").toLowerCase().replace("-", " ")}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <p className="muted text-sm">Times use your device’s time zone.</p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving…" : selected ? "Save changes" : "Save event"}
+                {saving ? "Saving…" : selected ? "Save changes" : sendInvites && parseAttendeeEmails(attendees).length ? "Save & send invites" : "Save event"}
               </Button>
               {selected ? (
                 <>
@@ -398,6 +513,73 @@ export default function CalendarAppPage() {
               ) : null}
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>CalDAV sync</DialogTitle>
+            <DialogDescription>
+              Connect Apple Calendar, Thunderbird, or other CalDAV clients with an app password (Solo+).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="stack gap-3">
+            {caldavUrl ? (
+              <label>
+                Server URL
+                <div className="flex gap-2">
+                  <Input readOnly value={caldavUrl} />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label="Copy CalDAV URL"
+                    onClick={() => void navigator.clipboard.writeText(caldavUrl)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </label>
+            ) : null}
+            <p className="muted text-sm">Username: any mailbox address on this workspace. Password: the app password below.</p>
+            {freshToken ? (
+              <label>
+                New app password (copy now)
+                <div className="flex gap-2">
+                  <Input readOnly value={freshToken} />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label="Copy app password"
+                    onClick={() => void navigator.clipboard.writeText(freshToken)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </label>
+            ) : null}
+            <Button type="button" onClick={() => void createToken()} disabled={tokenBusy}>
+              {tokenBusy ? "Working…" : "Create app password"}
+            </Button>
+            {tokens.length ? (
+              <ul className="stack gap-2" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {tokens.map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span>
+                      {t.label} · {t.token_prefix}…
+                    </span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => void revokeToken(t.id)} disabled={tokenBusy}>
+                      Revoke
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted text-sm">No app passwords yet.</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </AppFeaturePage>

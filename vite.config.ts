@@ -34,6 +34,16 @@ const clerkPk = clerkPublishableFromDisk();
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), cloudflare()],
+  server: {
+    // Bind IPv4 loopback explicitly. Vite's default host (`localhost`) resolves to
+    // `::1` here, so nothing listens on 127.0.0.1 — the host APP_URL names and the
+    // one the SPA bounces to in `maybeRedirectToAppOrigin`.
+    host: "127.0.0.1",
+    // Fail loudly instead of silently moving to 5174 when a dev server is already
+    // running: a second instance on another port skips the origin bounce and races
+    // the first over local D1/R2 state.
+    strictPort: true,
+  },
   define: {
     "import.meta.env.VITE_CLERK_PUBLISHABLE_KEY": JSON.stringify(clerkPk),
   },

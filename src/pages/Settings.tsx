@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
-import { useClerk } from "@clerk/clerk-react";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import {
   api,
   type Alias,
@@ -25,6 +25,7 @@ import {
   type WebhookDelivery,
 } from "../lib/api";
 import { ThemeToggle } from "../components/ThemeProvider";
+import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
@@ -75,11 +76,15 @@ function initialTab(surface: SettingsSurface): Tab {
     window.history.replaceState({}, "", "/app/developer");
     return "developers";
   }
+  if (q === "contacts") {
+    window.history.replaceState({}, "", "/app/contacts");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    return "general";
+  }
   const accountTabs: Tab[] = [
     "general",
     "preferences",
     "compose",
-    "contacts",
     "filters",
     "aliases",
     "delivery",
@@ -212,7 +217,8 @@ function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
 
 export default function Settings() {
   const clerk = useClerk();
-  const [surface] = useState<SettingsSurface>(() => detectSurface());
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
+  const [surface, setSurface] = useState<SettingsSurface>(() => detectSurface());
   const [tab, setTab] = useState<Tab>(() => initialTab(detectSurface()));
   const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const [email, setEmail] = useState("");
@@ -468,65 +474,96 @@ export default function Settings() {
   }
 
   useEffect(() => {
+    const syncRoute = () => {
+      const nextSurface = detectSurface();
+      setSurface(nextSurface);
+      setTab(initialTab(nextSurface));
+    };
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 4500);
     return () => window.clearTimeout(t);
   }, [toast]);
 
   useEffect(() => {
-    refreshCore()
-      .then(() => loadTabData(tab))
-      .catch(() => go("/login"));
-    setOrgName(localStorage.getItem("flap_org_name") || "");
-    setProfileName(localStorage.getItem("flap_profile_name") || "");
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "done") {
-      setNotice("Checkout complete. Plan entitlements update when Dodo confirms the subscription webhook.");
-      if (surface !== "billing") {
-        go("/app/billing?checkout=done");
+    if (!authLoaded) return;
+    if (!isSignedIn) {
+      go("/login");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const token = await waitForClerkToken(() => getToken());
+      if (cancelled) return;
+      if (!token) {
+        go("/login");
         return;
       }
-      setTab("billing");
-    }
-    if (params.get("onboarding") === "1") {
-      if (surface !== "domains") {
-        go("/app/domains?onboarding=1");
+      try {
+        await refreshCore();
+        if (cancelled) return;
+        await loadTabData(tab);
+      } catch {
+        if (!cancelled) go("/login");
         return;
       }
-      setOnboardingBanner(true);
-      setTab("setup");
-      setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
-    }
-    if (params.get("verify") === "ok") {
-      setEmailVerified(true);
-      setNotice("Email verified. You can finish domain setup below.");
-      if (surface !== "domains") {
-        go("/app/domains?verify=ok");
-        return;
+      if (cancelled) return;
+      setOrgName(localStorage.getItem("flap_org_name") || "");
+      setProfileName(localStorage.getItem("flap_profile_name") || "");
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "done") {
+        setNotice("Checkout complete. Plan entitlements update when Dodo confirms the subscription webhook.");
+        if (surface !== "billing") {
+          go("/app/billing?checkout=done");
+          return;
+        }
+        setTab("billing");
       }
-      setTab("setup");
-    }
-    if (params.get("verify") === "sent") {
-      setEmailVerified(false);
-      setNotice("Check your inbox for a verification code from Clerk.");
-      if (surface === "account") setTab("general");
-      else setTab("setup");
-    }
-    if (params.get("verify") === "failed") {
-      setErr(params.get("reason") || "Email verification failed. Request a new code below.");
-      if (surface === "account") setTab("general");
-      else setTab("setup");
-    }
-    if (params.get("joined") === "1") {
-      setTab("team");
-      setNotice("You joined the workspace. Shared mailboxes you were granted appear in the inbox.");
-    }
+      if (params.get("onboarding") === "1") {
+        if (surface !== "domains") {
+          go("/app/domains?onboarding=1");
+          return;
+        }
+        setOnboardingBanner(true);
+        setTab("setup");
+        setNotice("Welcome to Flap. Complete the checklist below to receive your first message.");
+      }
+      if (params.get("verify") === "ok") {
+        setEmailVerified(true);
+        setNotice("Email verified. You can finish domain setup below.");
+        if (surface !== "domains") {
+          go("/app/domains?verify=ok");
+          return;
+        }
+        setTab("setup");
+      }
+      if (params.get("verify") === "sent") {
+        setEmailVerified(false);
+        setNotice("Check your inbox for a verification code from Clerk.");
+        if (surface === "account") setTab("general");
+        else setTab("setup");
+      }
+      if (params.get("verify") === "failed") {
+        setErr(params.get("reason") || "Email verification failed. Request a new code below.");
+        if (surface === "account") setTab("general");
+        else setTab("setup");
+      }
+      if (params.get("joined") === "1") {
+        setTab("team");
+        setNotice("You joined the workspace. Shared mailboxes you were granted appear in the inbox.");
+      }
+    })();
     return () => {
+      cancelled = true;
       dnsPollRef.current.cancelled = true;
       if (dnsPollRef.current.timer) clearTimeout(dnsPollRef.current.timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoaded, isSignedIn, getToken]);
 
   useEffect(() => {
     void loadTabData(tab);
@@ -826,7 +863,6 @@ export default function Settings() {
               ["preferences", "Preferences"],
               ["team", "Team"],
               ["compose", "Compose"],
-              ["contacts", "Contacts"],
               ["filters", "Rules"],
               ["aliases", "Aliases"],
               ["delivery", "Delivery"],

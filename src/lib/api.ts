@@ -29,6 +29,12 @@ export type Domain = {
   migration_from?: string | null;
   migration_state?: string | null;
 };
+export type CalendarAttendee = {
+  email: string;
+  displayName?: string;
+  partstat?: "NEEDS-ACTION" | "ACCEPTED" | "DECLINED" | "TENTATIVE";
+  role?: string;
+};
 export type CalendarEvent = {
   id: string;
   mailbox_id: string;
@@ -40,8 +46,19 @@ export type CalendarEvent = {
   ends_at: number;
   all_day: number;
   status: string;
+  organizer_email?: string;
+  sequence?: number;
+  etag?: string;
+  attendees?: CalendarAttendee[];
   created_at: number;
   updated_at: number;
+};
+export type CalendarAppToken = {
+  id: string;
+  label: string;
+  token_prefix: string;
+  created_at: number;
+  last_used_at?: number | null;
 };
 export type FolderCounts = Record<string, { total: number; unread: number }>;
 export type MailSummary = {
@@ -489,8 +506,10 @@ export const api = {
     location?: string;
     all_day?: boolean;
     mailbox_id?: string;
+    attendees?: Array<string | CalendarAttendee>;
+    send_invites?: boolean;
   }) =>
-    req<{ event: CalendarEvent }>("/api/calendar/events", {
+    req<{ event: CalendarEvent; invite_sent?: number; invite_error?: string }>("/api/calendar/events", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -505,14 +524,39 @@ export const api = {
       all_day: boolean;
       mailbox_id: string;
       status: string;
+      attendees: Array<string | CalendarAttendee>;
+      send_invites: boolean;
     }>,
   ) =>
-    req<{ event: CalendarEvent }>(`/api/calendar/events/${id}`, {
+    req<{ event: CalendarEvent; invite_sent?: number; invite_error?: string }>(`/api/calendar/events/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  deleteCalendarEvent: (id: string) =>
-    req<{ ok: boolean }>(`/api/calendar/events/${id}`, { method: "DELETE" }),
+  deleteCalendarEvent: (id: string, notify = false) =>
+    req<{ ok: boolean }>(`/api/calendar/events/${id}${notify ? "?notify=1" : ""}`, { method: "DELETE" }),
+  calendarRsvp: (message_id: string, response: "accept" | "decline" | "maybe") =>
+    req<{ ok: boolean; response: string; partstat: string; event_id: string | null }>("/api/calendar/rsvp", {
+      method: "POST",
+      body: JSON.stringify({ message_id, response }),
+    }),
+  calendarTokens: () =>
+    req<{
+      tokens: CalendarAppToken[];
+      caldav_url: string;
+      username_hint: string;
+      note: string;
+    }>("/api/calendar/tokens"),
+  createCalendarToken: (label?: string) =>
+    req<{
+      token: CalendarAppToken & { token: string };
+      caldav_url: string;
+      note: string;
+    }>("/api/calendar/tokens", {
+      method: "POST",
+      body: JSON.stringify({ label }),
+    }),
+  deleteCalendarToken: (id: string) =>
+    req<{ ok: boolean }>(`/api/calendar/tokens/${id}`, { method: "DELETE" }),
   prefs: () => req<{ settings: Prefs }>("/api/settings/prefs"),
   savePrefs: (body: {
     vacation_enabled?: boolean;

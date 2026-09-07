@@ -51,7 +51,7 @@ const OVERVIEW: Array<{ id: AppNavId; label: string; href: string; icon: typeof 
   { id: "ai", label: "AI assistant", href: "/app/ai", icon: Bot },
   { id: "domains", label: "Domains", href: "/app/domains", icon: Globe2 },
   { id: "mailboxes", label: "Mailboxes", href: "/app/mailboxes", icon: Mail },
-  { id: "contacts", label: "Contacts", href: "/app/settings?tab=contacts", icon: Contact },
+  { id: "contacts", label: "Contacts", href: "/app/contacts", icon: Contact },
   { id: "newsletters", label: "Newsletters", href: "/app/newsletters", icon: Megaphone },
   { id: "bookings", label: "Bookings", href: "/app/bookings", icon: CalendarDays },
   { id: "analytics", label: "Analytics", href: "/app/analytics", icon: BarChart3 },

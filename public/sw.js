@@ -1,6 +1,12 @@
 /* Flap PWA — cache static chrome only; never poison /app with marketing HTML. */
-const CACHE = "flap-shell-v2";
+const CACHE = "flap-shell-v3";
 const SHELL = ["/manifest.webmanifest", "/favicon.svg"];
+
+// Vite dev serves the app as raw ES modules from these prefixes, and stamps every
+// pre-bundled dependency with a ?v= hash that changes on each re-optimize. A cached
+// module graph therefore points at dep URLs the server no longer recognises and
+// answers with 504 (Outdated Optimize Dep).
+const DEV_PREFIXES = ["/@", "/src/", "/shared/", "/node_modules/"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -21,6 +27,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
   if (req.mode === "navigate" || req.destination === "document") return;
   if (url.pathname === "/app" || url.pathname.startsWith("/app/")) return;
+  if (DEV_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {

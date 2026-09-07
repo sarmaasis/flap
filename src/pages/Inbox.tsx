@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useClerk } from "@clerk/clerk-react";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import {
   api,
   getClerkToken,
@@ -16,6 +16,7 @@ import {
   type Template,
 } from "../lib/api";
 import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/format";
+import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
 import CommandPalette from "../components/CommandPalette";
@@ -52,6 +53,7 @@ const EMPTY: Record<string, string> = {
 
 export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const clerk = useClerk();
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
   const [folder, setFolder] = useState("inbox");
   const [list, setList] = useState<MailSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -143,8 +145,29 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }, []);
 
   useEffect(() => {
-    refreshBootstrap().catch(() => go("/login"));
-  }, [refreshBootstrap]);
+    if (!authLoaded) return;
+    if (!isSignedIn) {
+      go("/login");
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const token = await waitForClerkToken(() => getToken());
+      if (cancelled) return;
+      if (!token) {
+        go("/login");
+        return;
+      }
+      try {
+        await refreshBootstrap();
+      } catch {
+        if (!cancelled) go("/login");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoaded, isSignedIn, getToken, refreshBootstrap]);
 
   const loadList = useCallback(async (signal?: AbortSignal) => {
     setErr("");
@@ -1148,6 +1171,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           if (tab === "setup") go("/app/domains");
           else if (tab === "billing") go("/app/billing");
           else if (tab === "developers" || tab === "developer") go("/app/developer");
+          else if (tab === "contacts") go("/app/contacts");
           else go(tab ? `/app/settings?tab=${encodeURIComponent(tab)}` : "/app/settings");
         }}
       />

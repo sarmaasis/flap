@@ -44,6 +44,7 @@ const NewslettersAppPage = lazy(() => import("./pages/NewslettersAppPage"));
 const BookingsAppPage = lazy(() => import("./pages/BookingsAppPage"));
 const MailboxesAppPage = lazy(() => import("./pages/MailboxesAppPage"));
 const AnalyticsAppPage = lazy(() => import("./pages/AnalyticsAppPage"));
+const ContactsAppPage = lazy(() => import("./pages/ContactsAppPage"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -145,6 +146,15 @@ export default function App() {
       <Screen>
         <RequireVerified>
           <AnalyticsAppPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/contacts") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <ContactsAppPage />
         </RequireVerified>
       </Screen>
     );

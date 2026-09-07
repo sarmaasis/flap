@@ -33,10 +33,31 @@ function TokenBridge({ children }: { children: ReactNode }) {
 }
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
+const ORIGIN_BOUNCE_KEY = "flap:origin-bounce";
+
+function readBounced(): string {
+  try {
+    return sessionStorage.getItem(ORIGIN_BOUNCE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function markBounced(origin: string) {
+  try {
+    sessionStorage.setItem(ORIGIN_BOUNCE_KEY, origin);
+  } catch {
+    /* private mode — bounce simply stays un-tracked */
+  }
+}
 
 /**
  * Clerk magic-link cookies are host-scoped. localhost and 127.0.0.1 are different sites.
  * If APP_URL prefers one and the user opened the other, bounce before starting Clerk.
+ *
+ * Bounces once per tab. The preferred host is only a config value, so it may not be
+ * listening; if we land back here the target is dead and rendering on the origin that
+ * demonstrably works beats stranding the user on a connection error.
  */
 export function maybeRedirectToAppOrigin(appUrl: string): boolean {
   const preferredRaw = appUrl.trim();
@@ -49,6 +70,8 @@ export function maybeRedirectToAppOrigin(appUrl: string): boolean {
     const preferredPort = preferred.port || (preferred.protocol === "https:" ? "443" : "80");
     const currentPort = current.port || (current.protocol === "https:" ? "443" : "80");
     if (preferredPort !== currentPort) return false;
+    if (readBounced() === preferred.origin) return false;
+    markBounced(preferred.origin);
     const target = `${preferred.protocol}//${preferred.host}${current.pathname}${current.search}${current.hash}`;
     window.location.replace(target);
     return true;
@@ -155,6 +178,24 @@ export function clerkErrorCodes(error: unknown): string[] {
 
 export function clerkHasErrorCode(error: unknown, code: string): boolean {
   return clerkErrorCodes(error).includes(code);
+}
+
+/** Wait until Clerk can mint a session JWT (avoids refresh race → /login). */
+export async function waitForClerkToken(
+  getToken: () => Promise<string | null | undefined>,
+  attempts = 20,
+  delayMs = 75,
+): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const token = (await getToken()) || null;
+      if (token) return token;
+    } catch {
+      /* retry */
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return null;
 }
 
 /** Magic-link redirectUrl must use the current origin so Clerk cookies match. */
