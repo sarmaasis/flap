@@ -26,7 +26,6 @@ import {
 } from "../lib/api";
 import { ThemeToggle } from "../components/ThemeProvider";
 import { go } from "../lib/nav";
-import { absoluteUrl } from "../lib/clerk";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
