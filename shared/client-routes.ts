@@ -10,6 +10,8 @@ export const AUTH_SPA_PREFIXES = [
   "/login",
   "/setup",
   "/verify-email",
+  "/sso-callback",
+  "/auth/verify",
   "/forgot-password",
   "/reset-password",
   "/invite",

@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
+import { useAuth, useClerk, useUser } from "@clerk/clerk-react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { authClient, authErrorMessage } from "../lib/auth-client";
+import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
 import {
   readPendingVerifyEmail,
   storePendingVerifyEmail,
 } from "../lib/verify-email";
 
-export default function VerifyEmail() {
+function VerifyEmailInner() {
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { user, isLoaded: userLoaded } = useUser();
+  const clerk = useClerk();
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState<"signup" | "signin" | "">("");
   const [err, setErr] = useState("");
@@ -28,29 +32,36 @@ export default function VerifyEmail() {
     }
     const r = params.get("reason");
     if (r === "signup" || r === "signin") setReason(r);
-
-    void authClient.getSession().then(({ data }) => {
-      if (data?.user?.emailVerified) go("/app");
-    });
   }, []);
 
-  async function resend() {
-    const target = email.trim().toLowerCase();
-    if (!target) {
-      setErr("Enter the email you signed up with.");
-      return;
+  useEffect(() => {
+    if (!authLoaded || !userLoaded) return;
+    if (user?.primaryEmailAddress?.verification?.status === "verified") {
+      go("/app");
     }
+    if (user?.primaryEmailAddress?.emailAddress) {
+      setEmail(user.primaryEmailAddress.emailAddress);
+    }
+  }, [authLoaded, userLoaded, user]);
+
+  async function resend() {
     setErr("");
     setNotice("");
     setBusy(true);
     try {
-      const { error } = await authClient.sendVerificationEmail({
-        email: target,
-        callbackURL: "/app/settings?tab=setup&onboarding=1&verify=ok",
+      if (!isSignedIn || !user?.primaryEmailAddress) {
+        setErr("Sign in first, then resend — or use a magic link on /login.");
+        return;
+      }
+      const addr = user.primaryEmailAddress;
+      const { startEmailLinkFlow } = addr.createEmailLinkFlow();
+      await startEmailLinkFlow({
+        redirectUrl: absoluteUrl(
+          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
+        ),
       });
-      if (error) throw error;
-      storePendingVerifyEmail(target);
-      setNotice("Verification email sent. Check your inbox (and spam) — the link expires in 48 hours.");
+      storePendingVerifyEmail(addr.emailAddress);
+      setNotice("Verification email sent. Check your inbox (and spam).");
     } catch (ex) {
       setErr(authErrorMessage(ex, "Could not resend verification email."));
     } finally {
@@ -95,7 +106,7 @@ export default function VerifyEmail() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          <Button type="button" disabled={busy} className="w-full" onClick={() => void resend()}>
+          <Button type="button" disabled={busy || !clerk.loaded} className="w-full" onClick={() => void resend()}>
             {busy ? "Sending…" : "Resend verification email"}
           </Button>
           <button type="button" className="auth-password-toggle" onClick={() => go("/login")}>
@@ -118,4 +129,10 @@ export default function VerifyEmail() {
       </div>
     </div>
   );
+}
+
+export default function VerifyEmail() {
+  const ready = useClerkReady();
+  if (!ready) return <ClerkMissingCard />;
+  return <VerifyEmailInner />;
 }

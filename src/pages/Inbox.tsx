@@ -1,6 +1,8 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useClerk } from "@clerk/clerk-react";
 import {
   api,
+  getClerkToken,
   type Attachment,
   type Contact,
   type Domain,
@@ -47,6 +49,7 @@ const EMPTY: Record<string, string> = {
 };
 
 export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
+  const clerk = useClerk();
   const [folder, setFolder] = useState("inbox");
   const [list, setList] = useState<MailSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -335,10 +338,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       }
     };
 
-    const connect = () => {
+    const connect = async () => {
       if (closed) return;
       const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      ws = new WebSocket(`${proto}//${window.location.host}/api/events/ws`);
+      const token = await getClerkToken();
+      const qs = token ? `?__clerk_token=${encodeURIComponent(token)}` : "";
+      ws = new WebSocket(`${proto}//${window.location.host}/api/events/ws${qs}`);
       ws.onopen = () => {
         retryMs = 1_000;
       };
@@ -366,12 +371,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         if (closed) return;
         retryTimer = window.setTimeout(() => {
           retryMs = Math.min(retryMs * 2, 30_000);
-          connect();
+          void connect();
         }, retryMs);
       };
     };
 
-    connect();
+    void connect();
     return () => {
       closed = true;
       if (retryTimer) window.clearTimeout(retryTimer);
@@ -500,7 +505,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }
 
   async function logout() {
-    await api.logout();
+    await clerk.signOut({ redirectUrl: "/" });
     go("/");
   }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
+import { useClerk } from "@clerk/clerk-react";
 import {
   api,
   type Alias,
@@ -25,6 +26,7 @@ import {
 } from "../lib/api";
 import { ThemeToggle } from "../components/ThemeProvider";
 import { go } from "../lib/nav";
+import { absoluteUrl } from "../lib/clerk";
 import AppShell from "../components/AppShell";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -160,6 +162,7 @@ function formatDnsRecordsBlock(rows: DnsTableRow[], domain: string): string {
 }
 
 export default function Settings() {
+  const clerk = useClerk();
   const [tab, setTab] = useState<Tab>(initialTab);
   const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
   const [email, setEmail] = useState("");
@@ -638,8 +641,22 @@ export default function Settings() {
     setVerifyBusy(true);
     setErr("");
     try {
-      const res = await api.resendVerification();
-      setNotice(res.message || (res.sent ? "Verification email sent." : "Request recorded."));
+      const addr = clerk.user?.primaryEmailAddress;
+      if (!addr) {
+        setErr("Sign in again to resend verification.");
+        return;
+      }
+      if (addr.verification?.status === "verified") {
+        setNotice("Email is already verified.");
+        return;
+      }
+      const { startEmailLinkFlow } = addr.createEmailLinkFlow();
+      await startEmailLinkFlow({
+        redirectUrl: absoluteUrl(
+          `/auth/verify?next=${encodeURIComponent("/app/settings?tab=setup&onboarding=1&verify=ok")}`,
+        ),
+      });
+      setNotice("Verification email sent.");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not resend verification.");
     } finally {
@@ -681,7 +698,7 @@ export default function Settings() {
   }
 
   async function logout() {
-    await api.logout();
+    await clerk.signOut({ redirectUrl: "/" });
     go("/");
   }
 

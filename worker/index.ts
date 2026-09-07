@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { destroySession, getSessionUser, requireUser, userCount } from "./lib/auth";
-import { createAuth, githubConfigured, googleConfigured } from "./lib/better-auth";
+import { getSessionUser, requireUser, userCount } from "./lib/auth";
+import { clerkConfigured } from "./lib/clerk";
 import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
-import { EMAIL_RE, HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
+import { HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
@@ -20,7 +20,6 @@ import {
   provisionCustomerDomain,
 } from "./lib/mail-provider";
 import { afterDomainAdded, markFirstEmailSent } from "./lib/activation";
-import { ensureFlapUser } from "./lib/flap-user";
 import {
   assertMailboxAccess,
   listAccessibleMailboxes,
@@ -36,17 +35,6 @@ import { InboxHub } from "./inbox-hub";
 import { isKnownClientPath, normalizePathname } from "../shared/client-routes";
 
 export { InboxHub };
-
-function applySetCookies(c: { header: (name: string, value: string, opts?: { append?: boolean }) => void }, headers: Headers) {
-  const cookies =
-    typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
-  if (cookies.length) {
-    for (const cookie of cookies) c.header("Set-Cookie", cookie, { append: true });
-    return;
-  }
-  const single = headers.get("set-cookie");
-  if (single) c.header("Set-Cookie", single, { append: true });
-}
 
 type App = { Bindings: Env };
 const app = new Hono<App>();
@@ -147,6 +135,8 @@ app.get("/signup", (c) => serveSpaShell(c));
 app.get("/login", (c) => serveSpaShell(c));
 app.get("/setup", (c) => serveSpaShell(c));
 app.get("/verify-email", (c) => serveSpaShell(c));
+app.get("/sso-callback", (c) => serveSpaShell(c));
+app.get("/auth/verify", (c) => serveSpaShell(c));
 app.get("/forgot-password", (c) => serveSpaShell(c));
 app.get("/reset-password", (c) => serveSpaShell(c));
 app.get("/invite", (c) => serveSpaShell(c));
@@ -212,105 +202,49 @@ app.get("/api/setup/status", async (c) => {
   return c.json({ needs_setup: n === 0, signup_open: saas || n === 0 });
 });
 
+/** First-boot: open Clerk signup; product user is created on first authenticated API call. */
 app.post("/api/setup", async (c) => {
   if ((await userCount(c.env.DB)) > 0) {
     return c.json({ error: "Setup is already complete. Sign in or create an account instead." }, 409);
   }
-  const body = await c.req.json().catch(() => ({})) as { email?: string };
-  const email = (body.email ?? "").trim().toLowerCase();
-  if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
-
-  const id = randomId("usr");
-  const nowIso = new Date().toISOString();
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
-    )
-      .bind(id, "Admin", email, nowIso, nowIso)
-      .run();
-
-    await ensureFlapUser(c.env, { id, email, name: "Admin", emailVerified: true });
-
-    const auth = createAuth(c.env, c.executionCtx);
-    await auth.api.signInMagicLink({
-      body: {
-        email,
-        callbackURL: "/app/settings?tab=setup&onboarding=1",
-      },
-      headers: c.req.raw.headers,
-    });
-
-    return c.json({ ok: true, magic_sent: true, email });
-  } catch (error) {
-    console.error("Failed to create the initial Flap administrator", error);
-    if ((await userCount(c.env.DB)) > 0) {
-      return c.json({ error: "Setup is already complete. Sign in instead." }, 409);
-    }
-    return c.json({ error: "Could not create the administrator account. Check the Worker logs for details." }, 500);
+  if (!clerkConfigured(c.env)) {
+    return c.json({ error: "Clerk is not configured. Set CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY." }, 503);
   }
+  return c.json({
+    ok: true,
+    redirect: "/signup",
+    message: "Create the first account with Clerk on /signup.",
+  });
 });
 
-/** @deprecated Use Better Auth client (`/api/auth/sign-up/email`). */
-app.post("/api/signup", (c) =>
-  c.json(
-    {
-      error: "Signup moved to Better Auth. Use magic link or Google/GitHub on /signup.",
-      path: "/api/auth/sign-in/magic-link",
-    },
-    410,
-  ),
-);
-
-/** @deprecated Use Better Auth client (`/api/auth/sign-in/magic-link`). */
-app.post("/api/login", (c) =>
-  c.json(
-    {
-      error: "Login moved to Better Auth. Use magic link or Google/GitHub on /login.",
-      path: "/api/auth/sign-in/magic-link",
-    },
-    410,
-  ),
-);
-
-app.get("/api/auth/providers", (c) =>
+app.get("/api/public-config", (c) =>
   c.json({
-    google: googleConfigured(c.env),
-    github: githubConfigured(c.env),
+    clerkPublishableKey: (c.env.CLERK_PUBLISHABLE_KEY || "").trim(),
+    clerkConfigured: clerkConfigured(c.env),
   }),
 );
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => {
-  const auth = createAuth(c.env, c.executionCtx);
-  return auth.handler(c.req.raw);
-});
+/** @deprecated Use Clerk on /signup. */
+app.post("/api/signup", (c) =>
+  c.json({ error: "Signup moved to Clerk. Use magic link or Google/GitHub on /signup.", path: "/signup" }, 410),
+);
 
-app.post("/api/logout", async (c) => {
-  try {
-    const auth = createAuth(c.env, c.executionCtx);
-    const result = await auth.api.signOut({
-      headers: c.req.raw.headers,
-      returnHeaders: true,
-    });
-    applySetCookies(c, result.headers);
-  } catch {
-    await destroySession(c).catch(() => undefined);
-  }
-  return c.json({ ok: true });
-});
+/** @deprecated Use Clerk on /login. */
+app.post("/api/login", (c) =>
+  c.json({ error: "Login moved to Clerk. Use magic link or Google/GitHub on /login.", path: "/login" }, 410),
+);
+
+/** OAuth providers are enabled in the Clerk Dashboard (not Flap env). */
+app.get("/api/auth/providers", (c) => c.json({ google: true, github: true, clerk: clerkConfigured(c.env) }));
+
+app.post("/api/logout", (c) => c.json({ ok: true }));
 
 app.get("/api/me", async (c) => {
   const user = await getSessionUser(c);
   if (!user) return c.json({ user: null }, 401);
   const preferred = getCookie(c, "flap_ws") || undefined;
   const ctx = await resolveWorkspace(c.env.DB, user.id, preferred);
-  const [mailboxes, credential] = await Promise.all([
-    listAccessibleMailboxes(c.env.DB, ctx),
-    c.env.DB.prepare(
-      `SELECT id FROM account WHERE userId = ? AND providerId = 'credential' AND password IS NOT NULL AND password != ''`,
-    )
-      .bind(user.id)
-      .first<{ id: string }>(),
-  ]);
+  const mailboxes = await listAccessibleMailboxes(c.env.DB, ctx);
   return c.json({
     user: {
       id: user.id,
@@ -327,11 +261,8 @@ app.get("/api/me", async (c) => {
     },
     mailboxes: mailboxes.results ?? [],
     auth: {
-      has_password: Boolean(credential),
-      providers: {
-        google: googleConfigured(c.env),
-        github: githubConfigured(c.env),
-      },
+      has_password: false,
+      providers: { google: true, github: true },
     },
   });
 });

@@ -4,7 +4,7 @@ import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
 /**
- * Blocks /app until Better Auth reports emailVerified.
+ * Blocks /app until Clerk reports a verified email (via /api/me).
  * Magic-link / OAuth users are verified on first successful sign-in.
  */
 export default function RequireVerified({ children }: { children: ReactNode }) {

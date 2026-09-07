@@ -25,6 +25,8 @@
 			"/login",
 			"/setup",
 			"/verify-email",
+			"/sso-callback",
+			"/auth/verify",
 			"/forgot-password",
 			"/reset-password",
 			"/invite",

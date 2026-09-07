@@ -1,78 +1,83 @@
 import { useEffect, useState } from "react";
+import { useAuth, useSignIn } from "@clerk/clerk-react";
 import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
-import { authClient, authErrorMessage } from "../lib/auth-client";
+import { absoluteUrl, authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
 
 function OAuthButtons({ invite }: { invite?: string }) {
-  const [providers, setProviders] = useState<{ google: boolean; github: boolean }>({ google: false, github: false });
-  useEffect(() => {
-    api.authProviders().then(setProviders).catch(() => undefined);
-  }, []);
-  if (!providers.google && !providers.github) return null;
+  const { signIn, isLoaded } = useSignIn();
+  if (!isLoaded || !signIn) return null;
 
-  const callbackURL = invite ? `/invite/${invite}` : "/app";
+  const complete = invite ? `/invite/${invite}` : "/app";
 
-  async function social(provider: "google" | "github") {
-    await authClient.signIn.social({ provider, callbackURL });
+  async function social(strategy: "oauth_google" | "oauth_github") {
+    if (!signIn) return;
+    await signIn.authenticateWithRedirect({
+      strategy,
+      redirectUrl: absoluteUrl("/sso-callback"),
+      redirectUrlComplete: absoluteUrl(complete),
+    });
   }
 
   return (
     <div className="stack gap-2">
-      {providers.google ? (
-        <Button type="button" variant="outline" className="w-full" onClick={() => void social("google")}>
-          Continue with Google
-        </Button>
-      ) : null}
-      {providers.github ? (
-        <Button type="button" variant="secondary" className="w-full" onClick={() => void social("github")}>
-          Continue with GitHub
-        </Button>
-      ) : null}
+      <Button type="button" variant="outline" className="w-full" onClick={() => void social("oauth_google")}>
+        Continue with Google
+      </Button>
+      <Button type="button" variant="secondary" className="w-full" onClick={() => void social("oauth_github")}>
+        Continue with GitHub
+      </Button>
       <div className="auth-divider"><span>or email a magic link</span></div>
     </div>
   );
 }
 
-export default function Login() {
+function LoginInner() {
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { signIn, isLoaded } = useSignIn();
   const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const invite = new URLSearchParams(window.location.search).get("invite") || undefined;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const oauthErr = params.get("error");
-    if (oauthErr) setErr("Sign-in failed. Try again or use a magic link.");
+    if (params.get("error")) setErr("Sign-in failed. Try again or use a magic link.");
     api.setupStatus().then((s) => {
       if (s.needs_setup) go("/setup");
     }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn) return;
     api.me().then((me) => {
       if (me.user.email_verified === false) {
         storePendingVerifyEmail(me.user.email);
         go(verifyEmailPath(me.user.email, "signin"));
         return;
       }
-      go("/app");
+      go(invite ? `/invite/${invite}` : "/app");
     }).catch(() => undefined);
-  }, []);
+  }, [authLoaded, isSignedIn, invite]);
 
   async function onMagicLink(e: React.FormEvent) {
     e.preventDefault();
+    if (!isLoaded || !signIn) return;
     setErr("");
     setNotice("");
     setBusy(true);
     try {
-      const { error } = await authClient.signIn.magicLink({
-        email,
-        callbackURL: "/app",
-        errorCallbackURL: "/login?error=magic",
+      await signIn.create({
+        strategy: "email_link",
+        identifier: email.trim(),
+        redirectUrl: absoluteUrl("/auth/verify"),
       });
-      if (error) throw error;
       setNotice("Check your email for a sign-in link. It expires in 15 minutes.");
     } catch (ex) {
       setErr(authErrorMessage(ex, "Could not send magic link."));
@@ -93,13 +98,13 @@ export default function Login() {
         </p>
         {err ? <p className="error" role="alert">{err}</p> : null}
         {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <OAuthButtons />
+        <OAuthButtons invite={invite} />
         <div className="stack gap-3">
           <div className="stack gap-1.5">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <Button type="submit" disabled={busy} className="w-full">
+          <Button type="submit" disabled={busy || !isLoaded} className="w-full">
             {busy ? "Sending link…" : "Email me a magic link"}
           </Button>
         </div>
@@ -110,4 +115,10 @@ export default function Login() {
       </form>
     </div>
   );
+}
+
+export default function Login() {
+  const ready = useClerkReady();
+  if (!ready) return <ClerkMissingCard />;
+  return <LoginInner />;
 }

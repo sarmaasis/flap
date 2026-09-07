@@ -30,7 +30,7 @@ Support: [support@useflap.online](mailto:support@useflap.online)
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # fill SESSION_SECRET at minimum
+cp .dev.vars.example .dev.vars   # fill CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY at minimum
 npm run db:migrate:local
 npm run check                    # optional: pricing math self-test
 npx tsx shared/calculator.test.ts
@@ -53,17 +53,17 @@ DODO_PRODUCT_STUDIO=pdt_…
 ## Production deploy checklist
 
 1. Set Worker secrets (see `.dev.vars.example`):
-   - `BETTER_AUTH_SECRET` (or `SESSION_SECRET`), `APP_URL=https://useflap.online`, `SAAS_MODE=true`
+   - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` (optional `CLERK_JWT_KEY` for networkless JWT verify), `APP_URL=https://useflap.online`, `SAAS_MODE=true`
    - `SYSTEM_FROM_EMAIL=noreply@useflap.online`
    - **Amazon SES (required for customer domains):** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_REGION`, `SES_INBOUND_WEBHOOK_SECRET` (plus `SES_RECEIPT_RULE_SET` / `SES_INBOUND_BUCKET` after deploying `infra/ses-inbound`)
    - Mailgun secrets optional (legacy domains only during migration)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
    - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
-   - OAuth optional: Google / GitHub client IDs + secrets
+   - OAuth / magic link: enable Email link + Google/GitHub in the Clerk Dashboard (allowed origins + redirect URLs `/sso-callback`, `/auth/verify`)
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
-4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
-5. Complete **Outbound auth mail** below so magic-link / verify emails deliver
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider** and **0022_clerk**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
+5. Confirm Clerk auth mail delivers (Clerk sends magic-link / verification email; Flap SEB is for product/system mail)
 
 **SPA note:** `/app` and other app shells are served by the Worker (`serveSpaShell` → `/spa-shell` asset). Do not fetch `/index.html` for those routes — Assets `html_handling` redirects `/index.html` → `/`, which used to bounce hard-refresh of `/app` to the marketing homepage.
 
@@ -77,9 +77,9 @@ Customer domains use **Amazon SES** on every plan (any DNS host → SES MX/DKIM 
 
 **Cost note:** SES is metered but inexpensive at early volume; Free is limited by Flap quotas and anti-abuse, not by a separate Free=Cloudflare transport.
 
-### Outbound auth mail — useflap.online
+### Outbound system mail — useflap.online
 
-Magic-link and verification mail use `SYSTEM_FROM_EMAIL` via **SEB** when the `send_email` binding is configured. Do not send critical auth mail through the customer SES configuration.
+Product/system mail uses `SYSTEM_FROM_EMAIL` via **SEB** when the `send_email` binding is configured. **Clerk** sends account magic-link and verification email from your Clerk instance (configure the from-address in the Clerk Dashboard).
 
 #### Option A — SEB (Cloudflare Email Sending) for system mail
 
@@ -88,22 +88,14 @@ Magic-link and verification mail use `SYSTEM_FROM_EMAIL` via **SEB** when the `s
 3. **Secret** — `SYSTEM_FROM_EMAIL=noreply@useflap.online`.
 4. Onboard `useflap.online` for Email Sending in the Cloudflare dashboard; publish MX/SPF/DKIM for that domain as Cloudflare documents.
 5. Ensure Email Routing has a domain-level catch-all (or address routes) to Worker `flap` for inbound system replies if needed.
-6. Verify with a magic link to a non-verified destination address.
 
 #### Option B — Temporary fallback
 
 If SEB is unbound in local/dev, configure a verified system From elsewhere; production should use SEB for `useflap.online`.
 
-### Auth email rate limits
+### Auth
 
-Magic-link and verification sends are throttled in D1 (`auth_email_rate_log`, migration **0011**) to protect sending quotas. Fail closed with HTTP **429**.
-
-| Scope | Limit |
-|-------|--------|
-| Per email + kind (`magic_link` / `verify_email`) | **3 / 15 min**, **10 / rolling 24h** |
-| Per IP + kind | **10 / hour** |
-
-Enforced on `/sign-in/magic-link` (before hook) and inside `sendVerificationEmail` (covers `/send-verification-email`, Settings resend, and `sendOnSignUp`). See `worker/lib/auth-email-rate-limit.ts`.
+Flap uses **Clerk** (`@clerk/clerk-react` + `@clerk/backend`). The SPA sends Clerk session JWTs as `Authorization: Bearer …` on `/api/*`; the Worker verifies with `authenticateRequest` and maps `clerk_user_id` → Flap `users.id` (create-on-first-auth, or link by email for existing workspaces).
 
 ## Scripts
 

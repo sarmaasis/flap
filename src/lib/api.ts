@@ -157,18 +157,44 @@ export type TeamResponse = {
 };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(init?.body ? { "content-type": "application/json" } : {}),
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (clerkTokenGetter) {
+    const token = await clerkTokenGetter();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
   const res = await fetch(path, {
     ...init,
-    headers: {
-      ...(init?.body ? { "content-type": "application/json" } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers,
     credentials: "same-origin",
   });
   if (res.status === 204) return {} as T;
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
+}
+
+type TokenGetter = () => Promise<string | null>;
+let clerkTokenGetter: TokenGetter | null = null;
+
+export function setClerkTokenGetter(getter: TokenGetter | null) {
+  clerkTokenGetter = getter;
+}
+
+export async function getClerkToken(): Promise<string | null> {
+  if (!clerkTokenGetter) return null;
+  try {
+    return await clerkTokenGetter();
+  } catch {
+    return null;
+  }
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getClerkToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export type SendPayload = {
@@ -241,7 +267,10 @@ export const api = {
     }),
   login: (email: string, _password?: string) =>
     req<{ ok: boolean; user: User }>("/api/login", { method: "POST", body: JSON.stringify({ email }) }),
-  logout: () => req<{ ok: boolean }>("/api/logout", { method: "POST" }),
+  logout: async () => {
+    // Clerk sign-out is client-side; this keeps older callers working.
+    return { ok: true as const };
+  },
   me: () => req<{ user: User; mailboxes: Mailbox[] }>("/api/me"),
   billingPlans: () => req<BillingPlansResponse>("/api/billing/plans"),
   billingSubscription: () => req<BillingSubscription>("/api/billing/subscription"),
@@ -428,7 +457,10 @@ export const api = {
   }) =>
     req<{ ok: boolean }>("/api/settings/prefs", { method: "PUT", body: JSON.stringify(body) }),
   exportBackup: async () => {
-    const res = await fetch("/api/export", { credentials: "same-origin" });
+    const res = await fetch("/api/export", {
+      credentials: "same-origin",
+      headers: await authHeaders(),
+    });
     if (!res.ok) throw new Error("Could not export mailbox data.");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -478,7 +510,10 @@ export const api = {
     req<Record<string, unknown>>("/api/wizard/new-project", { method: "POST", body: JSON.stringify(body) }),
 
   exportMbox: async () => {
-    const res = await fetch("/api/export?format=mbox", { credentials: "same-origin" });
+    const res = await fetch("/api/export?format=mbox", {
+      credentials: "same-origin",
+      headers: await authHeaders(),
+    });
     if (!res.ok) throw new Error("Could not export mailbox as .mbox.");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
