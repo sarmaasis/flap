@@ -38,22 +38,28 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Input } from "./ui/input";
-import { Separator } from "./ui/separator";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 
 type TeamMember = { user_id: string; email: string };
 
-/** Soften HTML email canvas so dark chrome isn't blasted by pure white. */
+/** Soften HTML email canvas to match Flap elevated surface. */
 function emailSrcDoc(html: string): string {
-  const dark =
-    typeof document !== "undefined" &&
-    (document.documentElement.classList.contains("dark") ||
-      document.documentElement.dataset.theme === "dark");
-  const bg = dark ? "#ebe8e0" : "#f3f1eb";
+  const bg = "#ffffff";
   const softHead =
     '<meta name="color-scheme" content="light only" />' +
-    `<style>html,body{background:${bg}!important;}</style>`;
+    `<style>
+      html,body{
+        margin:0!important;
+        background:${bg}!important;
+        color:#292925!important;
+        font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif!important;
+        font-size:15px!important;
+        line-height:1.55!important;
+      }
+      img{max-width:100%;height:auto;}
+      a{color:#353430;}
+    </style>`;
   if (/<head[\s>]/i.test(html)) {
     return html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
   }
@@ -96,33 +102,35 @@ export type MessageReaderProps = {
   onOpenBilling: () => void;
 };
 
-function IconAction({
+function ToolBtn({
   label,
   onClick,
   children,
-  primary,
+  active,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
-  primary?: boolean;
+  active?: boolean;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           type="button"
-          size={primary ? "default" : "icon"}
-          variant={primary ? "default" : "outline"}
-          className={cn(!primary && "h-9 w-9", primary && "h-9 px-3.5")}
+          size="icon"
+          variant="ghost"
+          className={cn(
+            "message-tool-btn h-9 w-9 rounded-md text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)]",
+            active && "text-[var(--warn)] hover:text-[var(--warn)]",
+          )}
           onClick={onClick}
           aria-label={label}
         >
           {children}
-          {primary ? <span>{label}</span> : null}
         </Button>
       </TooltipTrigger>
-      {!primary ? <TooltipContent>{label}</TooltipContent> : null}
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -163,45 +171,125 @@ export default function MessageReader({
   const viaLabel = domainName || undefined;
   const fromDisplay = senderName(message.from_addr);
   const fromEmail = extractEmail(message.from_addr) || message.from_addr;
+  const accent = domainColor || "var(--cta)";
 
   return (
     <TooltipProvider delayDuration={250}>
       <article
-        className="message-reader mx-auto w-full max-w-[820px] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--bg-elevated)]"
+        className="message-reader"
         style={
           {
-            borderLeftWidth: 3,
-            borderLeftColor: domainColor || "var(--line-strong)",
-            ["--domain-color"]: domainColor || "var(--line-strong)",
+            ["--domain-color"]: accent,
           } as CSSProperties
         }
       >
-        <header className="space-y-4 px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="font-[family-name:var(--font-display)] text-[clamp(1.25rem,2.4vw,1.7rem)] font-semibold leading-snug tracking-[-0.02em] text-[var(--fg)]">
-              {message.subject || "(no subject)"}
-            </h2>
-            <time className="shrink-0 pt-1 font-[family-name:var(--font-mono)] text-xs text-[var(--muted)]">
-              {fmtDate(message.date_ms)}
-            </time>
+        <div className="message-accent" aria-hidden />
+
+        <div className="message-toolbar">
+          <div className="message-toolbar-primary">
+            <Button type="button" size="sm" className="h-9 gap-1.5 px-3.5" onClick={() => onReply(false)}>
+              <Reply className="h-4 w-4" />
+              Reply
+            </Button>
+            <ToolBtn label="Reply all" onClick={() => onReply(true)}>
+              <ReplyAll className="h-4 w-4" />
+            </ToolBtn>
+            <ToolBtn label="Forward" onClick={onForward}>
+              <Forward className="h-4 w-4" />
+            </ToolBtn>
+            <span className="message-toolbar-sep" aria-hidden />
+            <ToolBtn label="Archive" onClick={onArchive}>
+              <Archive className="h-4 w-4" />
+            </ToolBtn>
+            <ToolBtn label={message.starred ? "Unstar" : "Star"} onClick={onToggleStar} active={Boolean(message.starred)}>
+              <Star className={cn("h-4 w-4", message.starred && "fill-current")} />
+            </ToolBtn>
+            <ToolBtn label="Mark unread" onClick={onMarkUnread}>
+              <Mail className="h-4 w-4" />
+            </ToolBtn>
           </div>
 
-          <div className="flex items-start gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" aria-label="More actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Clock /> Snooze
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 3 * 60 * 60 * 1000)}>
+                    In 3 hours
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 24 * 60 * 60 * 1000)}>
+                    Tomorrow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 7 * 24 * 60 * 60 * 1000)}>
+                    Next week
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuSeparator />
+
+              {folder !== "spam" ? (
+                <DropdownMenuItem onSelect={onSpam}>
+                  <Ban /> Spam
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem
+                onSelect={onDelete}
+                className="text-[var(--danger)] focus:text-[var(--danger)]"
+              >
+                <Trash2 /> {folder === "trash" ? "Delete forever" : "Delete"}
+              </DropdownMenuItem>
+              {folder !== "inbox" && folder !== "starred" && folder !== "snoozed" ? (
+                <DropdownMenuItem onSelect={onMoveInbox}>
+                  <Inbox /> Move to Inbox
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onSelect={onBlockSender}>
+                <Ban /> Block sender
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onSelect={onCopySender}>
+                <Copy /> Copy sender
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onPrint}>
+                <Printer /> Print
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <header className="message-head">
+          <div className="message-subject-row">
+            <h2>{message.subject || "(no subject)"}</h2>
+            <time dateTime={new Date(message.date_ms).toISOString()}>{fmtDate(message.date_ms)}</time>
+          </div>
+
+          <div className="message-sender">
             <Avatar
-              className="h-11 w-11 ring-2 ring-[var(--surface)]"
-              style={domainColor ? { background: `color-mix(in srgb, ${domainColor} 22%, transparent)` } : undefined}
+              className="message-avatar"
+              style={{ background: `color-mix(in srgb, ${accent} 18%, var(--surface-2))` }}
             >
               <AvatarFallback
-                className="text-[13px]"
-                style={domainColor ? { color: domainColor, background: "transparent" } : undefined}
+                className="text-[13px] font-semibold"
+                style={{ color: domainColor || "var(--fg)", background: "transparent" }}
               >
                 {initials(message.from_addr)}
               </AvatarFallback>
             </Avatar>
 
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <strong className="text-[15px] font-semibold text-[var(--fg)]">{fromDisplay}</strong>
+            <div className="message-sender-meta">
+              <div className="message-sender-line">
+                <strong>{fromDisplay}</strong>
                 {message.starred ? (
                   <Badge variant="warn" className="gap-1">
                     <Star className="h-3 w-3 fill-current" />
@@ -211,138 +299,45 @@ export default function MessageReader({
                 {message.label ? <Badge variant="default">{message.label}</Badge> : null}
               </div>
 
-              <p className="truncate font-[family-name:var(--font-mono)] text-[12.5px] text-[var(--muted)]">
-                <span className="text-[var(--fg)]/80">{fromEmail}</span>
-                <span className="mx-1.5 opacity-40">→</span>
+              <p className="message-addrs">
+                <span className="message-from-email">{fromEmail}</span>
+                <span className="message-addr-arrow" aria-hidden>
+                  →
+                </span>
                 <span>{message.to_addr || "(unknown)"}</span>
               </p>
 
-              {message.cc_addr ? (
-                <p className="font-[family-name:var(--font-mono)] text-[12px] text-[var(--muted)]">
-                  Cc {message.cc_addr}
-                </p>
-              ) : null}
+              {message.cc_addr ? <p className="message-cc">Cc {message.cc_addr}</p> : null}
 
               {viaLabel ? (
-                <div className="inline-flex items-center gap-1.5 pt-0.5 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.08em] text-[var(--muted)]">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: domainColor || "var(--muted)" }}
-                    aria-hidden
-                  />
+                <div className="message-via">
+                  <span className="message-via-dot" style={{ background: accent }} aria-hidden />
                   via {viaLabel}
                 </div>
               ) : null}
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <IconAction label="Reply" primary onClick={() => onReply(false)}>
-              <Reply className="h-4 w-4" />
-            </IconAction>
-            <IconAction label="Archive" onClick={onArchive}>
-              <Archive className="h-4 w-4" />
-            </IconAction>
-            <IconAction label={message.starred ? "Unstar" : "Star"} onClick={onToggleStar}>
-              <Star className={cn("h-4 w-4", message.starred && "fill-current text-[var(--warn)]")} />
-            </IconAction>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="More actions">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onSelect={() => onReply(true)}>
-                  <ReplyAll /> Reply all
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onForward}>
-                  <Forward /> Forward
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onMarkUnread}>
-                  <Mail /> Mark unread
-                </DropdownMenuItem>
-
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Clock /> Snooze
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 3 * 60 * 60 * 1000)}>
-                      In 3 hours
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 24 * 60 * 60 * 1000)}>
-                      Tomorrow
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onSnooze(Date.now() + 7 * 24 * 60 * 60 * 1000)}>
-                      Next week
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                <DropdownMenuSeparator />
-
-                {folder !== "spam" ? (
-                  <DropdownMenuItem onSelect={onSpam}>
-                    <Ban /> Spam
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                  onSelect={onDelete}
-                  className="text-[var(--danger)] focus:text-[var(--danger)]"
-                >
-                  <Trash2 /> {folder === "trash" ? "Delete forever" : "Delete"}
-                </DropdownMenuItem>
-                {folder !== "inbox" && folder !== "starred" && folder !== "snoozed" ? (
-                  <DropdownMenuItem onSelect={onMoveInbox}>
-                    <Inbox /> Move to Inbox
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem onSelect={onBlockSender}>
-                  <Ban /> Block sender
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem onSelect={onCopySender}>
-                  <Copy /> Copy sender
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onPrint}>
-                  <Printer /> Print
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </header>
 
         {thread.length > 1 ? (
-          <div className="border-y border-[var(--line)] bg-[var(--surface-2)]/50 px-5 py-3 sm:px-7">
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+          <div className="message-thread">
+            <div className="message-thread-label">
               <Users className="h-3.5 w-3.5" />
               Thread · {thread.length}
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="message-thread-list">
               {thread.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => onSelectThread(item.id)}
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
-                    item.id === message.id
-                      ? "bg-[var(--cta-dim)] text-[var(--fg)]"
-                      : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]",
-                  )}
+                  className={cn("message-thread-item", item.id === message.id && "active")}
                 >
                   <span className="min-w-0 truncate">
-                    <strong className="mr-2 font-medium text-[var(--fg)]">{item.subject || "(no subject)"}</strong>
-                    <span className="text-xs">{senderName(item.from_addr)}</span>
+                    <strong>{item.subject || "(no subject)"}</strong>
+                    <span>{senderName(item.from_addr)}</span>
                   </span>
-                  <span className="shrink-0 font-[family-name:var(--font-mono)] text-[11px]">
-                    {fmtDate(item.date_ms)}
-                  </span>
+                  <time>{fmtDate(item.date_ms)}</time>
                 </button>
               ))}
             </div>
@@ -355,44 +350,65 @@ export default function MessageReader({
               title="Message body"
               sandbox=""
               srcDoc={emailSrcDoc(message.html_body)}
-              className="message-frame min-h-[320px] w-full border-0"
+              className="message-frame"
             />
           ) : (
-            <div className="body-text whitespace-pre-wrap px-4 py-3 text-[15px] leading-[1.55] text-[var(--fg)] sm:px-5">
-              {message.text_body || ""}
-            </div>
+            <div className="body-text">{message.text_body || ""}</div>
           )}
         </div>
 
         {attachments.length > 0 ? (
-          <div className="flex flex-wrap gap-2 border-t border-[var(--line)] px-5 py-4 sm:px-7">
-            {attachments.map((a) => (
-              <a
-                key={a.id}
-                href={`/api/mail/${message.id}/attachments/${a.id}`}
-                className="inline-flex items-center gap-2 rounded-md border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 py-2 text-xs font-medium text-[var(--fg)] transition-colors hover:border-[var(--cta)] hover:text-[var(--cta)]"
-              >
-                <Paperclip className="h-3.5 w-3.5 text-[var(--muted)]" />
-                <span className="max-w-[200px] truncate">{a.filename}</span>
-                <span className="text-[var(--muted)]">{Math.ceil(a.size / 1024)} KB</span>
-              </a>
-            ))}
+          <div className="message-attachments">
+            <div className="message-attachments-label">
+              <Paperclip className="h-3.5 w-3.5" />
+              {attachments.length} attachment{attachments.length === 1 ? "" : "s"}
+            </div>
+            <div className="message-attachment-list">
+              {attachments.map((a) => (
+                <a
+                  key={a.id}
+                  href={`/api/mail/${message.id}/attachments/${a.id}`}
+                  className="message-attachment"
+                >
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                  <span className="truncate">{a.filename}</span>
+                  <span className="message-attachment-size">{Math.ceil(a.size / 1024)} KB</span>
+                </a>
+              ))}
+            </div>
           </div>
         ) : message.has_attachments ? (
-          <p className="border-t border-[var(--line)] px-5 py-3 text-xs text-[var(--muted)] sm:px-7">
+          <p className="message-attachments-missing">
             This message had attachments, but R2 is not bound so files were not stored.
           </p>
         ) : null}
 
-        <Separator />
+        <div className="message-quick-reply">
+          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(false)}>
+            <Reply className="h-4 w-4" />
+            Reply
+          </Button>
+          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(true)}>
+            <ReplyAll className="h-4 w-4" />
+            Reply all
+          </Button>
+          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={onForward}>
+            <Forward className="h-4 w-4" />
+            Forward
+          </Button>
+        </div>
 
-        <div className="px-5 sm:px-7">
-          <Accordion type="multiple" className="w-full" defaultValue={[
-            ...(message.label ? ["organize"] : []),
-            ...(notes.length ? ["notes"] : []),
-          ]}>
-            <AccordionItem value="organize" className="border-b-0">
-              <AccordionTrigger className="py-3.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--muted)] hover:no-underline hover:text-[var(--fg)]">
+        <div className="message-meta-panels">
+          <Accordion
+            type="multiple"
+            className="w-full"
+            defaultValue={[
+              ...(message.label ? ["organize"] : []),
+              ...(notes.length ? ["notes"] : []),
+            ]}
+          >
+            <AccordionItem value="organize" className="border-[var(--line)]">
+              <AccordionTrigger className="message-panel-trigger">
                 <span className="inline-flex items-center gap-2">
                   <Tag className="h-3.5 w-3.5" />
                   Organize
@@ -502,8 +518,8 @@ export default function MessageReader({
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="notes" className="border-b-0">
-              <AccordionTrigger className="py-3.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-[var(--muted)] hover:no-underline hover:text-[var(--fg)]">
+            <AccordionItem value="notes" className="border-b-0 border-[var(--line)]">
+              <AccordionTrigger className="message-panel-trigger">
                 <span className="inline-flex items-center gap-2">
                   <StickyNote className="h-3.5 w-3.5" />
                   Notes
@@ -520,10 +536,7 @@ export default function MessageReader({
                 {notes.length > 0 ? (
                   <ul className="space-y-2">
                     {notes.map((n) => (
-                      <li
-                        key={n.id}
-                        className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-2.5"
-                      >
+                      <li key={n.id} className="message-note">
                         <div className="text-sm leading-relaxed">{n.body}</div>
                         <div className="mt-1 text-[11px] text-[var(--muted)]">
                           {n.author_email || "you"} · {new Date(n.created_at).toLocaleString()}

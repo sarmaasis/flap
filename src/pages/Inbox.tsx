@@ -17,14 +17,16 @@ import {
 } from "../lib/api";
 import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/format";
 import { go } from "../lib/nav";
-import AppShell, { FOLDERS } from "../components/AppShell";
+import AppShell from "../components/AppShell";
 import CommandPalette from "../components/CommandPalette";
+import MailFolderRail from "../components/MailFolderRail";
 import PwaInstallPrompt from "../components/PwaInstallPrompt";
 import ProjectWizard from "../components/ProjectWizard";
 import MessageReader from "../components/MessageReader";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { FOLDERS } from "../lib/mailFolders";
 import type { ComposeDraft } from "./Compose";
 import { Search, MoreHorizontal } from "lucide-react";
 import {
@@ -403,12 +405,32 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     if (qDebounced || mailbox || domainFilter || unreadOnly) return visibleList.length;
     const badge = counts[folder];
     if (!badge) return visibleList.length;
-    // Same number the sidebar shows for this folder (deduped server counts).
+    // Same number the folder rail shows for this folder (deduped server counts).
     if (folder === "inbox" || folder === "drafts" || folder === "scheduled") {
       return badge.unread || badge.total || visibleList.length;
     }
     return badge.total || visibleList.length;
   }, [counts, domainFilter, folder, mailbox, qDebounced, unreadOnly, visibleList.length]);
+
+  function selectFolder(id: string) {
+    setFolder(id);
+    setSelected(null);
+    openInComposeRef.current = false;
+    setOpeningDraft(false);
+    if (showCompose && composeDraft?.mode === "draft") {
+      setShowCompose(false);
+      setComposeDraft(null);
+    }
+    setQ("");
+    setQDebounced("");
+    go("/app");
+  }
+
+  function selectDomain(id: string) {
+    setDomainFilter(id);
+    setMailbox("");
+    setSelected(null);
+  }
 
   async function markFolderRead() {
     try {
@@ -678,32 +700,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     <AppShell
       email={email}
       counts={counts}
-      folder={folder}
       current="mail"
-      domains={domains}
-      domainUnread={domainUnread}
-      domainFilter={domainFilter}
-      onDomainFilter={(id) => {
-        setDomainFilter(id);
-        setMailbox("");
-        setSelected(null);
-      }}
       onCompose={() => {
         void import("./Compose");
         openCompose();
-      }}
-      onFolder={(id) => {
-        setFolder(id);
-        setSelected(null);
-        openInComposeRef.current = false;
-        setOpeningDraft(false);
-        if (showCompose && composeDraft?.mode === "draft") {
-          setShowCompose(false);
-          setComposeDraft(null);
-        }
-        setQ("");
-        setQDebounced("");
-        go("/app");
       }}
       onLogout={() => void logout()}
     >
@@ -731,6 +731,15 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         ) : null}
       <div className="workspace">
+        <MailFolderRail
+          folder={folder}
+          counts={counts}
+          domains={domains}
+          domainUnread={domainUnread}
+          domainFilter={domainFilter}
+          onFolder={selectFolder}
+          onDomainFilter={selectDomain}
+        />
         <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
           <div className="list-head">
             <div className="list-title-row">
@@ -1128,17 +1137,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           void import("./Compose");
           openCompose();
         }}
-        onFolder={(id) => {
-          setFolder(id);
-          setSelected(null);
-          setQ("");
-          setQDebounced("");
-          go("/app");
-        }}
+        onFolder={selectFolder}
         onDomain={(id) => {
-          setDomainFilter(id);
-          setMailbox("");
-          setSelected(null);
+          selectDomain(id);
           setFolder("inbox");
           go("/app");
         }}

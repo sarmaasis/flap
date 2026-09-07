@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Domain } from "../lib/api";
-import { FOLDERS } from "./AppShell";
+import { FOLDERS } from "../lib/mailFolders";
 
 export type CommandAction = {
   id: string;
