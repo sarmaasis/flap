@@ -21,7 +21,6 @@ function TokenBridge({ children }: { children: ReactNode }) {
     setClerkTokenGetter(async () => {
       if (!isLoaded) return null;
       try {
-        // Default session JWT for the Worker `authenticateRequest` Bearer path.
         return (await getToken()) || null;
       } catch {
         return null;

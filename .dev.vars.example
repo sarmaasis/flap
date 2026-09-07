@@ -7,6 +7,7 @@ CLERK_SECRET_KEY=
 # CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 
 # Absolute public origin (scheme + host + port). Used for Dodo return URLs, authorized parties, links.
+# Local: use 127.0.0.1 (or localhost) with the Vite port — never a bare path or host without http://
 APP_URL=http://127.0.0.1:5173
 # true = open signup; false = block new Flap users after the first account exists
 SAAS_MODE=true
@@ -75,11 +76,10 @@ DODO_PRODUCT_BUILDER=
 DODO_PRODUCT_STUDIO=
 DODO_PRODUCT_BUSINESS=
 
-# Annual Dodo products (10× monthly)
+# Annual Dodo products (−20%)
 # DODO_PRODUCT_SOLO_ANNUAL=
-# DODO_PRODUCT_PRO_ANNUAL=
-# DODO_PRODUCT_TEAM_ANNUAL=
-# DODO_PRODUCT_SCALE_ANNUAL=
+# DODO_PRODUCT_BUILDER_ANNUAL=
+# DODO_PRODUCT_STUDIO_ANNUAL=
 
 # Production secrets (wrangler secret put …):
 # CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, CLERK_JWT_KEY (optional)
@@ -92,5 +92,5 @@ DODO_PRODUCT_BUSINESS=
 # DODO_PRODUCT_SOLO, DODO_PRODUCT_PRO, DODO_PRODUCT_TEAM, DODO_PRODUCT_SCALE
 # Webhook URL: https://useflap.online/api/billing/webhook
 # SES inbound: https://useflap.online/api/inbound/ses
-# Clerk: enable Email verification code in Dashboard — Google/GitHub and magic links not used by Flap.
-#         Allowed origins must include APP_URL.
+# Clerk: enable Email link + Google/GitHub in Dashboard; allowed origins include APP_URL
+#         and redirect URLs /sso-callback, /auth/verify

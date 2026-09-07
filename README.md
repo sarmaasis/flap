@@ -60,11 +60,11 @@ DODO_PRODUCT_SCALE=pdt_…
    - **Amazon SES (required for customer domains):** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SES_REGION`, `SES_INBOUND_WEBHOOK_SECRET` (plus `SES_RECEIPT_RULE_SET` / `SES_INBOUND_BUCKET` after deploying `infra/ses-inbound`)
    - Mailgun secrets optional (legacy domains only during migration)
    - Dodo live: `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, `DODO_PAYMENTS_ENVIRONMENT=live_mode`
-   - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_PRO`, `DODO_PRODUCT_TEAM`, `DODO_PRODUCT_SCALE` (optional `*_ANNUAL`)
-   - Email code: enable **Email verification code** in the Clerk Dashboard (User & authentication → Email). Google/GitHub OAuth and magic links are not used by Flap. Allowed origins should include `APP_URL`.
+   - Products: `DODO_PRODUCT_SOLO`, `DODO_PRODUCT_BUILDER`, `DODO_PRODUCT_STUDIO`
+   - OAuth / magic link: enable Email link + Google/GitHub in the Clerk Dashboard (allowed origins + redirect URLs `/sso-callback`, `/auth/verify`)
 2. Point Dodo webhook to `https://useflap.online/api/billing/webhook`
 3. Deploy SES inbound stack (`infra/ses-inbound`) and set Worker webhook `https://useflap.online/api/inbound/ses` — full steps in [docs/aws-ses-setup.md](docs/aws-ses-setup.md)
-4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider**, **0022_clerk**, and **0023_booking_newsletters**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
+4. `npm run deploy` — builds, applies pending remote D1 migrations (`migrations/` via `wrangler.jsonc`, including **0013_ses_provider** and **0022_clerk**), then deploys the Worker/assets. Durable Object migration tag **`v1-inbox-hub`** registers `InboxHub` (`INBOX_HUB` binding); do not add a `deleted_classes` migration while that binding exists (CF error 10061).
 5. Confirm Clerk auth mail delivers (Clerk sends magic-link / verification email; Flap SEB is for product/system mail)
 
 **SPA note:** `/app` and other app shells are served by the Worker (`serveSpaShell` → `/spa-shell` asset). Do not fetch `/index.html` for those routes - Assets `html_handling` redirects `/index.html` → `/`, which used to bounce hard-refresh of `/app` to the marketing homepage.
@@ -79,7 +79,7 @@ Customer domains use **Amazon SES** on every plan (any DNS host → SES MX/DKIM 
 
 **Cost note:** SES is metered but inexpensive at early volume; Free is limited by Flap quotas and anti-abuse, not by a separate Free=Cloudflare transport.
 
-### Outbound auth mail — useflap.online
+### Outbound system mail — useflap.online
 
 Product/system mail uses `SYSTEM_FROM_EMAIL` via **SEB** when the `send_email` binding is configured. **Clerk** sends account magic-link and verification email from your Clerk instance (configure the from-address in the Clerk Dashboard).
 
