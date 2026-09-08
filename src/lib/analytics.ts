@@ -53,7 +53,12 @@ export type AnalyticsEvent =
   | "referral_reward_granted"
   | "guide_view"
   | "seo_page_view"
-  | "migration_page_view";
+  | "migration_page_view"
+  | "migration_started"
+  | "migration_completed"
+  | "migration_help_requested"
+  | "domain_verified"
+  | "first_outbound_sent";
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

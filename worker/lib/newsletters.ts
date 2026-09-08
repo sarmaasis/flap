@@ -13,6 +13,8 @@ import { buildRawMime } from "./mime";
 import { EMAIL_RE, extractEmail } from "./mailutil";
 import { appOrigin } from "./system-email";
 import { isAddressSuppressed } from "./inbound-webhook";
+import { evaluateOutboundDomainPolicy } from "../../shared/outbound-send-policy";
+import { domainIsSendingReady } from "../../shared/ses-dns";
 
 const NEWSLETTER_BLAST_HARD_CAP = 500;
 const CSV_IMPORT_HARD_CAP = 500;
@@ -355,6 +357,36 @@ export async function processQueuedNewsletterBlasts(env: Env): Promise<void> {
         .run()
         .catch(() => undefined);
       console.warn("Newsletter blast skipped — no mailbox or mail provider", blast.id);
+      continue;
+    }
+
+    const fromDomain = extractEmail(mailbox.address).split("@")[1]?.toLowerCase() || "";
+    const domainRow = fromDomain
+      ? await env.DB.prepare(
+          `SELECT mail_provider, provider_state, identity_verified_at, mx_verified_at,
+                  inbound_rule_ready_at, receiving_ready_at, sending_ready_at
+           FROM domains WHERE user_id = ? AND lower(name) = ? LIMIT 1`,
+        )
+          .bind(blast.user_id, fromDomain)
+          .first<{
+            mail_provider: string | null;
+            provider_state: string | null;
+            identity_verified_at: number | null;
+            mx_verified_at: number | null;
+            inbound_rule_ready_at: number | null;
+            receiving_ready_at: number | null;
+            sending_ready_at: number | null;
+          }>()
+      : null;
+    const domainPolicy = evaluateOutboundDomainPolicy(fromDomain || "unknown", domainRow);
+    if (domainPolicy || (domainRow && !domainIsSendingReady(domainRow))) {
+      await env.DB.prepare(
+        "UPDATE newsletter_blasts SET status = 'failed', capped_count = 0 WHERE id = ?",
+      )
+        .bind(blast.id)
+        .run()
+        .catch(() => undefined);
+      console.warn("Newsletter blast skipped — domain not sending-ready", blast.id, domainPolicy?.message);
       continue;
     }
 

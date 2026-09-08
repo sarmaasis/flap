@@ -49,6 +49,11 @@ export const ANALYTICS_EVENTS = new Set([
   "guide_view",
   "seo_page_view",
   "migration_page_view",
+  "migration_started",
+  "migration_completed",
+  "migration_help_requested",
+  "domain_verified",
+  "first_outbound_sent",
   "content_to_pricing",
 ]);
 

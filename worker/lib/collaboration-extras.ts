@@ -10,7 +10,7 @@ import { resolveWorkspace } from "./team";
 import { planAtLeast, type AppEnv } from "./plan-guard";
 
 export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
-  // --- Thread presence / collision (P1#2) ---
+  // --- Thread presence / collision (workspace-scoped) ---
   app.post("/api/presence/:threadKey", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
@@ -18,18 +18,29 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "team")) return c.json({ viewers: [] });
     const threadKey = c.req.param("threadKey").slice(0, 200);
+    // Deny presence on threads that are not in this workspace (prevents cross-tenant inference).
+    const owned = await c.env.DB.prepare(
+      `SELECT id FROM messages WHERE user_id = ? AND (id = ? OR thread_id = ?) LIMIT 1`,
+    )
+      .bind(ctx.workspaceId, threadKey, threadKey)
+      .first();
+    if (!owned) return c.json({ error: "Thread not found." }, 404);
     const display = (user.email || "Teammate").split("@")[0];
     await c.env.DB.prepare(
-      `INSERT INTO thread_presence (thread_key, user_id, display_name, last_seen_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(thread_key, user_id) DO UPDATE SET last_seen_at = excluded.last_seen_at, display_name = excluded.display_name`,
+      `INSERT INTO thread_presence (thread_key, workspace_id, user_id, display_name, last_seen_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(thread_key, user_id) DO UPDATE SET
+         last_seen_at = excluded.last_seen_at,
+         display_name = excluded.display_name,
+         workspace_id = excluded.workspace_id`,
     )
-      .bind(threadKey, user.id, display, nowMs())
+      .bind(threadKey, ctx.workspaceId, user.id, display, nowMs())
       .run();
     const since = nowMs() - 45_000;
     const rows = await c.env.DB.prepare(
-      "SELECT user_id, display_name, last_seen_at FROM thread_presence WHERE thread_key = ? AND last_seen_at > ? AND user_id != ?",
+      `SELECT user_id, display_name, last_seen_at FROM thread_presence
+       WHERE thread_key = ? AND workspace_id = ? AND last_seen_at > ? AND user_id != ?`,
     )
-      .bind(threadKey, since, user.id)
+      .bind(threadKey, ctx.workspaceId, since, user.id)
       .all();
     return c.json({ viewers: rows.results ?? [] });
   });

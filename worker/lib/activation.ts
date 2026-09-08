@@ -24,6 +24,7 @@ export async function markFirstEmailReceived(db: D1Database, userId: string): Pr
 
   if (!before?.first_email_received_at) {
     await trackOncePerUser(db, userId, "first_email_received");
+    await trackOncePerUser(db, userId, "first_inbound_received");
   }
   await maybeEmitActivated(db, userId, before?.activated_at ?? null);
 }
@@ -50,6 +51,7 @@ export async function markFirstEmailSent(db: D1Database, userId: string): Promis
 
   if (!before?.first_email_sent_at) {
     await trackOncePerUser(db, userId, "first_email_sent");
+    await trackOncePerUser(db, userId, "first_outbound_sent");
   }
   await maybeEmitActivated(db, userId, before?.activated_at ?? null);
 }
@@ -128,5 +130,6 @@ export async function afterDomainAdded(db: D1Database, userId: string): Promise<
 /** Called when authenticated DNS check reports MX+SPF ready. */
 export async function afterDnsVerified(db: D1Database, userId: string, domain: string): Promise<void> {
   await trackOncePerUser(db, userId, "dns_verified", { domain });
+  await trackOncePerUser(db, userId, "domain_verified", { domain });
   await maybeQualifyReferral(db, userId);
 }

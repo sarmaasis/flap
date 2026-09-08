@@ -24,7 +24,7 @@ import {
   setMailboxShared,
 } from "./team";
 import { isAddressSuppressed } from "./suppressions";
-import { domainIsSendingReady } from "../../shared/ses-dns";
+import { evaluateOutboundDomainPolicy } from "../../shared/outbound-send-policy";
 
 type App = { Bindings: Env };
 
@@ -463,12 +463,8 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
           sending_ready_at: number | null;
         }>();
 
-  if (!domainRow || !domainIsSendingReady(domainRow)) {
-    return `Finish sending setup for ${domain} before sending from this address.`;
-  }
-  if (/SUSPENDED|FAILED/i.test(domainRow.provider_state || "")) {
-    return `Domain ${domain} is suspended and cannot send.`;
-  }
+  const policyFail = evaluateOutboundDomainPolicy(domain, domainRow);
+  if (policyFail || !domainRow) return policyFail?.message ?? `Finish sending setup for ${domain} before sending from this address.`;
 
   let text = message.text_body;
   let html = message.html_body || undefined;

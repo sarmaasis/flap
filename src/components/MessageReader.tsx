@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import {
   Archive,
   Ban,
@@ -26,7 +26,7 @@ import type { Attachment, Label, MailFull, MailSummary, MessageNote } from "../l
 import { api } from "../lib/api";
 import { extractEmail, fmtDate, initials, senderName } from "../lib/format";
 import { cn } from "../lib/utils";
-import { sanitizeEmailHtml } from "../../shared/sanitize-email-html";
+import { emailImageCspSrc, sanitizeEmailHtml } from "../../shared/sanitize-email-html";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
@@ -50,11 +50,12 @@ import { tw } from "../lib/tw";
 type TeamMember = { user_id: string; email: string };
 
 /** Soften HTML email canvas to match Flap elevated surface (light + dark). */
-function emailSrcDoc(html: string): string {
-  const safe = sanitizeEmailHtml(html);
+function emailSrcDoc(html: string, allowRemoteImages: boolean): string {
+  const safe = sanitizeEmailHtml(html, { allowRemoteImages });
+  const imgSrc = emailImageCspSrc(allowRemoteImages);
   const softHead =
     '<meta name="color-scheme" content="light dark" />' +
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data: https: http:; style-src \'unsafe-inline\'; font-src data: https:; media-src https: http:; base-uri \'none\'; form-action \'none\'; frame-ancestors \'none\'" />' +
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${imgSrc}; style-src 'unsafe-inline'; font-src data:; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />` +
     `<style>
       :root{
         color-scheme: light dark;
@@ -207,7 +208,13 @@ export default function MessageReader({
   const [rsvpError, setRsvpError] = useState("");
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
   const [downloadErr, setDownloadErr] = useState("");
+  const [loadRemoteImages, setLoadRemoteImages] = useState(false);
   const viaLabel = domainName || undefined;
+  const sentToLabel = message.to_addr || undefined;
+
+  useEffect(() => {
+    setLoadRemoteImages(false);
+  }, [message.id]);
   const fromDisplay = senderName(message.from_addr);
   const fromEmail = extractEmail(message.from_addr) || message.from_addr;
   const accent = domainColor || "var(--accent)";
@@ -397,10 +404,15 @@ export default function MessageReader({
                 </p>
               ) : null}
 
+              {sentToLabel ? (
+                <div className="mt-2 text-[12px] text-[var(--foreground-muted)]">
+                  <span className="font-medium text-[var(--foreground)]">Sent to:</span> {sentToLabel}
+                </div>
+              ) : null}
               {viaLabel ? (
-                <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--foreground-muted)]">
+                <div className="mt-1 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--foreground-muted)]">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} aria-hidden />
-                  via {viaLabel}
+                  {viaLabel}
                 </div>
               ) : null}
             </div>
@@ -515,13 +527,29 @@ export default function MessageReader({
 
         <div className="min-h-[280px] flex-1 border-b border-[var(--line)] bg-[var(--email-canvas,#f6f3ee)]">
           {message.html_body ? (
-            <iframe
-              title="Message body"
-              sandbox=""
-              referrerPolicy="no-referrer"
-              srcDoc={emailSrcDoc(message.html_body)}
-              className="block min-h-[360px] w-full border-0 bg-[var(--email-canvas,#f6f3ee)]"
-            />
+            <>
+              {!loadRemoteImages ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--surface-hover)] px-4 py-2 text-[12.5px] text-[var(--foreground-muted)]">
+                  <span>Remote images are blocked for your privacy.</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => setLoadRemoteImages(true)}
+                  >
+                    Load images
+                  </Button>
+                </div>
+              ) : null}
+              <iframe
+                title="Message body"
+                sandbox=""
+                referrerPolicy="no-referrer"
+                srcDoc={emailSrcDoc(message.html_body, loadRemoteImages)}
+                className="block min-h-[360px] w-full border-0 bg-[var(--email-canvas,#f6f3ee)]"
+              />
+            </>
           ) : (
             <div className="max-w-[68ch] whitespace-pre-wrap px-6 py-5 text-[15px] leading-[1.6] text-[var(--foreground)]">
               {message.text_body || ""}

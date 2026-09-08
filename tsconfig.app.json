@@ -23,5 +23,9 @@
     }
   },
   "include": ["src", "shared"],
-  "exclude": ["shared/**/*.test.ts"]
+  "exclude": [
+    "shared/**/*.test.ts",
+    "shared/d1-memory.ts",
+    "shared/http-tenant-isolation-harness.ts"
+  ]
 }

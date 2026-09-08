@@ -179,7 +179,15 @@ const REGISTRAR_DNS_TIPS = [
   { name: "GoDaddy", tip: "My Products → DNS / Manage DNS" },
 ] as const;
 
-type DnsTableRow = { type: string; host: string; value: string; hint?: string; copyable: boolean };
+type DnsTableRow = {
+  type: string;
+  host: string;
+  value: string;
+  hint?: string;
+  why: string;
+  mistake: string;
+  copyable: boolean;
+};
 
 function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
   const dkimRows = dns.dkim_records?.length ? dns.dkim_records : [dns.dkim];
@@ -190,6 +198,8 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
       host: dnsHostField(r.name, domain),
       value: r.value,
       hint: "Proves you own the domain",
+      why: "Proves you control this domain before Flap can send or receive.",
+      mistake: "Publishing the wrong TXT host (missing _amazonses) or an old token after re-provision.",
       copyable: !isPlaceholderDnsValue(r.value),
     });
   }
@@ -199,6 +209,8 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
       host: dnsHostField(r.name, domain),
       value: r.value,
       hint: "Signs outgoing mail",
+      why: "DKIM signs outbound mail so providers trust your From domain.",
+      mistake: "Orange-cloud / proxied CNAME on Cloudflare, or truncating the CNAME target.",
       copyable: !isPlaceholderDnsValue(r.value),
     });
   }
@@ -208,6 +220,8 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
       host: dnsHostField(r.name, domain),
       value: `${r.priority} ${r.value}`,
       hint: "Receiving — do not proxy / keep DNS-only",
+      why: "MX tells the internet where to deliver mail for this domain.",
+      mistake: "Leaving old provider MX alongside Flap, or proxying MX through Cloudflare.",
       copyable: true,
     });
   }
@@ -216,6 +230,8 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
     host: dnsHostField(dns.spf.name, domain),
     value: dns.spf.value,
     hint: "Merge into your existing SPF if you already have one (only one SPF TXT on @)",
+    why: "SPF lists which servers may send mail as your domain.",
+    mistake: "Creating a second SPF TXT record instead of merging include: into one.",
     copyable: true,
   });
   const dmarc = dns.dmarc ?? {
@@ -230,6 +246,8 @@ function buildDnsTableRows(dns: DnsRecords, domain: string): DnsTableRow[] {
     host: dnsHostField(dmarc.name, domain),
     value: dmarc.value,
     hint: "Recommended — prevents spoofing; start with p=none",
+    why: "DMARC tells receivers how to handle failed SPF/DKIM alignment.",
+    mistake: "Starting with p=reject before SPF/DKIM are stable.",
     copyable: true,
   });
   return rows;
@@ -1576,9 +1594,9 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             <section className={tw.settingsCard} aria-labelledby="routing-title">
               <div className={tw.sectionHeading}>
                 <div>
-                  <h2 id="routing-title">DNS records</h2>
+                  <h2 id="routing-title">Connect your domain</h2>
                   <p>
-                    Paste these rows at your DNS host for <strong>{selectedName || "your domain"}</strong>. Host <code>@</code> is the root.
+                    Add these DNS records for <strong>{selectedName || "your domain"}</strong>. Host <code>@</code> is the root. Each row includes why it matters and a common mistake.
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1769,8 +1787,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                           <thead>
                             <tr>
                               <th scope="col">Type</th>
-                              <th scope="col">Host</th>
+                              <th scope="col">Name / Host</th>
                               <th scope="col">Value</th>
+                              <th scope="col">Why</th>
+                              <th scope="col">Common mistake</th>
                               <th scope="col"><span className="sr-only">Copy</span></th>
                             </tr>
                           </thead>
@@ -1795,6 +1815,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                     </p>
                                   ) : null}
                                 </td>
+                                <td className={tw.muted} style={{ maxWidth: 160, fontSize: 12 }}>{r.why}</td>
+                                <td className={tw.muted} style={{ maxWidth: 180, fontSize: 12 }}>{r.mistake}</td>
                                 <td>
                                   {r.copyable ? (
                                     <button type="button" className={tw.textButton} onClick={() => copyText(r.value)}>
@@ -1928,25 +1950,30 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       : ""}
                   </p>
                   <div className="overflow-x-auto"><table className={settingsTable} style={{ marginTop: 12 }}>
-                    <thead><tr><th>Domain</th><th>Identity</th><th>MX</th><th>Receiving</th><th>Sending</th><th>Last inbound</th><th>Last error</th></tr></thead>
+                    <thead><tr><th>Domain</th><th>Outbound ready</th><th>Inbound ready</th><th>Identity</th><th>MX</th><th>Last inbound</th><th>Last error</th></tr></thead>
                     <tbody>
                       {(deliveryInfo.domains || []).map((d) => (
                         <tr key={d.id}>
                           <td><span className={tw.domainSwatch} style={{ background: d.color || "#737168" }} aria-hidden />{d.name}</td>
+                          <td>{d.sending_ready_at ? "✓" : "—"}</td>
+                          <td>{d.receiving_ready_at ? "✓" : "—"}</td>
                           <td>{d.identity_verified_at ? "✓" : "—"}</td>
                           <td>{d.mx_verified_at ? "✓" : "—"}</td>
-                          <td>{d.receiving_ready_at ? "✓" : "—"}</td>
-                          <td>{d.sending_ready_at ? "✓" : "—"}</td>
                           <td className={tw.muted} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }} title={d.last_inbound_provider_message_id || undefined}>
                             {d.last_inbound_error
                               ? `${d.last_inbound_error}${d.last_inbound_error_at ? ` · ${new Date(d.last_inbound_error_at).toLocaleString()}` : ""}`
-                              : "—"}
+                              : d.receiving_ready_at
+                                ? "Ready (no recent failure)"
+                                : "—"}
                           </td>
                           <td className={tw.muted} style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table></div>
+                  <p className={tw.muted} style={{ marginTop: 10 }}>
+                    A domain is fully healthy only when <strong>Outbound ready</strong> and <strong>Inbound ready</strong> are both checked. SPF/DKIM/DMARC guidance lives under Connect your domain → DNS records.
+                  </p>
                 </>
               ) : <p className={tw.muted}>Loading…</p>}
             </section>
@@ -1954,12 +1981,20 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               <div className={tw.sectionHeading}><div><h2>Delivery events</h2><p>Bounce, soft-bounce, complaint, and delivery notices for sends from this workspace (last 30 days).</p></div></div>
               {deliveryEvents.length ? (
                 <div className="overflow-x-auto"><table className={settingsTable}>
-                  <thead><tr><th>When</th><th>Kind</th><th>Recipient</th><th>Provider id</th></tr></thead>
+                  <thead><tr><th>When</th><th>Status</th><th>Recipient</th><th>Provider id</th></tr></thead>
                   <tbody>
                     {deliveryEvents.slice(0, 100).map((ev) => (
                       <tr key={ev.id}>
                         <td className={tw.muted}>{new Date(ev.created_at).toLocaleString()}</td>
-                        <td>{ev.kind}</td>
+                        <td>{
+                          ev.kind === "delivery" ? "Delivered"
+                            : ev.kind === "bounce" ? "Bounced"
+                              : ev.kind === "soft_bounce" ? "Soft bounce"
+                                : ev.kind === "complaint" ? "Complained"
+                                  : ev.kind === "reject" ? "Rejected"
+                                    : ev.kind === "suppress" || ev.kind === "suppressed" ? "Suppressed"
+                                      : ev.kind
+                        }</td>
                         <td>{ev.recipient_email}</td>
                         <td className={tw.muted} style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{ev.provider_message_id || "—"}</td>
                       </tr>

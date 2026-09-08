@@ -1333,7 +1333,7 @@ const MessageRow = memo(function MessageRow({
               {via ? (
                 <span className="inline-flex max-w-full items-center gap-1 overflow-hidden font-mono text-[10px] font-medium tracking-[0.08em] text-[var(--foreground-muted)] uppercase">
                   <span className={tw.domainSwatch} aria-hidden style={domainColor ? { background: domainColor } : undefined} />
-                  via {via}
+                  [{via}]
                 </span>
               ) : null}
             </span>

@@ -11,6 +11,7 @@ import {
 } from "./security-guards.ts";
 import { sanitizeEmailHtml } from "./sanitize-email-html.ts";
 import { domainIsSendingReady, type ReadinessRow } from "./ses-dns.ts";
+import { evaluateOutboundDomainPolicy } from "./outbound-send-policy.ts";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -118,6 +119,21 @@ function extractEmail(raw: string): string {
   };
   assert(!domainIsSendingReady(pending), "unverified SES domain cannot send");
   assert(domainIsSendingReady({ ...pending, sending_ready_at: Date.now() }), "ready SES can send");
+
+  const policyPending = evaluateOutboundDomainPolicy("a.com", pending);
+  assert(policyPending?.code === "not_sending_ready", "outbound policy blocks pending domain");
+  const policyOk = evaluateOutboundDomainPolicy("a.com", {
+    ...pending,
+    sending_ready_at: Date.now(),
+    provider_state: "ACTIVE",
+  });
+  assert(policyOk === null, "outbound policy allows ready domain");
+  const policySuspended = evaluateOutboundDomainPolicy("a.com", {
+    ...pending,
+    sending_ready_at: Date.now(),
+    provider_state: "SUSPENDED",
+  });
+  assert(policySuspended?.code === "domain_suspended", "outbound policy blocks suspended");
 }
 
 // --- HTML email XSS sanitizer (DOMPurify via isomorphic-dompurify) ---
@@ -142,13 +158,56 @@ function extractEmail(raw: string): string {
     `<table style="width:100%"><tr><td style="color:#333">Hello</td></tr></table>` +
     `<img src="https://cdn.example/logo.png" alt="Logo">` +
     `<a href="https://example.com">Visit</a>`;
-  const kept = sanitizeEmailHtml(emailish);
+  const kept = sanitizeEmailHtml(emailish, { allowRemoteImages: true });
   assert(/<table/i.test(kept), "tables retained");
   assert(/style=/i.test(kept), "inline styles retained");
-  assert(/<img/i.test(kept) && /https:\/\/cdn\.example/i.test(kept), "https images retained");
+  assert(/<img/i.test(kept) && /https:\/\/cdn\.example/i.test(kept), "https images retained when allowed");
   assert(/href="https:\/\/example\.com"/i.test(kept), "https links retained");
 
-  // Extra XSS vectors
+  // Extra XSS vectors (hostile fixtures)
+  const fixtures = [
+    `<script>alert(1)</script>`,
+    `<img src=x onerror=alert(1)>`,
+    `<svg onload=alert(1)>`,
+    `<a href="javascript:alert(1)">click</a>`,
+    `<iframe srcdoc="<script>alert(1)</script>"></iframe>`,
+    `<object data="javascript:alert(1)">`,
+    `<embed src="javascript:alert(1)">`,
+    `<form action="https://attacker.example"><input></form>`,
+    `<meta http-equiv="refresh" content="0;url=https://attacker.example">`,
+    `<a href="&#106;avascript:alert(1)">x</a>`,
+    `<img src="data:text/html,<script>alert(1)</script>">`,
+    `<div style="background:url('javascript:alert(1)')">x</div>`,
+    `<math><mi xlink:href="javascript:alert(1)">x</mi></math>`,
+  ];
+  for (const fixture of fixtures) {
+    const out = sanitizeEmailHtml(fixture);
+    assert(!/<script/i.test(out), `no script from ${fixture.slice(0, 40)}`);
+    assert(!/<iframe/i.test(out), `no iframe from ${fixture.slice(0, 40)}`);
+    assert(!/<object/i.test(out), `no object from ${fixture.slice(0, 40)}`);
+    assert(!/<embed/i.test(out), `no embed from ${fixture.slice(0, 40)}`);
+    assert(!/<form/i.test(out), `no form from ${fixture.slice(0, 40)}`);
+    assert(!/<svg/i.test(out), `no svg from ${fixture.slice(0, 40)}`);
+    assert(!/<math/i.test(out), `no math from ${fixture.slice(0, 40)}`);
+    assert(!/<meta/i.test(out), `no meta from ${fixture.slice(0, 40)}`);
+    assert(!/javascript:/i.test(out), `no javascript: from ${fixture.slice(0, 40)}`);
+    assert(!/\son\w+=/i.test(out), `no inline handlers from ${fixture.slice(0, 40)}`);
+  }
+
+  // Remote images blocked by default (tracking privacy)
+  const tracked = sanitizeEmailHtml(
+    `<img src="https://tracker.example/pixel.gif"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">`,
+  );
+  assert(!/\ssrc="https:\/\/tracker\.example/i.test(tracked), "remote img blocked by default");
+  assert(/data:image\/gif/i.test(tracked), "data: images kept when remotes blocked");
+  assert(
+    /\ssrc="https:\/\/tracker\.example/i.test(
+      sanitizeEmailHtml(`<img src="https://tracker.example/pixel.gif">`, { allowRemoteImages: true }),
+    ),
+    "remote img kept when allowRemoteImages",
+  );
+
+  // Extra XSS vectors (legacy)
   assert(!/javascript:/i.test(sanitizeEmailHtml(`<a href="JAVASCRIPT:alert(1)">x</a>`)), "case-insensitive javascript: blocked");
   assert(!/<object/i.test(sanitizeEmailHtml(`<object data="https://evil"></object>`)), "object removed");
   assert(!/<embed/i.test(sanitizeEmailHtml(`<embed src="https://evil">`)), "embed removed");

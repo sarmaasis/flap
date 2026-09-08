@@ -5,5 +5,10 @@
     "types": ["@cloudflare/workers-types", "vite/client"],
     "lib": ["ES2023"]
   },
-  "include": ["worker", "worker-configuration.d.ts", "shared"]
+  "include": ["worker", "worker-configuration.d.ts", "shared"],
+  "exclude": [
+    "shared/**/*.test.ts",
+    "shared/d1-memory.ts",
+    "shared/http-tenant-isolation-harness.ts"
+  ]
 }

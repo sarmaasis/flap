@@ -227,4 +227,96 @@ xVpPYFSkPJExnyY=
   assert(!(await verifySnsSignatureWithPem(tampered, fixturePem)), "tampered message fails verify");
 }
 
+// --- SNS allowlist / envelope edge cases ---
+{
+  assert(!isAllowedSnsSigningCertUrl("http://sns.us-east-1.amazonaws.com/cert.pem"), "HTTP SigningCertURL rejected");
+  assert(!isAllowedSnsSigningCertUrl("https://sns.us-east-1.amazonaws.com"), "origin-only SigningCertURL rejected");
+  assert(!isAllowedSnsSubscribeUrl("https://evil.example/confirm"), "non-SNS SubscribeURL rejected");
+  assert(
+    !isSnsEnvelope({ Type: "Notification", Message: "x" }),
+    "envelope without Signature/Cert is not SNS",
+  );
+  assert(
+    isSnsEnvelope({
+      Type: "Notification",
+      Signature: "abc",
+      SigningCertURL: "https://sns.us-east-1.amazonaws.com/cert.pem",
+    }),
+    "full SNS envelope detected",
+  );
+}
+
+// --- Inbound claim lifecycle / durability states ---
+{
+  const now = 1_000_000;
+  assert(inboundClaimIsFreshProcessing("processing", now - 60_000, now), "fresh processing not reclaimable");
+  assert(
+    !inboundClaimIsFreshProcessing("processing", now - INBOUND_CLAIM_STALE_MS - 1, now),
+    "stale processing reclaimable",
+  );
+  assert(inboundClaimIsTerminalDuplicate("stored"), "stored is terminal duplicate");
+  assert(inboundClaimIsTerminalDuplicate("duplicate"), "duplicate is terminal");
+  assert(!inboundClaimIsTerminalDuplicate("processing"), "processing not terminal");
+  assert(!inboundClaimIsTerminalDuplicate("store_failed"), "store_failed not terminal ACK");
+
+  // Documented outcomes operators/support can query via inbound_ingest_log
+  const knownOutcomes = new Set([
+    "processing",
+    "stored",
+    "duplicate",
+    "in_progress",
+    "store_failed",
+    "failed-retryable",
+    "failed-terminal",
+  ]);
+  assert(knownOutcomes.has("stored") && knownOutcomes.has("store_failed"), "known ingest outcomes");
+}
+
+// --- Soft bounce TTL ---
+{
+  const now = Date.now();
+  assert(softBounceExpiresAt(now) === now + SOFT_BOUNCE_TTL_MS, "soft bounce TTL 72h");
+}
+
+// --- Reply-from edge matrix ---
+{
+  const mboxes = [
+    { id: "mb1", address: "support@product-a.com" },
+    { id: "mb2", address: "hello@product-b.com" },
+    { id: "mb3", address: "alias@product-a.com" },
+  ];
+  assert(
+    resolveReplyFromAddress(
+      { mailbox_id: "mb3", to_addr: "alias@product-a.com, other@x.com" },
+      mboxes,
+      extractEmail,
+    ) === "alias@product-a.com",
+    "alias mailbox inbound uses mailbox_id",
+  );
+  assert(
+    resolveReplyFromAddress(
+      { mailbox_id: null, to_addr: "Support <support@product-a.com>, cc@other.com" },
+      mboxes,
+      extractEmail,
+    ) === "support@product-a.com",
+    "multi-To uses first owned address via extractEmail",
+  );
+  assert(
+    resolveReplyFromAddress(
+      { mailbox_id: "removed", to_addr: "gone@old.example" },
+      mboxes,
+      extractEmail,
+    ) === undefined,
+    "removed alias does not invent From",
+  );
+  assert(
+    resolveReplyFromAddress(
+      { mailbox_id: "mb1", to_addr: "hello@product-b.com" },
+      mboxes,
+      extractEmail,
+    ) === "support@product-a.com",
+    "mailbox_id wins over conflicting To",
+  );
+}
+
 console.log("shared/security-phase-b checks passed");

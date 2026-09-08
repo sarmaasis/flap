@@ -118,12 +118,22 @@ export default function MigratePage() {
         <div className="mt-10 flex flex-wrap gap-3">
           <Button
             onClick={() => {
+              track("migration_started", { source: "migrate" });
               track("cta_connect_domain", { source: "migrate" });
               track("signup_clicked", { source: "migrate" });
               go("/signup");
             }}
           >
             Connect your first domain
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              track("migration_help_requested", { source: "migrate" });
+              go("/support");
+            }}
+          >
+            Get help migrating
           </Button>
           <Button variant="outline" onClick={() => go("/guides")}>
             DNS guides
@@ -132,6 +142,11 @@ export default function MigratePage() {
             Security & export
           </Button>
         </div>
+
+        <p className="mt-8 text-[15px] leading-relaxed text-[var(--muted)]">
+          Moving from Google Workspace, Zoho, MXRoute, or another provider? We can help migrate your first domains —
+          use Get help migrating and tell us what you run today.
+        </p>
 
         <ArticleCtas source="migrate" />
       </article>

@@ -26,7 +26,7 @@
     "validate:seo": "npx --yes tsx scripts/validate-seo.ts",
     "indexnow": "npx --yes tsx scripts/indexnow.ts",
     "sitemap": "npx --yes tsx -e \"import { writeFileSync } from 'node:fs'; import { renderSitemapXml, buildSitemapEntries } from './src/content/sitemap.ts'; writeFileSync('public/sitemap.xml', renderSitemapXml()); console.log(buildSitemapEntries().length);\"",
-    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && npx --yes tsx shared/calculator.test.ts && npx --yes tsx shared/ses-dns.test.ts && npx --yes tsx shared/security-phase-b.test.ts && npx --yes tsx shared/security-authz.test.ts && npx --yes tsx scripts/seo.test.ts",
+    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.worker.json && npx --yes tsx shared/calculator.test.ts && npx --yes tsx shared/ses-dns.test.ts && npx --yes tsx shared/security-phase-b.test.ts && npx --yes tsx shared/security-authz.test.ts && npx --yes tsx shared/http-tenant-isolation.test.ts && npx --yes tsx scripts/seo.test.ts",
     "test:seo": "npx --yes tsx scripts/seo.test.ts",
     "preview": "vite preview",
     "deploy": "npm run build && npm run db:migrate:remote && wrangler deploy",
