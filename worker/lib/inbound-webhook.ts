@@ -268,11 +268,19 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
       for (const r of event.bounce?.bouncedRecipients ?? []) {
         const email = (r.emailAddress || "").trim().toLowerCase();
         if (!email) continue;
+        const reason = event.bounce?.bounceType === "Transient" ? "soft_bounce" : "bounce";
         await upsertSuppression(c.env.DB, {
           email,
-          reason: event.bounce?.bounceType === "Transient" ? "soft_bounce" : "bounce",
+          reason,
           source: "ses",
           providerMessageId: event.mail?.messageId,
+          now,
+        });
+        await recordDeliveryEvent(c.env.DB, {
+          recipientEmail: email,
+          kind: reason === "soft_bounce" ? "soft_bounce" : "bounce",
+          provider: "ses",
+          providerMessageId: event.mail?.messageId || "",
           now,
         });
       }
@@ -292,6 +300,13 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
           providerMessageId: event.mail?.messageId,
           now,
         });
+        await recordDeliveryEvent(c.env.DB, {
+          recipientEmail: email,
+          kind: "complaint",
+          provider: "ses",
+          providerMessageId: event.mail?.messageId || "",
+          now,
+        });
       }
       await trackServerEvent(c.env.DB, "ses_complaint_received", {
         props: { count: event.complaint?.complainedRecipients?.length ?? 0 },
@@ -300,6 +315,63 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
 
     return c.json({ ok: true });
   });
+}
+
+async function recordDeliveryEvent(
+  db: D1Database,
+  opts: {
+    recipientEmail: string;
+    kind: string;
+    provider: string;
+    providerMessageId: string;
+    now: number;
+  },
+): Promise<void> {
+  const domain = opts.recipientEmail.includes("@")
+    ? opts.recipientEmail.split("@").pop()!.toLowerCase()
+    : "";
+  let userId = "";
+  let domainId = "";
+  if (domain) {
+    const row = await db
+      .prepare("SELECT id, user_id FROM domains WHERE lower(name) = ? LIMIT 1")
+      .bind(domain)
+      .first<{ id: string; user_id: string }>();
+    if (row) {
+      userId = row.user_id;
+      domainId = row.id;
+    }
+  }
+  await db
+    .prepare(
+      `INSERT INTO delivery_event_log
+       (id, user_id, domain_id, recipient_email, kind, provider, provider_message_id, meta_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)`,
+    )
+    .bind(
+      randomId("deliv"),
+      userId,
+      domainId,
+      opts.recipientEmail,
+      opts.kind,
+      opts.provider,
+      opts.providerMessageId,
+      opts.now,
+    )
+    .run();
+
+  if (userId && domainId) {
+    const day = new Date(opts.now).toISOString().slice(0, 10);
+    const kind = opts.kind === "soft_bounce" ? "bounce" : opts.kind;
+    await db
+      .prepare(
+        `INSERT INTO deliverability_events (id, user_id, domain_id, kind, count, day, meta_json)
+         VALUES (?, ?, ?, ?, 1, ?, '')
+         ON CONFLICT(domain_id, kind, day) DO UPDATE SET count = count + 1`,
+      )
+      .bind(randomId("de"), userId, domainId, kind, day)
+      .run();
+  }
 }
 
 async function upsertSuppression(

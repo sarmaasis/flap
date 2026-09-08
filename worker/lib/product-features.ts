@@ -11,7 +11,7 @@ import { mailboxAccessClause, resolveWorkspace } from "./team";
 type App = { Bindings: Env };
 
 const LABEL_NAME_RE = /^[\w .&/+-]{1,48}$/i;
-const DOMAIN_COLORS = ["#F26522", "#141211", "#0a7b6f", "#c47a10", "#8b3a62", "#4a5568", "#b42318", "#5c5652"];
+const DOMAIN_COLORS = ["#0a7b6f", "#141211", "#2a78d6", "#c47a10", "#8b3a62", "#4a5568", "#b42318", "#5c5652"];
 
 export function registerProductFeatureRoutes(app: Hono<App>) {
   app.get("/api/labels", async (c) => {
@@ -247,6 +247,105 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
       .bind(assignee, messageId, ctx.workspaceId)
       .run();
     return c.json({ ok: true, assignee_user_id: assignee });
+  });
+
+  app.post("/api/mail/:id/workflow", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
+    const messageId = c.req.param("id");
+    const body = await c.req.json().catch(() => ({})) as { status?: string };
+    const status = (body.status || "").trim();
+    if (status && status !== "done" && status !== "follow_up") {
+      return c.json({ error: "status must be '', done, or follow_up." }, 400);
+    }
+    const msg = await c.env.DB.prepare(
+      `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+    )
+      .bind(messageId, ctx.workspaceId, ...access.binds)
+      .first();
+    if (!msg) return c.json({ error: "Message not found." }, 404);
+    await c.env.DB.prepare("UPDATE messages SET workflow_status = ? WHERE id = ? AND user_id = ?")
+      .bind(status, messageId, ctx.workspaceId)
+      .run();
+    return c.json({ ok: true, workflow_status: status });
+  });
+
+  app.get("/api/mail/needs-you", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
+    const rows = await c.env.DB.prepare(
+      `SELECT id, subject, from_addr, to_addr, date_ms, folder, assignee_user_id, workflow_status,
+              unread, starred, has_attachments, snippet, label, mailbox_id, created_at
+       FROM messages
+       WHERE user_id = ? AND assignee_user_id = ? AND IFNULL(workflow_status, '') != 'done'${access.sql}
+       ORDER BY date_ms DESC LIMIT 200`,
+    )
+      .bind(ctx.workspaceId, user.id, ...access.binds)
+      .all();
+    return c.json({ messages: rows.results ?? [] });
+  });
+
+  app.get("/api/delivery-events", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can view delivery events." }, 403);
+    const kind = (c.req.query("kind") || "").trim();
+    const since = Date.now() - 30 * 86400_000;
+    const rows = kind
+      ? await c.env.DB.prepare(
+          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at
+           FROM delivery_event_log
+           WHERE user_id = ? AND created_at >= ? AND kind = ?
+           ORDER BY created_at DESC LIMIT 500`,
+        )
+          .bind(ctx.workspaceId, since, kind)
+          .all()
+      : await c.env.DB.prepare(
+          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at
+           FROM delivery_event_log
+           WHERE user_id = ? AND created_at >= ?
+           ORDER BY created_at DESC LIMIT 500`,
+        )
+          .bind(ctx.workspaceId, since)
+          .all();
+    return c.json({ events: rows.results ?? [], retention_days: 30 });
+  });
+
+  app.get("/api/sending-reputation", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can view reputation." }, 403);
+    const since = Date.now() - 30 * 86400_000;
+    const counts = await c.env.DB.prepare(
+      `SELECT kind, COUNT(*) AS n FROM delivery_event_log
+       WHERE user_id = ? AND created_at >= ? GROUP BY kind`,
+    )
+      .bind(ctx.workspaceId, since)
+      .all<{ kind: string; n: number }>();
+    const byKind: Record<string, number> = {};
+    for (const row of counts.results ?? []) byKind[row.kind] = Number(row.n) || 0;
+    const suppressed = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM mail_suppressions WHERE expires_at IS NULL OR expires_at > ?",
+    )
+      .bind(Date.now())
+      .first<{ n: number }>();
+    const bounce = (byKind.bounce || 0) + (byKind.soft_bounce || 0);
+    const complaint = byKind.complaint || 0;
+    const delivery = byKind.delivery || 0;
+    const denom = Math.max(1, bounce + complaint + delivery);
+    return c.json({
+      window_days: 30,
+      bounce_rate: bounce / denom,
+      complaint_rate: complaint / denom,
+      suppressed_count: Number(suppressed?.n) || 0,
+      counts: { bounce, complaint, delivery, soft_bounce: byKind.soft_bounce || 0 },
+    });
   });
 
   app.post("/api/mail/:id/undo-send", async (c) => {

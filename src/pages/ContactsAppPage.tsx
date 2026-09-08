@@ -104,6 +104,33 @@ export default function ContactsAppPage() {
               ? "Try a different name or email."
               : "Add people you email often, or send a message and Flap will remember the address."
           }
+          mockup={
+            q.trim() ? undefined : (
+              <div className="feature-empty-mock" aria-hidden>
+                <div className="feature-empty-mock-row">
+                  <span className="feature-empty-mock-avatar">A</span>
+                  <div className="stack">
+                    <span className="feature-empty-mock-line medium" />
+                    <span className="feature-empty-mock-line thin short" />
+                  </div>
+                </div>
+                <div className="feature-empty-mock-row">
+                  <span className="feature-empty-mock-avatar">B</span>
+                  <div className="stack">
+                    <span className="feature-empty-mock-line short" />
+                    <span className="feature-empty-mock-line thin medium" />
+                  </div>
+                </div>
+                <div className="feature-empty-mock-row dim">
+                  <span className="feature-empty-mock-avatar">C</span>
+                  <div className="stack">
+                    <span className="feature-empty-mock-line long" />
+                    <span className="feature-empty-mock-line thin short" />
+                  </div>
+                </div>
+              </div>
+            )
+          }
         />
       ) : (
         <ul className="app-feature-list mt-4">

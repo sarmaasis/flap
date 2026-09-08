@@ -384,13 +384,11 @@ function buildPages(): Page[] {
           bullets: API_SEND.notes,
         },
         {
-          heading: "Inbound webhooks",
-          body: WEBHOOK_DOCS.verifyNote,
+          heading: "Webhooks",
+          body: "Inbound event delivery is documented at /docs/webhooks.",
           bullets: [
             ...WEBHOOK_DOCS.events.map((e) => `${e.name}: ${e.description}`),
-            ...WEBHOOK_DOCS.headers.map((h) => `${h.name}: ${h.value}`),
-            ...WEBHOOK_DOCS.notes,
-            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Builder ${PLANS.pro.limits.api_keys}/${PLANS.pro.limits.webhooks}; Studio ${PLANS.team.limits.api_keys}/${PLANS.team.limits.webhooks}.`,
+            `Plan limits — Solo ${PLANS.solo.limits.api_keys} keys / ${PLANS.solo.limits.webhooks} webhooks; Pro ${PLANS.pro.limits.api_keys}/${PLANS.pro.limits.webhooks}; Team ${PLANS.team.limits.api_keys}/${PLANS.team.limits.webhooks}.`,
           ],
         },
       ],
@@ -474,19 +472,24 @@ function buildPages(): Page[] {
   pages.push({
     path: "/docs",
     title: "Docs | Flap",
-    description: "Developer documentation for Flap API keys, send API, and inbound webhooks.",
+    description: "Developer documentation for Flap domains, send API, and inbound webhooks.",
     bodyHtml: articleShell({
       eyebrow: "Docs",
-      h1: "Flap documentation",
-      lede: "Public developer docs for send and webhooks.",
+      h1: "Flap docs",
+      lede: "Custom-domain email for founders. Public guides for setup, API send, and webhooks.",
       sections: [
         {
-          heading: "API & webhooks",
-          body: API_DOCS.description,
-          bullets: [`Full guide: ${API_DOCS.path}`],
+          heading: "Start here",
+          body: "Pick a path based on what you need next.",
+          bullets: [
+            "Getting started: /docs/getting-started",
+            "Core concepts: /docs/concepts",
+            "Webhooks: /docs/webhooks",
+            "API overview: /docs/api",
+          ],
         },
       ],
-      ctaHref: API_DOCS.path,
+      ctaHref: "/docs/getting-started",
     }),
     jsonLd: {
       "@context": "https://schema.org",
@@ -494,6 +497,64 @@ function buildPages(): Page[] {
       name: "Flap docs",
       url: `${SITE_URL}/docs`,
     },
+  });
+
+  pages.push({
+    path: "/docs/getting-started",
+    title: "Getting started | Flap Docs",
+    description: "Add a domain, publish SES DNS, create a mailbox, and send your first Flap email.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Getting started",
+      lede: "From zero to a working @yourdomain.com address.",
+      sections: [
+        {
+          heading: "Checklist",
+          body: "Add domain → publish DNS → wait for verification → create mailbox → send and receive a test.",
+          bullets: ["DNS guides: /guides", "In-app checklist: /app/get-started"],
+        },
+      ],
+      ctaHref: "/signup",
+    }),
+  });
+
+  pages.push({
+    path: "/docs/concepts",
+    title: "Core concepts | Flap Docs",
+    description: "Domains, mailboxes, live vs test API keys, and plan limits on Flap.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Core concepts",
+      lede: "The smallest vocabulary you need before calling the API or wiring webhooks.",
+      sections: [
+        {
+          heading: "Building blocks",
+          body: "Domain authenticates SES. Mailbox is a local-part. API keys are live or test.",
+        },
+      ],
+    }),
+  });
+
+  pages.push({
+    path: "/docs/webhooks",
+    title: "Webhooks | Flap Docs",
+    description: "Receive mail.received webhooks from Flap with SHA-256 signature verification.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Webhooks",
+      lede: WEBHOOK_DOCS.verifyNote,
+      sections: [
+        {
+          heading: "Events and headers",
+          body: "HTTPS POST with x-flap-event and x-flap-signature.",
+          bullets: [
+            ...WEBHOOK_DOCS.events.map((e) => `${e.name}: ${e.description}`),
+            ...WEBHOOK_DOCS.headers.map((h) => `${h.name}: ${h.value}`),
+            ...WEBHOOK_DOCS.notes,
+          ],
+        },
+      ],
+    }),
   });
 
   pages.push({

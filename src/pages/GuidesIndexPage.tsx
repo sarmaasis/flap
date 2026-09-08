@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import MarketingShell from "../components/MarketingShell";
+import { DocsCallout, DocsPage, DocsRelated, DocsShell } from "../components/docs/DocsKit";
 import { GUIDE_PAGES } from "../content/marketing";
+import { GUIDES_FLAT, GUIDES_FOOTER_LINKS, GUIDES_NAV } from "../content/guides-nav";
 import { go } from "../lib/nav";
 import { clearJsonLd, setJsonLd, setPageMeta, webPageLd } from "../lib/seo";
 
@@ -26,33 +27,51 @@ export default function GuidesIndexPage() {
   }, []);
 
   return (
-    <MarketingShell>
-      <main className="mx-auto max-w-3xl px-5 py-12 md:px-8 md:py-16">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Guides</p>
-        <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
-          DNS setup guides
-        </h1>
-        <p className="mt-4 text-lg text-[var(--muted)]">
-          Point your registrar DNS at Amazon SES with the records Flap shows in Settings → Setup. Cloudflare Email
-          Routing is not required.
-        </p>
-        <ul className="mt-10 space-y-3">
+    <DocsShell
+      pathname={PATH}
+      nav={GUIDES_NAV}
+      brandHref="/guides"
+      brandLabel="Guides"
+      footerLinks={GUIDES_FOOTER_LINKS}
+    >
+      <DocsPage
+        href={PATH}
+        flatNav={GUIDES_FLAT}
+        title="DNS setup guides"
+        description="Point your registrar DNS at Amazon SES with the records Flap shows in Settings → Setup. Cloudflare Email Routing is not required."
+        rightRail={
+          <DocsRelated
+            links={[
+              { href: "/docs/getting-started", label: "Getting started" },
+              { href: "/tools", label: "DNS tools" },
+              { href: "/docs", label: "Developer docs" },
+            ]}
+          />
+        }
+      >
+        <DocsCallout type="tip" title="Copy from Flap">
+          Always paste live MX/SPF/DKIM values from Settings → Domains. Guides explain where to click in each
+          registrar — not invent records.
+        </DocsCallout>
+
+        <h2 id="providers">Pick your DNS host</h2>
+        <div className="not-prose grid gap-3 sm:grid-cols-2">
           {GUIDE_PAGES.map((g) => (
-            <li key={g.path}>
-              <a
-                href={g.path}
-                className="block rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-3 font-medium hover:border-[var(--cta)]"
-                onClick={(e) => {
-                  e.preventDefault();
-                  go(g.path);
-                }}
-              >
-                {g.title.replace(" | Flap", "")}
-              </a>
-            </li>
+            <a
+              key={g.path}
+              href={g.path}
+              onClick={(e) => {
+                e.preventDefault();
+                go(g.path);
+              }}
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface-raised)] p-4 transition-colors hover:bg-[var(--surface-hover)]"
+            >
+              <p className="text-sm font-medium text-[var(--foreground)]">{g.title.replace(" | Flap", "")}</p>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">{g.description}</p>
+            </a>
           ))}
-        </ul>
-      </main>
-    </MarketingShell>
+        </div>
+      </DocsPage>
+    </DocsShell>
   );
 }

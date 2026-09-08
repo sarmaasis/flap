@@ -1,17 +1,62 @@
 import { useEffect } from "react";
-import MarketingShell from "../components/MarketingShell";
-import { Button } from "../components/ui/button";
-import { API_DOCS } from "../content/api-docs";
+import {
+  CodeTabs,
+  DocsCallout,
+  DocsPage,
+  DocsRelated,
+  DocsShell,
+} from "../components/docs/DocsKit";
+import { ID_PREFIXES, SEND_SNIPPETS } from "../content/docs-snippets";
 import { go } from "../lib/nav";
 import { clearJsonLd, setJsonLd, setPageMeta, webPageLd } from "../lib/seo";
 
 const PATH = "/docs";
 
+const toc = [
+  { id: "promise", label: "Time to first send" },
+  { id: "paths", label: "Pick a path" },
+  { id: "ids", label: "ID prefixes" },
+  { id: "send", label: "Send an email" },
+];
+
+const cards = [
+  {
+    href: "/docs/getting-started",
+    title: "I want my first custom-domain mailbox",
+    body: "Add a domain → publish DNS → create an address → send a test.",
+  },
+  {
+    href: "/docs/api",
+    title: "I want to send via API",
+    body: "Mint a key, POST /api/v1/send, confirm the message id.",
+  },
+  {
+    href: "/docs/webhooks",
+    title: "I want inbound webhooks",
+    body: "mail.received events, signature header, verify snippets.",
+  },
+  {
+    href: "/docs/concepts",
+    title: "I want the mental model",
+    body: "Domains, mailboxes, live vs test keys, plan limits.",
+  },
+  {
+    href: "/guides",
+    title: "I need DNS at my registrar",
+    body: "Cloudflare, Namecheap, Route 53, and more.",
+  },
+  {
+    href: "/app/developer",
+    title: "I want the in-app developer console",
+    body: "API keys, webhooks, and delivery history.",
+  },
+];
+
 export default function DocsIndexPage() {
   useEffect(() => {
     setPageMeta({
       title: "Docs | Flap",
-      description: "Developer documentation for Flap API keys, send API, and inbound webhooks.",
+      description: "Developer documentation for Flap domains, send API, and inbound webhooks.",
       path: PATH,
     });
     setJsonLd(
@@ -26,36 +71,111 @@ export default function DocsIndexPage() {
   }, []);
 
   return (
-    <MarketingShell>
-      <main className="mx-auto max-w-3xl px-5 py-12 md:px-8 md:py-16">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Docs</p>
-        <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
-          Flap documentation
-        </h1>
-        <p className="mt-4 text-lg text-[var(--muted)]">
-          Public developer docs for send and webhooks. Product setup lives in Settings after you sign up.
+    <DocsShell pathname={PATH}>
+      <DocsPage
+        href={PATH}
+        title="Flap docs"
+        description="Custom-domain email for founders. Publish DNS once, then send and receive from the web app or HTTPS API."
+        toc={toc}
+        rightRail={
+          <DocsRelated
+            links={[
+              { href: "/docs/getting-started", label: "Getting started" },
+              { href: "/docs/api", label: "API overview" },
+              { href: "/llms.txt", label: "llms.txt" },
+            ]}
+          />
+        }
+      >
+        <DocsCallout type="tip" title="Activation goal">
+          Domain verified for receiving, one mailbox live, and a successful send (inbox or API) in the same
+          afternoon. Product setup continues in{" "}
+          <a
+            href="/app/get-started"
+            onClick={(e) => {
+              e.preventDefault();
+              go("/app/get-started");
+            }}
+          >
+            Get started
+          </a>
+          .
+        </DocsCallout>
+
+        <h2 id="promise">Time to first send</h2>
+        <p>
+          Shortest path: add a domain in Settings, publish the MX/SPF/DKIM records Flap shows, create{" "}
+          <code>you@yourdomain.com</code>, then mail yourself from another account and reply from the inbox.
         </p>
-        <ul className="mt-10 space-y-4">
-          <li className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-5">
+        <p>
+          Prefer a guided checklist? Start with{" "}
+          <a
+            href="/docs/getting-started"
+            onClick={(e) => {
+              e.preventDefault();
+              go("/docs/getting-started");
+            }}
+          >
+            Getting started
+          </a>
+          . Building automations? Jump to the{" "}
+          <a
+            href="/docs/api"
+            onClick={(e) => {
+              e.preventDefault();
+              go("/docs/api");
+            }}
+          >
+            API overview
+          </a>
+          .
+        </p>
+
+        <h2 id="paths">Pick a path</h2>
+        <div className="not-prose grid gap-3 sm:grid-cols-2">
+          {cards.map((c) => (
             <a
-              href={API_DOCS.path}
-              className="text-lg font-semibold text-[var(--fg)] hover:text-[var(--cta)]"
+              key={c.href}
+              href={c.href}
               onClick={(e) => {
                 e.preventDefault();
-                go(API_DOCS.path);
+                go(c.href);
               }}
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface-raised)] p-4 transition-colors hover:bg-[var(--surface-hover)]"
             >
-              API & webhooks
+              <p className="text-sm font-medium text-[var(--foreground)]">{c.title}</p>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">{c.body}</p>
             </a>
-            <p className="mt-2 text-sm text-[var(--muted)]">{API_DOCS.description}</p>
-          </li>
-        </ul>
-        <Button asChild className="mt-10" variant="outline">
-          <a href="/guides" onClick={(e) => { e.preventDefault(); go("/guides"); }}>
-            DNS setup guides
-          </a>
-        </Button>
-      </main>
-    </MarketingShell>
+          ))}
+        </div>
+
+        <h2 id="ids">ID prefixes</h2>
+        <p>Resource ids are prefixed so logs and support tickets stay scannable.</p>
+        <div className="not-prose flex flex-wrap gap-2">
+          {ID_PREFIXES.map((item) => (
+            <span
+              key={item.prefix}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-raised)] px-3 py-1 text-xs"
+            >
+              <code className="font-mono text-[var(--foreground)]">{item.prefix}</code>
+              <span className="text-[var(--foreground-muted)]">{item.meaning}</span>
+            </span>
+          ))}
+        </div>
+
+        <h2 id="send">Send an email</h2>
+        <p>
+          Base URL: <code>https://useflap.online</code>. Authenticate with{" "}
+          <code>Authorization: Bearer flap_…</code> from Settings → Developers.
+        </p>
+        <CodeTabs
+          tabs={[
+            { id: "curl", label: "curl", code: SEND_SNIPPETS.curl, language: "bash" },
+            { id: "node", label: "Node", code: SEND_SNIPPETS.node, language: "ts" },
+            { id: "python", label: "Python", code: SEND_SNIPPETS.python, language: "python" },
+          ]}
+        />
+      </DocsPage>
+    </DocsShell>
   );
 }

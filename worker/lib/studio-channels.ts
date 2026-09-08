@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { requireUser } from "./auth";
-import { getEffectivePlan } from "./billing";
+import { getEffectivePlan, recordOutboundSend, assertSendRoom } from "./billing";
 import {
   buildInviteIcs,
   bumpCalendarSync,
@@ -20,6 +20,122 @@ import { nowMs, randomId } from "./ids";
 import { buildIcs, parseIcs, type IcsAttendee } from "../../shared/ics";
 import { resolveWorkspace } from "./team";
 import { planAtLeast, type AppEnv } from "./plan-guard";
+import { canSendMail, sendRawEmail } from "./mail-provider";
+import { buildRawMime } from "./mime";
+import { EMAIL_RE, extractEmail } from "./mailutil";
+
+const NEWSLETTER_BLAST_HARD_CAP = 500;
+
+/** Process queued newsletter_blasts (called from cron). Simple loop; not a full ESP. */
+export async function processQueuedNewsletterBlasts(env: Env): Promise<void> {
+  const queued = await env.DB.prepare(
+    `SELECT id, user_id, domain_id, subject, html_body, capped_count
+     FROM newsletter_blasts
+     WHERE status = 'queued'
+     ORDER BY created_at ASC
+     LIMIT 5`,
+  )
+    .all<{
+      id: string;
+      user_id: string;
+      domain_id: string;
+      subject: string;
+      html_body: string;
+      capped_count: number;
+    }>()
+    .catch(() => ({ results: [] as Array<{
+      id: string;
+      user_id: string;
+      domain_id: string;
+      subject: string;
+      html_body: string;
+      capped_count: number;
+    }> }));
+
+  for (const blast of queued.results ?? []) {
+    await env.DB.prepare("UPDATE newsletter_blasts SET status = 'sending' WHERE id = ? AND status = 'queued'")
+      .bind(blast.id)
+      .run()
+      .catch(() => undefined);
+
+    const plan = await getEffectivePlan(env.DB, blast.user_id);
+    const cap = Math.min(
+      NEWSLETTER_BLAST_HARD_CAP,
+      plan.limits.newsletter_sends_per_month || NEWSLETTER_BLAST_HARD_CAP,
+    );
+
+    const subs = await env.DB.prepare(
+      `SELECT email, name FROM newsletter_subscribers
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY created_at ASC
+       LIMIT ?`,
+    )
+      .bind(blast.user_id, cap)
+      .all<{ email: string; name: string }>()
+      .catch(() => ({ results: [] as Array<{ email: string; name: string }> }));
+
+    const recipients = subs.results ?? [];
+    if (!recipients.length) {
+      await env.DB.prepare(
+        "UPDATE newsletter_blasts SET status = 'sent', capped_count = 0 WHERE id = ?",
+      )
+        .bind(blast.id)
+        .run()
+        .catch(() => undefined);
+      continue;
+    }
+
+    const mailbox = await env.DB.prepare(
+      "SELECT id, address FROM mailboxes WHERE user_id = ? ORDER BY created_at ASC LIMIT 1",
+    )
+      .bind(blast.user_id)
+      .first<{ id: string; address: string }>();
+
+    if (!mailbox || !canSendMail(env)) {
+      await env.DB.prepare(
+        "UPDATE newsletter_blasts SET status = 'failed', capped_count = 0 WHERE id = ?",
+      )
+        .bind(blast.id)
+        .run()
+        .catch(() => undefined);
+      console.warn("Newsletter blast skipped — no mailbox or mail provider", blast.id);
+      continue;
+    }
+
+    let sent = 0;
+    for (const sub of recipients) {
+      const sendLimit = await assertSendRoom(env.DB, blast.user_id);
+      if (!sendLimit.ok) break;
+      const to = extractEmail(sub.email);
+      if (!EMAIL_RE.test(to)) continue;
+      try {
+        const raw = buildRawMime({
+          from: mailbox.address,
+          to,
+          subject: blast.subject || "(no subject)",
+          text: "",
+          html: blast.html_body || "<p></p>",
+        });
+        await sendRawEmail(env, {
+          envelopeFrom: mailbox.address,
+          recipients: [to],
+          rawMime: raw,
+        });
+        await recordOutboundSend(env.DB, blast.user_id);
+        sent += 1;
+      } catch (err) {
+        console.warn("Newsletter recipient failed", blast.id, to, err);
+      }
+    }
+
+    await env.DB.prepare(
+      "UPDATE newsletter_blasts SET status = 'sent', capped_count = ? WHERE id = ?",
+    )
+      .bind(sent, blast.id)
+      .run()
+      .catch(() => undefined);
+  }
+}
 
 type EventCore = {
   id: string;
@@ -987,14 +1103,88 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       .bind(ctx.workspaceId)
       .all()
       .catch(() => ({ results: [] }));
+    const subCount = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM newsletter_subscribers WHERE user_id = ? AND status = 'active'",
+    )
+      .bind(ctx.workspaceId)
+      .first<{ n: number }>()
+      .catch(() => ({ n: 0 }));
     return c.json({
       items: rows.results ?? [],
       caps: {
         sends_per_month: plan.limits.newsletter_sends_per_month ?? 0,
         subscribers: plan.limits.newsletter_subscribers ?? 0,
       },
-      note: "Newsletters are hard-capped and double opt-in. Not a cold-outbound ESP.",
+      audience_count: Number(subCount?.n ?? 0),
+      note: "Newsletters are hard-capped. Queued blasts send via cron. Not a cold-outbound ESP.",
     });
+  });
+
+  app.get("/api/newsletters/subscribers", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const rows = await c.env.DB.prepare(
+      `SELECT id, email, name, status, created_at
+       FROM newsletter_subscribers WHERE user_id = ?
+       ORDER BY created_at DESC LIMIT 200`,
+    )
+      .bind(ctx.workspaceId)
+      .all()
+      .catch(() => ({ results: [] }));
+    return c.json({
+      subscribers: rows.results ?? [],
+      note: "MVP audience list. CSV import and double opt-in flows are partial.",
+    });
+  });
+
+  app.post("/api/newsletters/subscribers", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    if (!planAtLeast(plan.plan_id, "solo")) {
+      return c.json({ error: "Newsletters require Solo or higher." }, 402);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { email?: string; name?: string };
+    const email = extractEmail(body.email || "").toLowerCase();
+    if (!EMAIL_RE.test(email)) return c.json({ error: "Valid email required." }, 400);
+    const count = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM newsletter_subscribers WHERE user_id = ? AND status = 'active'",
+    )
+      .bind(ctx.workspaceId)
+      .first<{ n: number }>()
+      .catch(() => ({ n: 0 }));
+    const max = plan.limits.newsletter_subscribers ?? 0;
+    if (max > 0 && Number(count?.n ?? 0) >= max) {
+      return c.json({ error: `Subscriber cap reached (${max}).` }, 402);
+    }
+    const id = randomId("nsub");
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO newsletter_subscribers (id, user_id, email, name, status, created_at)
+         VALUES (?, ?, ?, ?, 'active', ?)`,
+      )
+        .bind(id, ctx.workspaceId, email, (body.name || "").trim().slice(0, 120), nowMs())
+        .run();
+    } catch {
+      return c.json({ error: "That email is already on this audience." }, 409);
+    }
+    return c.json({ subscriber: { id, email, name: (body.name || "").trim(), status: "active" } }, 201);
+  });
+
+  app.delete("/api/newsletters/subscribers/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const res = await c.env.DB.prepare(
+      "DELETE FROM newsletter_subscribers WHERE id = ? AND user_id = ?",
+    )
+      .bind(c.req.param("id"), ctx.workspaceId)
+      .run()
+      .catch(() => ({ meta: { changes: 0 } }));
+    if (!res.meta.changes) return c.json({ error: "Subscriber not found." }, 404);
+    return c.json({ ok: true });
   });
 
   app.post("/api/newsletters", async (c) => {
@@ -1009,13 +1199,15 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       subject?: string;
       html_body?: string;
       domain_id?: string;
+      queue?: boolean;
     };
     const subject = (body.subject || "").trim().slice(0, 200);
     if (!subject) return c.json({ error: "subject required." }, 400);
     const id = randomId("nl");
+    const status = body.queue ? "queued" : "draft";
     await c.env.DB.prepare(
       `INSERT INTO newsletter_blasts (id, user_id, domain_id, subject, html_body, recipient_tag, status, capped_count, created_at)
-       VALUES (?, ?, ?, ?, ?, '', 'draft', 0, ?)`,
+       VALUES (?, ?, ?, ?, ?, '', ?, 0, ?)`,
     )
       .bind(
         id,
@@ -1023,11 +1215,27 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
         body.domain_id || "",
         subject,
         (body.html_body || "").slice(0, 200_000),
+        status,
         nowMs(),
       )
       .run()
       .catch(() => undefined);
-    return c.json({ item: { id, subject, status: "draft" } }, 201);
+    return c.json({ item: { id, subject, status } }, 201);
+  });
+
+  app.post("/api/newsletters/:id/queue", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const res = await c.env.DB.prepare(
+      `UPDATE newsletter_blasts SET status = 'queued'
+       WHERE id = ? AND user_id = ? AND status IN ('draft', 'failed')`,
+    )
+      .bind(c.req.param("id"), ctx.workspaceId)
+      .run()
+      .catch(() => ({ meta: { changes: 0 } }));
+    if (!res.meta.changes) return c.json({ error: "Draft not found or already queued." }, 404);
+    return c.json({ ok: true, status: "queued", note: "Cron will process this blast shortly." });
   });
 
   // --- IMAP/SMTP credential stubs (honest Partial) ---

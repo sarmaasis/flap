@@ -69,7 +69,10 @@ ${GUIDE_PAGES.map((g) => `- [${g.title}](${SITE_URL}${g.path}): ${g.description}
 ## Developers
 
 - [Docs](${SITE_URL}/docs): Documentation index
-- [API & webhooks](${SITE_URL}/docs/api): POST /api/v1/send with Bearer flap_… keys; inbound mail.received webhooks
+- [Getting started](${SITE_URL}/docs/getting-started): Domain → DNS → mailbox → first send
+- [Core concepts](${SITE_URL}/docs/concepts): Domains, mailboxes, live vs test keys
+- [Webhooks](${SITE_URL}/docs/webhooks): mail.received events and signature verification
+- [API overview](${SITE_URL}/docs/api): POST /api/v1/send with Bearer flap_… keys
 
 ## Tools
 

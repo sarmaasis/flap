@@ -86,12 +86,18 @@ export default function PricingPage() {
           Start free, then choose the space your team needs. Paid plans include up to {PLANS.solo.limits.domains} custom domains, with plans from ${PLANS.solo.price_monthly}/month.
         </p>
 
-        <div className="mt-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-sm">
+        <div
+          className="mt-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-hover)] p-1 text-sm"
+          role="group"
+          aria-label="Billing interval"
+        >
           <button
             type="button"
             className={cn(
-              "rounded-full px-4 py-1.5 font-medium",
-              interval === "month" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
+              "rounded-full px-4 py-1.5 font-medium transition-colors",
+              interval === "month"
+                ? "bg-[var(--surface-raised)] text-[var(--foreground)] shadow-sm"
+                : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]",
             )}
             aria-pressed={interval === "month"}
             onClick={() => setInterval("month")}
@@ -101,14 +107,18 @@ export default function PricingPage() {
           <button
             type="button"
             className={cn(
-              "rounded-full px-4 py-1.5 font-medium",
-              interval === "year" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
+              "rounded-full px-4 py-1.5 font-medium transition-colors",
+              interval === "year"
+                ? "bg-[var(--surface-raised)] text-[var(--foreground)] shadow-sm"
+                : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]",
             )}
             aria-pressed={interval === "year"}
             onClick={() => setInterval("year")}
           >
             Yearly
-            <span className="ml-1 text-xs font-semibold text-[var(--cta)]">2 mo free</span>
+            <span className="ml-1.5 inline-flex items-center rounded-md bg-[var(--accent-dim)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--accent-text)]">
+              2 mo free
+            </span>
           </button>
         </div>
 

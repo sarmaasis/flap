@@ -2,8 +2,11 @@ import { type CSSProperties, type ReactNode, useState } from "react";
 import {
   Archive,
   Ban,
+  Check,
+  ChevronDown,
   Clock,
   Copy,
+  Flag,
   Forward,
   Inbox,
   Mail,
@@ -46,20 +49,19 @@ type TeamMember = { user_id: string; email: string };
 
 /** Soften HTML email canvas to match Flap elevated surface. */
 function emailSrcDoc(html: string): string {
-  const bg = "#ffffff";
   const softHead =
-    '<meta name="color-scheme" content="light only" />' +
+    '<meta name="color-scheme" content="light dark" />' +
     `<style>
       html,body{
         margin:0!important;
-        background:${bg}!important;
-        color:#292925!important;
+        background:var(--surface-raised, #ffffff)!important;
+        color:var(--foreground, #141211)!important;
         font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif!important;
         font-size:15px!important;
         line-height:1.55!important;
       }
       img{max-width:100%;height:auto;}
-      a{color:#353430;}
+      a{color:var(--accent-text, #b84a0a);}
     </style>`;
   if (/<head[\s>]/i.test(html)) {
     return html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
@@ -99,6 +101,7 @@ export type MessageReaderProps = {
   onApplyLabel: (name: string) => void;
   onClearLabel: () => void;
   onAssign: (userId: string | null) => void;
+  onWorkflow?: (status: "" | "done" | "follow_up") => void;
   onAddNote: () => void;
   onOpenBilling: () => void;
 };
@@ -122,8 +125,8 @@ function ToolBtn({
           size="icon"
           variant="ghost"
           className={cn(
-            "message-tool-btn h-9 w-9 rounded-md text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)]",
-            active && "text-[var(--warn)] hover:text-[var(--warn)]",
+            "message-tool-btn h-9 w-9 rounded-xl text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+            active && "text-[var(--warning-text)] hover:text-[var(--warning-text)]",
           )}
           onClick={onClick}
           aria-label={label}
@@ -165,6 +168,7 @@ export default function MessageReader({
   onApplyLabel,
   onClearLabel,
   onAssign,
+  onWorkflow,
   onAddNote,
   onOpenBilling,
 }: MessageReaderProps) {
@@ -175,7 +179,10 @@ export default function MessageReader({
   const viaLabel = domainName || undefined;
   const fromDisplay = senderName(message.from_addr);
   const fromEmail = extractEmail(message.from_addr) || message.from_addr;
-  const accent = domainColor || "var(--cta)";
+  const accent = domainColor || "var(--accent)";
+  const assigneeLabel = message.assignee_user_id
+    ? teamMembers.find((m) => m.user_id === message.assignee_user_id)?.email || "Assigned"
+    : "Assigned to";
   const calendarInvite = attachments.find(
     (a) => /calendar/i.test(a.content_type || "") || /\.ics$/i.test(a.filename || ""),
   );
@@ -301,11 +308,11 @@ export default function MessageReader({
           <div className="message-sender">
             <Avatar
               className="message-avatar"
-              style={{ background: `color-mix(in srgb, ${accent} 18%, var(--surface-2))` }}
+              style={{ background: `color-mix(in srgb, ${accent} 18%, var(--surface-hover))` }}
             >
               <AvatarFallback
                 className="text-[13px] font-semibold"
-                style={{ color: domainColor || "var(--fg)", background: "transparent" }}
+                style={{ color: domainColor || "var(--foreground)", background: "transparent" }}
               >
                 {initials(message.from_addr)}
               </AvatarFallback>
@@ -340,6 +347,74 @@ export default function MessageReader({
                 </div>
               ) : null}
             </div>
+          </div>
+
+          <div className="message-collab-bar" role="toolbar" aria-label="Collaboration">
+            {teamsUnlocked ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="message-collab-btn">
+                    {assigneeLabel}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => onAssign(null)}>Unassigned</DropdownMenuItem>
+                  {teamMembers.map((m) => (
+                    <DropdownMenuItem key={m.user_id} onSelect={() => onAssign(m.user_id)}>
+                      {m.email}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="message-collab-btn"
+                onClick={onOpenBilling}
+              >
+                Assigned to
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="message-collab-btn"
+              onClick={() => {
+                /* Done state lands in Phase 6 — archive as a useful stub. */
+                onArchive();
+              }}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Done
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="message-collab-btn"
+              onClick={() => onApplyLabel("Follow-up")}
+            >
+              <Flag className="h-3.5 w-3.5" />
+              Follow up
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="message-collab-btn"
+              onClick={() => {
+                document.getElementById("message-note-draft")?.focus();
+              }}
+            >
+              <StickyNote className="h-3.5 w-3.5" />
+              Add note
+            </Button>
           </div>
         </header>
 
@@ -435,6 +510,60 @@ export default function MessageReader({
             ) : null}
           </div>
         ) : null}
+
+        <div className="message-collab-bar" role="group" aria-label="Collaboration">
+          {teamsUnlocked ? (
+            <label className="message-collab-assign">
+              <span className="sr-only">Assigned to</span>
+              <select
+                aria-label="Assigned to"
+                value={message.assignee_user_id || ""}
+                onChange={(e) => onAssign(e.target.value || null)}
+              >
+                <option value="">Assigned to…</option>
+                {teamMembers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <Button type="button" variant="ghost" size="sm" onClick={onOpenBilling}>
+              Assigned to…
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant={message.workflow_status === "done" ? "primary" : "secondary"}
+            aria-pressed={message.workflow_status === "done"}
+            onClick={() => onWorkflow?.(message.workflow_status === "done" ? "" : "done")}
+          >
+            Done
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={message.workflow_status === "follow_up" ? "primary" : "secondary"}
+            aria-pressed={message.workflow_status === "follow_up"}
+            onClick={() => onWorkflow?.(message.workflow_status === "follow_up" ? "" : "follow_up")}
+          >
+            Follow up
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              const el = document.getElementById("message-note-draft");
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              el?.focus();
+            }}
+          >
+            Add note
+          </Button>
+        </div>
 
         <div className="message-quick-reply">
           <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(false)}>
@@ -609,6 +738,7 @@ export default function MessageReader({
                   }}
                 >
                   <Textarea
+                    id="message-note-draft"
                     placeholder="Add a private note"
                     value={noteDraft}
                     onChange={(e) => onNoteDraftChange(e.target.value)}

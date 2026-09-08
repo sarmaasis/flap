@@ -1,9 +1,11 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
   BookOpen,
   Bot,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Contact,
   CreditCard,
@@ -12,9 +14,11 @@ import {
   LogOut,
   Mail,
   Megaphone,
-  PenSquare,
+  Menu,
+  MessageCircle,
   Rocket,
   Settings as SettingsIcon,
+  X,
 } from "lucide-react";
 import type { FolderCounts } from "../lib/api";
 import { folderBadge } from "../lib/mailFolders";
@@ -22,8 +26,6 @@ import { go } from "../lib/nav";
 import { cn } from "../lib/utils";
 import BrandMark from "./BrandMark";
 import { ThemeToggle } from "./ThemeProvider";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 
 export { FOLDERS } from "../lib/mailFolders";
@@ -64,12 +66,29 @@ const SYSTEM: Array<{ id: AppNavId; label: string; href: string; icon: typeof Se
   { id: "docs", label: "Docs", href: "/docs", icon: BookOpen },
 ];
 
+const COLLAPSE_KEY = "flap-sidebar-collapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function initialsFromEmail(email: string) {
+  const local = email.split("@")[0] || email;
+  const parts = local.split(/[._\-+]/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase() || "?";
+}
+
 /** Product shell: workspace + system nav. Mail folders live in the inbox three-pane. */
 export default function AppShell({
   email,
   counts,
   current,
-  onCompose,
+  onCompose: _onCompose,
   onLogout,
   children,
 }: {
@@ -80,102 +99,208 @@ export default function AppShell({
   onLogout: () => void;
   children: ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(readCollapsed());
+  }, []);
+
   useEffect(() => {
     document.documentElement.classList.add("app-locked");
     return () => document.documentElement.classList.remove("app-locked");
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
   const navCurrent: AppNavId =
     current === "mail" ? "inbox" : current === "settings" ? "settings" : current;
 
+  function persistCollapsed(next: boolean) {
+    setCollapsed(next);
+    try {
+      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
   function navClick(href: string) {
+    setMobileOpen(false);
     go(href);
   }
 
+  const displayName = email.includes("@") ? email.split("@")[0] : email;
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="/app" onClick={(e) => { e.preventDefault(); go("/app"); }}>
-          <BrandMark />
-          <span>flap</span>
-        </a>
-        <Button
-          className="compose-button w-full"
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <div
+        className={cn("app-shell", collapsed && "app-shell-collapsed", mobileOpen && "app-shell-mobile-open")}
+      >
+        <button
           type="button"
-          onClick={() => (onCompose ? onCompose() : go("/app/compose"))}
-        >
-          <PenSquare className="h-4 w-4" />
-          Compose
-        </Button>
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          tabIndex={mobileOpen ? 0 : -1}
+          onClick={() => setMobileOpen(false)}
+        />
 
-        <div className="sidebar-scroll">
-          <nav className="folder-nav" aria-label="Overview">
-            <span className="sidebar-section">Workspace</span>
-            {OVERVIEW.map((item) => {
-              const Icon = item.icon;
-              const active = navCurrent === item.id;
-              const inboxUnread = item.id === "inbox" ? folderBadge("inbox", counts) : 0;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  className={cn("side-btn", active && "active")}
-                  onClick={() => navClick(item.href)}
-                >
-                  <span className="inline-flex items-center gap-2 min-w-0">
-                    <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                    <span className="truncate">{item.label}</span>
-                  </span>
-                  {inboxUnread ? (
-                    <Badge variant="secondary" className="side-count border-0 px-1.5 py-0 text-[11px]">
-                      {inboxUnread}
-                    </Badge>
-                  ) : null}
-                </button>
-              );
-            })}
-          </nav>
+        <aside className="sidebar" aria-label="Application">
+          <div className="sidebar-brand-row">
+            <a
+              className="brand"
+              href="/app"
+              onClick={(e) => {
+                e.preventDefault();
+                navClick("/app");
+              }}
+            >
+              <BrandMark />
+              <span className="brand-wordmark">flap</span>
+            </a>
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-pressed={collapsed}
+              onClick={() => persistCollapsed(!collapsed)}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              className="sidebar-mobile-close"
+              aria-label="Close navigation"
+              onClick={() => setMobileOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
 
-          <nav className="folder-nav" aria-label="System">
-            <span className="sidebar-section">System</span>
-            {SYSTEM.map((item) => {
-              const Icon = item.icon;
-              const active = navCurrent === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  className={cn("side-btn", active && "active")}
-                  onClick={() => navClick(item.href)}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Icon className="h-3.5 w-3.5 opacity-70" />
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-        <div className="side-foot">
-          <Separator className="mb-2 hidden bg-white/10 md:block" />
-          <div className="side-theme hidden px-2 py-1 md:block">
-            <ThemeToggle />
+          <div className="sidebar-scroll">
+            <nav className="folder-nav" aria-label="Overview">
+              <span className="sidebar-section">Overview</span>
+              {OVERVIEW.map((item) => {
+                const Icon = item.icon;
+                const active = navCurrent === item.id;
+                const inboxUnread = item.id === "inbox" ? folderBadge("inbox", counts) : 0;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    title={item.label}
+                    aria-current={active ? "page" : undefined}
+                    className={cn("side-btn", active && "active")}
+                    onClick={() => navClick(item.href)}
+                  >
+                    <span className="side-btn-main">
+                      <Icon className="side-btn-icon" aria-hidden />
+                      <span className="side-btn-label truncate">{item.label}</span>
+                    </span>
+                    {inboxUnread ? (
+                      <span className="side-count">{inboxUnread}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <nav className="folder-nav" aria-label="System">
+              <span className="sidebar-section">System</span>
+              {SYSTEM.map((item) => {
+                const Icon = item.icon;
+                const active = navCurrent === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    title={item.label}
+                    aria-current={active ? "page" : undefined}
+                    className={cn("side-btn", active && "active")}
+                    onClick={() => navClick(item.href)}
+                  >
+                    <span className="side-btn-main">
+                      <Icon className="side-btn-icon" aria-hidden />
+                      <span className="side-btn-label">{item.label}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-          <button type="button" className="side-btn" onClick={() => void onLogout()}>
-            <span className="inline-flex items-center gap-2">
-              <LogOut className="h-3.5 w-3.5 opacity-70" />
-              Sign out
-            </span>
-          </button>
-          <div className="muted side-email" title={email}>
-            {email}
+
+          <div className="side-foot">
+            <a
+              className="side-btn side-support"
+              href="/support"
+              onClick={(e) => {
+                e.preventDefault();
+                navClick("/support");
+              }}
+            >
+              <span className="side-btn-main">
+                <MessageCircle className="side-btn-icon" aria-hidden />
+                <span className="side-btn-label">Chat with us</span>
+              </span>
+            </a>
+            <Separator className="side-foot-sep" />
+            <div className="side-theme">
+              <ThemeToggle />
+            </div>
+            <button type="button" className="side-btn" onClick={() => void onLogout()}>
+              <span className="side-btn-main">
+                <LogOut className="side-btn-icon" aria-hidden />
+                <span className="side-btn-label">Sign out</span>
+              </span>
+            </button>
+            <div className="side-account" title={email}>
+              <span className="side-avatar" aria-hidden>
+                {initialsFromEmail(email || "?")}
+              </span>
+              <span className="side-account-meta">
+                <span className="side-account-name">{displayName || "…"}</span>
+                <span className="side-email">{email}</span>
+              </span>
+            </div>
           </div>
+        </aside>
+
+        <div className="app-shell-content" id="main-content">
+          <header className="app-mobile-bar">
+            <button
+              type="button"
+              className="app-mobile-menu"
+              aria-label="Open navigation"
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <a
+              className="brand brand-mobile"
+              href="/app"
+              onClick={(e) => {
+                e.preventDefault();
+                go("/app");
+              }}
+            >
+              <BrandMark />
+              <span>flap</span>
+            </a>
+          </header>
+          {children}
         </div>
-      </aside>
-      {children}
-    </div>
+      </div>
+    </>
   );
 }

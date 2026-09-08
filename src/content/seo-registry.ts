@@ -180,8 +180,8 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
     entry({
       path: "/docs",
       title: "Docs | Flap",
-      description: "Developer documentation for Flap API keys, send API, and inbound webhooks.",
-      h1: "Flap documentation",
+      description: "Developer documentation for Flap domains, send API, and inbound webhooks.",
+      h1: "Flap docs",
       pageType: "docs",
       indexable: true,
       sitemap: true,
@@ -191,15 +191,54 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
 
   out.push(
     entry({
-      path: "/docs/api",
-      title: "API & webhooks | Flap",
-      description:
-        "Send transactional email with Flap API keys (POST /api/v1/send) and receive mail.received webhooks with signature verification.",
-      h1: "API & webhooks",
+      path: "/docs/getting-started",
+      title: "Getting started | Flap Docs",
+      description: "Add a domain, publish SES DNS, create a mailbox, and send your first Flap email.",
+      h1: "Getting started",
       pageType: "docs",
       indexable: true,
       sitemap: true,
-      modified: "2026-09-06",
+      modified: "2026-09-08",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/concepts",
+      title: "Core concepts | Flap Docs",
+      description: "Domains, mailboxes, live vs test API keys, and plan limits on Flap.",
+      h1: "Core concepts",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-08",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/webhooks",
+      title: "Webhooks | Flap Docs",
+      description: "Receive mail.received webhooks from Flap with SHA-256 signature verification.",
+      h1: "Webhooks",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-08",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/api",
+      title: "API overview | Flap Docs",
+      description:
+        "Send transactional email with Flap API keys (POST /api/v1/send). Auth, body fields, errors, and plan limits.",
+      h1: "API overview",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-08",
     }),
   );
 

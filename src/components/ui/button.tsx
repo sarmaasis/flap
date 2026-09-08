@@ -4,22 +4,28 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cta)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-[var(--cta)] text-[var(--cta-fg)] hover:brightness-105",
-        secondary: "bg-[var(--surface-2)] text-[var(--fg)] hover:bg-[var(--surface)] border border-[var(--line-strong)]",
-        outline: "border border-[var(--line-strong)] bg-transparent hover:bg-[var(--cta-dim)] text-[var(--fg)]",
-        ghost: "hover:bg-[var(--cta-dim)] text-[var(--fg)]",
-        danger: "bg-[var(--danger)] text-white hover:brightness-105",
-        link: "text-[var(--cta)] underline-offset-4 hover:underline",
+        default: "bg-[var(--accent)] text-[var(--accent-fg)] hover:bg-[var(--accent-hover)]",
+        primary: "bg-[var(--accent)] text-[var(--accent-fg)] hover:bg-[var(--accent-hover)]",
+        secondary:
+          "bg-[var(--surface-raised)] text-[var(--foreground)] border border-[var(--line-strong)] hover:bg-[var(--surface-hover)]",
+        outline:
+          "border border-[var(--line-strong)] bg-transparent text-[var(--foreground)] hover:bg-[var(--surface-hover)]",
+        ghost: "bg-transparent text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+        danger:
+          "bg-transparent text-[var(--error-text)] border border-[color-mix(in_srgb,var(--error-text)_30%,transparent)] hover:bg-[color-mix(in_srgb,var(--error-text)_8%,transparent)]",
+        inverse: "bg-[var(--foreground)] text-[var(--surface)] hover:opacity-90",
+        link: "text-[var(--accent-text)] underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-5 py-2",
-        sm: "h-8 rounded-lg px-3.5 text-sm",
-        lg: "h-12 rounded-lg px-7 text-base",
-        icon: "h-9 w-9",
+        default: "h-9 rounded-xl px-4 py-2",
+        sm: "h-8 rounded-xl px-3.5 text-sm",
+        lg: "h-10 rounded-xl px-5",
+        icon: "h-9 w-9 rounded-xl",
+        pill: "h-9 rounded-full px-5 font-semibold",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

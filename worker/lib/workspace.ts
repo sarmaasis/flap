@@ -185,15 +185,16 @@ async function recordWebhookDelivery(
   statusCode: number | null,
   ok: boolean,
   error: string,
+  payloadJson = "",
 ): Promise<void> {
   const now = nowMs();
   try {
     await db
       .prepare(
-        `INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, ok, error, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, ok, error, created_at, payload_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(randomId("wd"), webhookId, event, statusCode, ok ? 1 : 0, error.slice(0, 500), now)
+      .bind(randomId("wd"), webhookId, event, statusCode, ok ? 1 : 0, error.slice(0, 500), now, payloadJson.slice(0, 50_000))
       .run();
     await db
       .prepare(
@@ -207,8 +208,48 @@ async function recordWebhookDelivery(
       .bind(webhookId, WEBHOOK_DELIVERY_KEEP)
       .run();
   } catch (err) {
-    console.warn("Webhook delivery log failed", webhookId, err);
+    // Fallback without payload_json if migration 0027 is not applied yet.
+    try {
+      await db
+        .prepare(
+          `INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, ok, error, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(randomId("wd"), webhookId, event, statusCode, ok ? 1 : 0, error.slice(0, 500), now)
+        .run();
+    } catch (inner) {
+      console.warn("Webhook delivery log failed", webhookId, inner ?? err);
+    }
   }
+}
+
+async function postWebhookPayload(
+  hook: { id: string; url: string; secret: string },
+  event: string,
+  body: string,
+): Promise<{ statusCode: number | null; ok: boolean; error: string }> {
+  let statusCode: number | null = null;
+  let ok = false;
+  let error = "";
+  try {
+    const signature = await sha256Hex(`${hook.secret}.${body}`);
+    const res = await fetch(hook.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-flap-event": event,
+        "x-flap-signature": signature,
+        "x-flap-redelivery": "0",
+      },
+      body,
+    });
+    statusCode = res.status;
+    ok = res.ok;
+    if (!res.ok) error = `HTTP ${res.status}`;
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+  return { statusCode, ok, error };
 }
 
 export async function fireWebhooks(
@@ -226,31 +267,12 @@ export async function fireWebhooks(
   for (const hook of rows.results ?? []) {
     const events = hook.events.split(",").map((e) => e.trim()).filter(Boolean);
     if (events.length && !events.includes(event) && !events.includes("*")) continue;
-    let statusCode: number | null = null;
-    let ok = false;
-    let error = "";
-    try {
-      const signature = await sha256Hex(`${hook.secret}.${body}`);
-      const res = await fetch(hook.url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-flap-event": event,
-          "x-flap-signature": signature,
-        },
-        body,
-      });
-      statusCode = res.status;
-      ok = res.ok;
-      if (!res.ok) error = `HTTP ${res.status}`;
-      await env.DB.prepare("UPDATE webhooks SET last_triggered_at = ? WHERE id = ?")
-        .bind(nowMs(), hook.id)
-        .run();
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      console.warn("Webhook failed", hook.id, err);
-    }
-    await recordWebhookDelivery(env.DB, hook.id, event, statusCode, ok, error);
+    const result = await postWebhookPayload(hook, event, body);
+    if (result.error && !result.statusCode) console.warn("Webhook failed", hook.id, result.error);
+    await env.DB.prepare("UPDATE webhooks SET last_triggered_at = ? WHERE id = ?")
+      .bind(nowMs(), hook.id)
+      .run();
+    await recordWebhookDelivery(env.DB, hook.id, event, result.statusCode, result.ok, result.error, body);
   }
 }
 
@@ -917,30 +939,69 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/keys", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const rows = await c.env.DB.prepare("SELECT id, name, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC")
-      .bind(user.id)
-      .all();
-    return c.json({ keys: rows.results ?? [] });
+    let keys: Array<{
+      id: string;
+      name: string;
+      key_prefix: string;
+      created_at: number;
+      last_used_at: number | null;
+      mode: string;
+    }> = [];
+    try {
+      const rows = await c.env.DB
+        .prepare(
+          "SELECT id, name, key_prefix, created_at, last_used_at, COALESCE(mode, 'live') AS mode FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
+        )
+        .bind(user.id)
+        .all<{
+          id: string;
+          name: string;
+          key_prefix: string;
+          created_at: number;
+          last_used_at: number | null;
+          mode: string;
+        }>();
+      keys = rows.results ?? [];
+    } catch {
+      const rows = await c.env.DB
+        .prepare("SELECT id, name, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC")
+        .bind(user.id)
+        .all<{ id: string; name: string; key_prefix: string; created_at: number; last_used_at: number | null }>();
+      keys = (rows.results ?? []).map((k) => ({ ...k, mode: "live" }));
+    }
+    const live = keys.filter((k) => k.mode !== "test").length;
+    const test = keys.filter((k) => k.mode === "test").length;
+    return c.json({ keys, counts: { live, test, total: keys.length } });
   });
 
   app.post("/api/keys", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const body = await c.req.json().catch(() => ({})) as { name?: string };
+    const body = await c.req.json().catch(() => ({})) as { name?: string; mode?: string };
     const name = (body.name ?? "").trim() || "Transactional";
+    const mode = body.mode === "test" ? "test" : "live";
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?")
       .bind(user.id)
       .first<{ n: number }>();
     const limit = await assertWithinLimit(c.env.DB, user.id, "api_keys", Number(count?.n ?? 0));
     if (!limit.ok) return c.json({ error: limit.error }, limit.status);
-    const token = `flap_${randomId("").slice(0, 32)}`;
+    const token = mode === "test" ? `flap_test_${randomId("").slice(0, 28)}` : `flap_${randomId("").slice(0, 32)}`;
     const id = randomId("key");
-    await c.env.DB.prepare(
-      "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    )
-      .bind(id, user.id, name, await sha256Hex(token), token.slice(0, 10), nowMs())
-      .run();
-    return c.json({ key: { id, name, token, key_prefix: token.slice(0, 10) } }, 201);
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at, mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(id, user.id, name, await sha256Hex(token), token.slice(0, 12), nowMs(), mode)
+        .run();
+    } catch {
+      // Pre-migration fallback (no mode column).
+      await c.env.DB.prepare(
+        "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+        .bind(id, user.id, name, await sha256Hex(token), token.slice(0, 10), nowMs())
+        .run();
+    }
+    return c.json({ key: { id, name, token, key_prefix: token.slice(0, 12), mode } }, 201);
   });
 
   app.delete("/api/keys/:id", async (c) => {
@@ -1301,15 +1362,99 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (!hook) return c.json({ error: "Webhook not found." }, 404);
     const rows = await c.env.DB
       .prepare(
-        `SELECT id, webhook_id, event, status_code, ok, error, created_at
+        `SELECT id, webhook_id, event, status_code, ok, error, created_at,
+                COALESCE(payload_json, '') AS payload_json
          FROM webhook_deliveries
          WHERE webhook_id = ?
          ORDER BY created_at DESC
          LIMIT 20`,
       )
       .bind(hookId)
-      .all();
+      .all()
+      .catch(async () =>
+        c.env.DB
+          .prepare(
+            `SELECT id, webhook_id, event, status_code, ok, error, created_at, '' AS payload_json
+             FROM webhook_deliveries
+             WHERE webhook_id = ?
+             ORDER BY created_at DESC
+             LIMIT 20`,
+          )
+          .bind(hookId)
+          .all(),
+      );
     return c.json({ deliveries: rows.results ?? [] });
+  });
+
+  app.post("/api/webhooks/:id/redeliver", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const hookId = c.req.param("id");
+    const hook = await c.env.DB
+      .prepare("SELECT id, url, secret FROM webhooks WHERE id = ? AND user_id = ?")
+      .bind(hookId, user.id)
+      .first<{ id: string; url: string; secret: string }>();
+    if (!hook) return c.json({ error: "Webhook not found." }, 404);
+    const bodyJson = await c.req.json().catch(() => ({})) as { delivery_id?: string };
+    let last = bodyJson.delivery_id
+      ? await c.env.DB
+          .prepare(
+            `SELECT id, event, COALESCE(payload_json, '') AS payload_json
+             FROM webhook_deliveries WHERE id = ? AND webhook_id = ?`,
+          )
+          .bind(bodyJson.delivery_id, hookId)
+          .first<{ id: string; event: string; payload_json: string }>()
+      : await c.env.DB
+          .prepare(
+            `SELECT id, event, COALESCE(payload_json, '') AS payload_json
+             FROM webhook_deliveries WHERE webhook_id = ?
+             ORDER BY created_at DESC LIMIT 1`,
+          )
+          .bind(hookId)
+          .first<{ id: string; event: string; payload_json: string }>();
+    if (!last) return c.json({ error: "No deliveries to redeliver yet." }, 404);
+    let body = last.payload_json?.trim() || "";
+    if (!body) {
+      body = JSON.stringify({
+        event: last.event,
+        at: new Date().toISOString(),
+        redelivery: true,
+        note: "Original payload was not stored; this is a synthetic redelivery envelope.",
+      });
+    } else {
+      try {
+        const parsed = JSON.parse(body) as Record<string, unknown>;
+        body = JSON.stringify({ ...parsed, redelivery: true, redelivered_from: last.id });
+      } catch {
+        // keep raw body
+      }
+    }
+    let statusCode: number | null = null;
+    let ok = false;
+    let error = "";
+    try {
+      const signature = await sha256Hex(`${hook.secret}.${body}`);
+      const res = await fetch(hook.url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-flap-event": last.event,
+          "x-flap-signature": signature,
+          "x-flap-redelivery": "1",
+        },
+        body,
+      });
+      statusCode = res.status;
+      ok = res.ok;
+      if (!res.ok) error = `HTTP ${res.status}`;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    await c.env.DB.prepare("UPDATE webhooks SET last_triggered_at = ? WHERE id = ?")
+      .bind(nowMs(), hook.id)
+      .run();
+    await recordWebhookDelivery(c.env.DB, hook.id, last.event, statusCode, ok, error, body);
+    return c.json({ ok, status_code: statusCode, error: error || undefined, redelivered_from: last.id });
   });
 
   app.get("/api/team", async (c) => {
@@ -1474,10 +1619,10 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     if (!token) return c.json({ error: "API key required." }, 401);
     const hashed = await sha256Hex(token);
     const key = await c.env.DB.prepare(
-      "SELECT id, user_id FROM api_keys WHERE key_hash = ?",
+      "SELECT id, user_id, COALESCE(mode, 'live') AS mode FROM api_keys WHERE key_hash = ?",
     )
       .bind(hashed)
-      .first<{ id: string; user_id: string }>();
+      .first<{ id: string; user_id: string; mode: string }>();
     if (!key) return c.json({ error: "Invalid API key." }, 401);
     await c.env.DB.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").bind(nowMs(), key.id).run();
     const body = await c.req.json().catch(() => ({})) as {
@@ -1500,6 +1645,27 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
           .bind(key.user_id)
           .first<{ id: string; address: string }>();
     if (!fromMailbox) return c.json({ error: "Add a mailbox before sending." }, 400);
+
+    // Test-mode keys never hit external providers — simulated success only.
+    if (key.mode === "test" || token.startsWith("flap_test_")) {
+      const id = randomId("sim");
+      console.info("[api-key:test] simulated send", {
+        key_id: key.id,
+        user_id: key.user_id,
+        from: fromMailbox.address,
+        to: body.to,
+        subject: body.subject,
+        id,
+      });
+      return c.json({
+        ok: true,
+        id,
+        simulated: true,
+        mode: "test",
+        message: "Test-mode send simulated; nothing was delivered externally.",
+      });
+    }
+
     if (!canSendMail(c.env)) {
       return c.json({ error: "Mail sending is not configured. Set MAILGUN_API_KEY or the SEB binding." }, 501);
     }

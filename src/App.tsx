@@ -15,6 +15,9 @@ const AuthVerify = lazy(() => import("./pages/AuthVerify"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Inbox = lazy(() => import("./pages/Inbox"));
 const Settings = lazy(() => import("./pages/Settings"));
+const DomainsPage = lazy(() => import("./pages/settings/DomainsPage"));
+const DeveloperPage = lazy(() => import("./pages/settings/DeveloperPage"));
+const BillingPage = lazy(() => import("./pages/settings/BillingPage"));
 const Legal = lazy(() => import("./pages/Legal"));
 const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 const SeoLanding = lazy(() => import("./pages/SeoLanding"));
@@ -26,6 +29,9 @@ const BlogIndex = lazy(() => import("./pages/BlogIndex"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const DocsApiPage = lazy(() => import("./pages/DocsApiPage"));
 const DocsIndexPage = lazy(() => import("./pages/DocsIndexPage"));
+const DocsGettingStartedPage = lazy(() => import("./pages/DocsGettingStartedPage"));
+const DocsConceptsPage = lazy(() => import("./pages/DocsConceptsPage"));
+const DocsWebhooksPage = lazy(() => import("./pages/DocsWebhooksPage"));
 const GuidesIndexPage = lazy(() => import("./pages/GuidesIndexPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
@@ -45,6 +51,7 @@ const BookingsAppPage = lazy(() => import("./pages/BookingsAppPage"));
 const MailboxesAppPage = lazy(() => import("./pages/MailboxesAppPage"));
 const AnalyticsAppPage = lazy(() => import("./pages/AnalyticsAppPage"));
 const ContactsAppPage = lazy(() => import("./pages/ContactsAppPage"));
+const PrimitivesGalleryPage = lazy(() => import("./pages/PrimitivesGalleryPage"));
 
 function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
@@ -78,11 +85,47 @@ export default function App() {
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;
-  if (path === "/app/settings" || path === "/settings/referrals" || path === "/app/domains" || path === "/app/billing" || path === "/app/developer") {
+  if (path === "/app/settings" || path === "/settings/referrals") {
     return (
       <Screen>
         <RequireVerified>
           <Settings />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/domains") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <DomainsPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/billing") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <BillingPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/developer") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <DeveloperPage />
+        </RequireVerified>
+      </Screen>
+    );
+  }
+  if (path === "/app/dev/primitives") {
+    return (
+      <Screen>
+        <RequireVerified>
+          <PrimitivesGalleryPage />
         </RequireVerified>
       </Screen>
     );
@@ -193,6 +236,9 @@ export default function App() {
   }
   if (path === "/pricing") return <Screen><PricingPage /></Screen>;
   if (path === "/docs") return <Screen><DocsIndexPage /></Screen>;
+  if (path === "/docs/getting-started") return <Screen><DocsGettingStartedPage /></Screen>;
+  if (path === "/docs/concepts") return <Screen><DocsConceptsPage /></Screen>;
+  if (path === "/docs/webhooks") return <Screen><DocsWebhooksPage /></Screen>;
   if (path === "/docs/api") return <Screen><DocsApiPage /></Screen>;
   if (path === "/guides") return <Screen><GuidesIndexPage /></Screen>;
   if (path === "/support") return <Screen><SupportPage /></Screen>;

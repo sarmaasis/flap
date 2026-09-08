@@ -243,135 +243,153 @@ export default function Compose({
         void submit("send");
       }}
     >
-      <div className="compose-title">
-        <div>
-          <span className="eyebrow">{status || (draftId ? "Autosaving drafts" : "New message")}</span>
-          <h2>{title}</h2>
-        </div>
-        {onClose ? (
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close composer">
-            ×
-          </Button>
-        ) : null}
-      </div>
-      {err ? <div className="err">{err}</div> : null}
-      {mailboxes.length === 0 ? (
-        <p className="muted">Add a mailbox in Settings before you send.</p>
-      ) : sendableMailboxes.length === 0 ? (
-        <div className="notice dns-issues" role="status">
-          <p>No sender is sending-ready yet. Finish SES sending verification for your domain in Settings, then compose again.</p>
-          <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but this domain’s sending DNS is not verified yet. Finish Setup → DNS records, then try again.</p>
-        </div>
-      ) : (
-        <div
-          className={`compose-from-row${identityLocked ? " compose-from-identity" : fromDomain?.color ? " compose-from-tinted" : ""}`}
-          style={domainStyle}
-        >
-          <div className="field" style={{ marginBottom: 0, flex: 1 }}>
-            <label htmlFor="from">From</label>
-            {identityLocked ? (
-              <div className="compose-from-locked">
-                <span
-                  className="domain-swatch"
-                  aria-hidden
-                  style={{ background: fromDomain?.color || "var(--muted)" }}
-                />
-                <span id="from">{from}</span>
-                <Button type="button" variant="link" className="h-auto p-0" onClick={() => setUnlockFrom(true)}>
-                  Change
-                </Button>
-              </div>
-            ) : (
-              <div className="compose-from-pill">
-                <span
-                  className="domain-swatch"
-                  aria-hidden
-                  style={{ background: fromDomain?.color || "var(--muted)" }}
-                />
-                <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }} aria-label="From address">
-                  {fromOptions.map((m) => {
-                    const d = domains.find((x) => x.id === m.domain_id);
-                    const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
-                    return (
-                      <option key={m.id} value={m.address}>
-                        {d?.name ? `${label} (${d.name})` : label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
+      <div className="compose-scroll">
+        <div className="compose-title">
+          <div>
+            <span className="eyebrow">{status || (draftId ? "Autosaving drafts" : "New message")}</span>
+            <h2>{title}</h2>
           </div>
-          <button type="button" className="text-button" onClick={() => setShowCc((v) => !v)}>{showCc ? "Hide Cc/Bcc" : "Cc/Bcc"}</button>
+          {onClose ? (
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close composer">
+              ×
+            </Button>
+          ) : null}
         </div>
-      )}
-      <div className="compose-fields">
-        <RecipientField id="to" label="To" value={to} onChange={(value) => { setTo(value); markDirty(); setSuggest("to"); }} onFocus={() => setSuggest("to")} />
-        {showCc ? (
-          <>
-            <RecipientField id="cc" label="Cc" value={cc} onChange={(value) => { setCc(value); markDirty(); setSuggest("cc"); }} onFocus={() => setSuggest("cc")} />
-            <RecipientField id="bcc" label="Bcc" value={bcc} onChange={(value) => { setBcc(value); markDirty(); setSuggest("bcc"); }} onFocus={() => setSuggest("bcc")} />
-          </>
-        ) : null}
-        <div className="compose-field">
-          <label htmlFor="subject">Subject</label>
-          <input id="subject" placeholder="What’s this about?" value={subject} onChange={(e) => { setSubject(e.target.value); markDirty(); }} />
+        {err ? <div className="err">{err}</div> : null}
+        {mailboxes.length === 0 ? (
+          <p className="muted">Add a mailbox in Settings before you send.</p>
+        ) : sendableMailboxes.length === 0 ? (
+          <div className="notice dns-issues" role="status">
+            <p>No sender is sending-ready yet. Finish SES sending verification for your domain in Settings, then compose again.</p>
+            <p className="muted" style={{ marginTop: 8 }}>Mailboxes exist, but this domain’s sending DNS is not verified yet. Finish Setup → DNS records, then try again.</p>
+          </div>
+        ) : (
+          <div
+            className={`compose-from-row${identityLocked ? " compose-from-identity" : fromDomain?.color ? " compose-from-tinted" : ""}`}
+            style={domainStyle}
+          >
+            <div className="field" style={{ marginBottom: 0, flex: 1 }}>
+              <label htmlFor="from">From</label>
+              {identityLocked ? (
+                <div className="compose-from-locked">
+                  <span
+                    className="domain-swatch"
+                    aria-hidden
+                    style={{ background: fromDomain?.color || "var(--muted)" }}
+                  />
+                  <span id="from">{from}</span>
+                  <Button type="button" variant="link" className="h-auto p-0" onClick={() => setUnlockFrom(true)}>
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <div className="compose-from-pill">
+                  <span
+                    className="domain-swatch"
+                    aria-hidden
+                    style={{ background: fromDomain?.color || "var(--muted)" }}
+                  />
+                  <select id="from" value={from} onChange={(e) => { setFrom(e.target.value); markDirty(); }} aria-label="From address">
+                    {fromOptions.map((m) => {
+                      const d = domains.find((x) => x.id === m.domain_id);
+                      const label = m.display_name ? `${m.display_name} · ${m.address}` : m.address;
+                      return (
+                        <option key={m.id} value={m.address}>
+                          {d?.name ? `${label} (${d.name})` : label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+            </div>
+            <button type="button" className="text-button" onClick={() => setShowCc((v) => !v)}>{showCc ? "Hide Cc/Bcc" : "Cc/Bcc"}</button>
+          </div>
+        )}
+        <div className="compose-fields">
+          <RecipientField id="to" label="To" value={to} onChange={(value) => { setTo(value); markDirty(); setSuggest("to"); }} onFocus={() => setSuggest("to")} />
+          {showCc ? (
+            <>
+              <RecipientField id="cc" label="Cc" value={cc} onChange={(value) => { setCc(value); markDirty(); setSuggest("cc"); }} onFocus={() => setSuggest("cc")} />
+              <RecipientField id="bcc" label="Bcc" value={bcc} onChange={(value) => { setBcc(value); markDirty(); setSuggest("bcc"); }} onFocus={() => setSuggest("bcc")} />
+            </>
+          ) : null}
+          <div className="compose-field">
+            <label htmlFor="subject">Subject</label>
+            <input id="subject" placeholder="What’s this about?" value={subject} onChange={(e) => { setSubject(e.target.value); markDirty(); }} />
+          </div>
         </div>
-      </div>
-      {suggest && suggestions.length ? (
-        <ul className="suggest-list" role="listbox">
-          {suggestions.map((contact) => (
-            <li key={contact.id}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => applyContact(contact)}>
-                <strong>{contact.name || contact.email}</strong>
-                <span>{contact.email}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <div className="compose-meta-row">
-        {templates.length ? (
-          <label className="compose-select">
-            <span>Template</span>
-            <select defaultValue="" onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); e.target.value = ""; }}>
-              <option value="">Insert a template</option>
-              {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
-            </select>
-          </label>
+        {suggest && suggestions.length ? (
+          <ul className="suggest-list" role="listbox">
+            {suggestions.map((contact) => (
+              <li key={contact.id}>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => applyContact(contact)}>
+                  <strong>{contact.name || contact.email}</strong>
+                  <span>{contact.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         ) : null}
-        {signatures.length ? (
-          <label className="compose-select">
-            <span>Signature</span>
-            <select defaultValue={defaultSig?.id ?? ""} onChange={(e) => {
-              const signature = signatures.find((item) => item.id === e.target.value);
-              if (signature) {
-                setEditorNonce(`${editorRef.current?.getHtml() ?? ""}<p></p>${signature.html_body}`);
-                setEditorKey((key) => key + 1);
-              }
-            }}>
-              {signatures.map((signature) => <option key={signature.id} value={signature.id}>{signature.name}</option>)}
-            </select>
-          </label>
-        ) : null}
-      </div>
-      <div className="compose-editor field">
-        <label htmlFor="body">Message</label>
-        <Suspense fallback={<div className="rich-editor-loading" aria-hidden />}>
-          <RichTextEditor key={`${draft?.id ?? "new"}-${editorKey}`} ref={editorRef} initialHtml={editorNonce} onDirty={markDirty} />
-        </Suspense>
-      </div>
-      {showSchedule ? (
-        <div className="field">
-          <label htmlFor="schedule">Send at</label>
-          <input id="schedule" type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+        <div className="compose-meta-row">
+          {templates.length ? (
+            <label className="compose-select">
+              <span>Template</span>
+              <select defaultValue="" onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); e.target.value = ""; }}>
+                <option value="">Insert a template</option>
+                {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {signatures.length ? (
+            <label className="compose-select">
+              <span>Signature</span>
+              <select defaultValue={defaultSig?.id ?? ""} onChange={(e) => {
+                const signature = signatures.find((item) => item.id === e.target.value);
+                if (signature) {
+                  setEditorNonce(`${editorRef.current?.getHtml() ?? ""}<p></p>${signature.html_body}`);
+                  setEditorKey((key) => key + 1);
+                }
+              }}>
+                {signatures.map((signature) => <option key={signature.id} value={signature.id}>{signature.name}</option>)}
+              </select>
+            </label>
+          ) : null}
         </div>
-      ) : null}
+        <div className="compose-editor field">
+          <label htmlFor="body">Message</label>
+          <Suspense fallback={<div className="rich-editor-loading" aria-hidden />}>
+            <RichTextEditor key={`${draft?.id ?? "new"}-${editorKey}`} ref={editorRef} initialHtml={editorNonce} onDirty={markDirty} />
+          </Suspense>
+        </div>
+        {showSchedule ? (
+          <div className="field">
+            <label htmlFor="schedule">Send at</label>
+            <input id="schedule" type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+          </div>
+        ) : null}
+      </div>
       <div className="compose-actions">
         <div className="compose-attachments">
           <label className="attach-button" htmlFor="attachments">Attach files</label>
           <input id="attachments" className="sr-only" type="file" multiple onChange={(event) => { void addAttachments(event.target.files); event.currentTarget.value = ""; }} />
-          {attachments.length ? <div className="attachment-chips">{attachments.map((file, index) => <button type="button" className="attachment-chip" key={`${file.filename}-${index}`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{file.filename} <span aria-hidden>×</span></button>)}</div> : <span className="compose-hint">⌘/Ctrl+Enter to send · drafts save as you type</span>}
+          {attachments.length ? (
+            <div className="attachment-chips">
+              {attachments.map((file, index) => (
+                <button
+                  type="button"
+                  className="attachment-chip"
+                  key={`${file.filename}-${index}`}
+                  aria-label={`Remove attachment ${file.filename}`}
+                  onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                >
+                  {file.filename} <span aria-hidden>×</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="compose-hint">⌘/Ctrl+Enter to send · drafts save as you type</span>
+          )}
         </div>
         <div className="compose-action-buttons">
           {onDiscard && draftId ? (
@@ -412,8 +430,11 @@ export default function Compose({
   }
 
   return (
-    <div className="modal-back" role="dialog" aria-modal="true">
-      <div className={`modal${fromDomain?.color ? " compose-shell-identity" : ""}`} style={domainStyle}>
+    <div className="compose-float-back" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className={`compose-float${fromDomain?.color ? " compose-shell-identity" : ""}`}
+        style={domainStyle}
+      >
         {form}
       </div>
     </div>

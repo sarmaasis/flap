@@ -6,6 +6,7 @@ import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
 import { HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
+import { processQueuedNewsletterBlasts } from "./lib/studio-channels";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
@@ -625,7 +626,7 @@ app.post("/api/domains/:id/migrate-ses", async (c) => {
   });
 });
 
-const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, rfc_message_id, assignee_user_id, plus_tag, created_at`;
+const LIST_COLUMNS = `id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, has_attachments, unread, starred, snooze_until, scheduled_at, snippet, label, thread_id, rfc_message_id, assignee_user_id, workflow_status, plus_tag, created_at`;
 
 /** Prefer the earliest copy when SES dual-rules stored the same Message-ID twice. */
 function dedupeByRfcMessageId<T extends { id?: unknown; rfc_message_id?: unknown; date_ms?: unknown }>(
@@ -1252,6 +1253,11 @@ export default {
   fetch: app.fetch,
   email: handleEmail,
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(flushScheduled(env));
+    ctx.waitUntil(
+      (async () => {
+        await flushScheduled(env);
+        await processQueuedNewsletterBlasts(env);
+      })(),
+    );
   },
 };

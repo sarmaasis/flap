@@ -79,6 +79,19 @@ export default function BookingsAppPage() {
           <FeatureEmpty
             title="No booking pages yet"
             body="Create your first link to collect meeting requests. Review each request before confirming a time."
+            mockup={
+              <div className="feature-empty-mock" aria-hidden>
+                <div className="feature-empty-mock-cal">
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <span key={i} className={`feature-empty-mock-day${i === 2 || i === 4 ? " hit" : ""}`} />
+                  ))}
+                </div>
+                <div className="feature-empty-mock-row">
+                  <span className="feature-empty-mock-line grow" />
+                  <span className="feature-empty-mock-chip">30 min</span>
+                </div>
+              </div>
+            }
           />
         </div>
       ) : null}

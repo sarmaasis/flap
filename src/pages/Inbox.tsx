@@ -172,9 +172,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const loadList = useCallback(async (signal?: AbortSignal) => {
     setErr("");
     try {
-      const data = qDebounced.length >= 2
-        ? await api.search(qDebounced, signal)
-        : await api.mail(folder, mailbox || undefined, signal, domainFilter || undefined);
+      const data =
+        qDebounced.length >= 2
+          ? await api.search(qDebounced, signal)
+          : folder === "needs-you"
+            ? await api.needsYou()
+            : await api.mail(folder, mailbox || undefined, signal, domainFilter || undefined);
       if (signal?.aborted) return;
       setList(data.messages);
     } catch (ex) {
@@ -762,6 +765,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           domainFilter={domainFilter}
           onFolder={selectFolder}
           onDomainFilter={selectDomain}
+          onCompose={() => {
+            void import("./Compose");
+            openCompose();
+          }}
         />
         <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
           <div className="list-head">
@@ -1042,6 +1049,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                         setMessage({ ...message, assignee_user_id: user_id });
                       }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not assign."));
                     }}
+                    onWorkflow={(status) => {
+                      void api.setWorkflowStatus(message.id, status).then(() => {
+                        setMessage({ ...message, workflow_status: status });
+                        setList((prev) =>
+                          prev.map((item) => (item.id === message.id ? { ...item, workflow_status: status } : item)),
+                        );
+                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update status."));
+                    }}
                     onAddNote={() => {
                       if (!noteDraft.trim()) return;
                       void api.addMessageNote(message.id, noteDraft.trim()).then((r) => {
@@ -1060,7 +1075,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       </div>
 
       {toast ? (
-        <div className="mail-toast" role="status">
+        <div className="mail-toast" role="status" aria-live="polite">
           <div>
             <strong>{toast.title}</strong>
             <span>{toast.body}</span>
@@ -1076,7 +1091,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           >
             View
           </button>
-          <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setToast(null)}>×</button>
+          <button type="button" className="mail-toast-close" aria-label="Close notification" onClick={() => setToast(null)}>×</button>
         </div>
       ) : null}
 
@@ -1106,7 +1121,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         </Suspense>
       ) : null}
       {undoToast ? (
-        <div className="mail-toast" role="status">
+        <div className="mail-toast" role="status" aria-live="polite">
           <div>
             <strong>Message queued</strong>
             <span>Sending in {undoToast.seconds}s — undo to keep as draft.</span>
@@ -1124,7 +1139,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           >
             Undo
           </button>
-          <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setUndoToast(null)}>×</button>
+          <button type="button" className="mail-toast-close" aria-label="Close notification" onClick={() => setUndoToast(null)}>×</button>
         </div>
       ) : null}
       {helpOpen ? (

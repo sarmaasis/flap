@@ -4,12 +4,12 @@ import { PLANS } from "../../shared/plans";
 
 export const API_DOCS = {
   path: "/docs/api",
-  title: "API & webhooks | Flap",
+  title: "API overview | Flap Docs",
   description:
-    "Send transactional email with Flap API keys (POST /api/v1/send) and receive mail.received webhooks with signature verification.",
-  updated: "2026-09-06",
-  h1: "API & webhooks",
-  lede: "Solo and above include API keys and inbound webhooks. Create keys and hooks in Settings → Developers, then call the HTTPS API at useflap.online.",
+    "Send transactional email with Flap API keys (POST /api/v1/send). Auth, body fields, errors, and plan limits.",
+  updated: "2026-09-08",
+  h1: "API overview",
+  lede: "Solo and above include API keys. Create keys in Settings → Developers, then call the HTTPS API at useflap.online. Webhook delivery is covered in the Webhooks guide.",
 } as const;
 
 export const API_SEND = {

@@ -1,18 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
+  Bot,
+  Calendar,
   Check,
+  Copy,
   Inbox,
-  Layers,
-  Shield,
+  Lock,
+  Mail,
+  Newspaper,
   Sparkles,
+  Star,
+  Terminal,
+  Users,
   Zap,
 } from "lucide-react";
 import MarketingShell from "../components/MarketingShell";
-import WorkspaceCalculator from "../components/WorkspaceCalculator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../components/ui/accordion";
 import { Button } from "../components/ui/button";
-import { CREDIBILITY, ICP_LINES, MARKETING, planCards, SITE_URL } from "../content/marketing";
+import { CREDIBILITY, MARKETING, SITE_URL } from "../content/marketing";
+import { FOR_PAGES as HUB_FOR, VS_PAGES } from "../content/hubs";
+import { API_SEND } from "../content/api-docs";
 import { api } from "../lib/api";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
@@ -20,40 +28,131 @@ import { captureReferralFromUrl, faqPageLd, setJsonLd, setPageMeta } from "../li
 import { PLANS } from "../../shared/plans";
 import { cn } from "../lib/utils";
 
-const ALIASES = [
-  "hello@", "billing@", "press@", "launch@", "support@", "careers@", "founder@",
-  "orders@", "newsletter@", "legal@", "demo@", "team@", "invoices@", "sales@",
-  "api@", "security@", "media@", "feedback@", "rsvp@", "beta@",
-];
-
-const FEATURES = [
-  {
-    icon: Layers,
-    title: "Many domains, one place",
-    body: `Up to ${PLANS.solo.limits.domains} custom domains on every paid plan. Read and reply as each brand without juggling separate suites.`,
-  },
-  {
-    icon: Inbox,
-    title: "Calendars, bookings, newsletters",
-    body: "Week calendar, booking pages, and newsletter drafts ship with the same subscription as webmail — not add-on silos.",
-  },
-  {
-    icon: Zap,
-    title: "API, webhooks, MCP",
-    body: "Send transactional mail with API keys and react to mail.received events. Thin TypeScript and Python SDKs plus a CLI.",
-  },
-  {
-    icon: Shield,
-    title: "AI assistant (confirm-before-send)",
-    body: "Ask your inbox in plain language and draft replies in your voice. Nothing sends without your approval.",
-  },
+const MAILBOX_CARDS = [
+  { initials: "HE", address: "hello@studio.example", role: "Active", tone: "active" as const },
+  { initials: "SU", address: "support@launch.example", role: "Shared", tone: "shared" as const },
+  { initials: "API", address: "api@ship.example", role: "API", tone: "api" as const },
 ];
 
 const STATS = [
-  { value: `$${PLANS.solo.price_monthly}`, label: "Solo starts", body: `${PLANS.solo.limits.mailboxes} mailboxes. Same stack as Pro and Team.` },
-  { value: "50", label: "Domains", body: "Included on every paid plan. Mailbox count is the capacity dial." },
-  { value: "5-in-1", label: "One subscription", body: "Webmail, newsletters, bookings, calendar, and an email API." },
-  { value: "0", label: "Ads or scanning", body: "Customer mail on Amazon SES. App on Cloudflare." },
+  {
+    value: String(PLANS.solo.price_monthly),
+    suffix: "$",
+    prefix: true,
+    label: "Solo starts",
+    body: `${PLANS.solo.limits.mailboxes} mailboxes. Same stack as Pro and Team.`,
+  },
+  {
+    value: "50",
+    suffix: "+",
+    label: "Domains",
+    body: "Included on every paid plan. Mailbox count is the capacity dial.",
+  },
+  {
+    value: "5",
+    suffix: "-in-1",
+    label: "One subscription",
+    body: "Webmail, newsletters, bookings, calendar, and an email API.",
+  },
+  {
+    value: "0",
+    suffix: "",
+    label: "Ads or scanning",
+    body: "Customer mail on Amazon SES. App on Cloudflare.",
+  },
+];
+
+const INBOX_FEATURES = [
+  {
+    title: "Many domains, one place",
+    body: `Up to ${PLANS.solo.limits.domains} custom domains on every paid plan. Read and reply as each brand.`,
+  },
+  {
+    title: "Shared inboxes when you grow",
+    body: "Pro and Team add seats and shared mailboxes so support@ is a team surface, not a forwarding hack.",
+  },
+  {
+    title: "Identity stays visible",
+    body: "Domain chips and from-address clarity so you never reply as the wrong brand.",
+  },
+];
+
+const CALENDAR_FEATURES = [
+  {
+    title: "Week calendar in the same app",
+    body: "Events live next to mail — not a separate suite you forget to open.",
+  },
+  {
+    title: "Booking pages on your domain",
+    body: "Share a booking link that matches your brand, not a generic scheduler subdomain.",
+  },
+  {
+    title: "CalDAV-friendly contacts",
+    body: "Keep people and schedules in the same workspace as your aliases.",
+  },
+];
+
+const NEWSLETTER_FEATURES = [
+  {
+    title: "Send from your domain",
+    body: "Newsletters use the same custom-domain reputation as your day-to-day mail.",
+  },
+  {
+    title: "Capped, intentional blasts",
+    body: "Plan limits keep volume honest — built for launches, not cold outbound.",
+  },
+  {
+    title: "Drafts beside the inbox",
+    body: "Write and review in the same product you already open for support mail.",
+  },
+];
+
+const AI_FEATURES = [
+  {
+    title: "Ask your inbox in plain language",
+    body: "Summarize threads and draft replies without leaving Flap.",
+  },
+  {
+    title: "Confirm before send",
+    body: "AI never silently delivers. You approve every outbound message.",
+  },
+  {
+    title: "MCP for agents",
+    body: "List domains and draft with confirm — tools built for agent workflows.",
+  },
+];
+
+const CAPABILITIES = [
+  {
+    icon: Mail,
+    title: "Works with any client",
+    body: "Webmail first. Keep your DNS at any registrar — Flap gives you the MX/SPF/DKIM to publish.",
+  },
+  {
+    icon: Calendar,
+    title: "CalDAV & CardDAV ready",
+    body: "Calendars, bookings, and contacts sit beside mail so scheduling is not a bolt-on.",
+  },
+  {
+    icon: Inbox,
+    title: "Storage that scales with you",
+    body: "Mailbox and send caps grow with Solo, Pro, Team, and Scale — not a surprise seat tax.",
+  },
+  {
+    icon: Users,
+    title: "Team access when you need it",
+    body: "Shared inboxes and seats on Pro and Team. Free and Solo stay solo-friendly.",
+  },
+  {
+    icon: Zap,
+    title: "Automations & webhooks",
+    body: "React to mail.received, send via API keys, and wire thin TypeScript or Python SDKs.",
+  },
+  {
+    icon: Lock,
+    title: "Privacy by architecture",
+    body: MARKETING.architecture_line,
+  },
 ];
 
 const FAQS = [
@@ -83,10 +182,132 @@ const FAQS = [
   },
 ];
 
+const COMPARISON_LINKS = [
+  ...VS_PAGES.slice(0, 4).map((p) => ({ path: p.path, label: p.h1, body: p.description })),
+  ...HUB_FOR.slice(0, 2).map((p) => ({ path: p.path, label: p.h1, body: p.description })),
+];
+
+const API_SAMPLES = {
+  typescript: `const res = await fetch("https://useflap.online/api/v1/send", {
+  method: "POST",
+  headers: {
+    Authorization: "Bearer flap_YOUR_KEY",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: "customer@example.com",
+    subject: "Thanks for signing up",
+    text: "Welcome to the product.",
+    from: "hello@yourdomain.com",
+  }),
+});`,
+  python: `import requests
+
+requests.post(
+  "https://useflap.online/api/v1/send",
+  headers={"Authorization": "Bearer flap_YOUR_KEY"},
+  json={
+    "to": "customer@example.com",
+    "subject": "Thanks for signing up",
+    "text": "Welcome to the product.",
+    "from": "hello@yourdomain.com",
+  },
+)`,
+  curl: `curl -X POST https://useflap.online/api/v1/send \\
+  -H "Authorization: Bearer flap_YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "customer@example.com",
+    "subject": "Thanks for signing up",
+    "text": "Welcome to the product.",
+    "from": "hello@yourdomain.com"
+  }'`,
+} as const;
+
+type ApiTab = keyof typeof API_SAMPLES;
+
+function AccentPeriod() {
+  return <span className="text-[var(--accent)]">.</span>;
+}
+
+function SectionHeading({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <h2 className={cn("landing-h2", className)}>
+      {children}
+      <AccentPeriod />
+    </h2>
+  );
+}
+
+function Band({
+  children,
+  tone = "light",
+  id,
+  className,
+}: {
+  children: ReactNode;
+  tone?: "light" | "dark" | "compare" | "accent";
+  id?: string;
+  className?: string;
+}) {
+  const navTheme = tone === "dark" || tone === "accent" ? "dark" : "light";
+  return (
+    <section
+      id={id}
+      data-nav-theme={navTheme}
+      className={cn(
+        "landing-band",
+        tone === "dark" && "landing-band-dark",
+        tone === "compare" && "landing-band-compare",
+        tone === "accent" && "landing-band-accent",
+        className,
+      )}
+    >
+      <div className="landing-grain" aria-hidden />
+      <div className="landing-container">{children}</div>
+    </section>
+  );
+}
+
+function ProductFrame({
+  title,
+  children,
+  dark,
+}: {
+  title: string;
+  children: ReactNode;
+  dark?: boolean;
+}) {
+  return (
+    <div className={cn("landing-product-frame", dark && "landing-product-frame-dark")}>
+      <div className="landing-product-frame-bar">
+        <span />
+        <span />
+        <span />
+        <em>{title}</em>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FeatureTrio({ items }: { items: Array<{ title: string; body: string }> }) {
+  return (
+    <div className="mt-12 grid gap-6 md:grid-cols-3">
+      {items.map((item) => (
+        <div key={item.title} className="landing-feature-card">
+          <h3>{item.title}</h3>
+          <p>{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Landing() {
   const [auth, setAuth] = useState<"loading" | "setup" | "guest" | "user">("loading");
-  const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
-  const plans = planCards();
+  const [apiTab, setApiTab] = useState<ApiTab>("typescript");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     captureReferralFromUrl();
@@ -108,7 +329,10 @@ export default function Landing() {
     });
     setJsonLd("flap-faq", faqPageLd(FAQS));
     trackOnce("landing", "landing_view");
-    Promise.all([api.setupStatus().catch(() => ({ needs_setup: false })), api.me().then((me) => me.user.email_verified !== false).catch(() => false)])
+    Promise.all([
+      api.setupStatus().catch(() => ({ needs_setup: false })),
+      api.me().then((me) => me.user.email_verified !== false).catch(() => false),
+    ])
       .then(([setup, signedIn]) => {
         if (setup.needs_setup) setAuth("setup");
         else if (signedIn) setAuth("user");
@@ -117,327 +341,383 @@ export default function Landing() {
       .catch(() => setAuth("guest"));
   }, []);
 
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) trackOnce("pricing_view", "pricing_view");
-      },
-      { threshold: 0.35 },
-    );
-    const el = document.getElementById("pricing");
-    if (el) obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
   const primaryHref = auth === "setup" ? "/setup" : auth === "user" ? "/app" : "/signup";
   const primaryLabel = auth === "setup" ? "Create your workspace" : auth === "user" ? "Open inbox" : "Start free";
+  const heroCta = auth === "guest" || auth === "loading" ? "Try free" : primaryLabel;
 
   const onPrimary = (source: string) => {
     track("signup_clicked", { source });
     go(primaryHref);
   };
 
+  const copySample = async () => {
+    try {
+      await navigator.clipboard.writeText(API_SAMPLES[apiTab]);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <MarketingShell primaryHref={primaryHref} primaryLabel={auth === "guest" || auth === "loading" ? "Get started" : primaryLabel}>
-      <section className="landing-hero relative mx-auto grid max-w-6xl gap-12 px-5 pb-12 pt-10 md:grid-cols-[1.05fr_0.95fr] md:items-center md:gap-14 md:px-8 md:pb-16 md:pt-14">
-        <div className="landing-hero-copy">
-          <p className="flap-eyebrow">A little less switching. A lot more focus.</p>
-          <h1 className="max-w-xl font-[family-name:var(--font-display)] text-4xl font-bold leading-[1.08] tracking-tight text-[var(--fg)] md:text-5xl lg:text-[3.35rem]">
-            Every project.
-            <br /><span className="landing-hero-mark">One calm inbox.</span>
-          </h1>
-          <p className="lede mt-6 max-w-lg text-base leading-relaxed text-[var(--muted)] md:text-lg">
-            Your brands have different addresses. Give them one place to work. Bring email, newsletters, bookings, and your team together on your own domains.{" "}
-            <strong className="font-semibold text-[var(--fg)]">From ${PLANS.solo.price_monthly}/mo.</strong>
-          </p>
-          <div className="hero-actions mt-9 flex flex-wrap items-center gap-3">
-            <Button size="lg" asChild>
-              <a
-                href={primaryHref}
-                onClick={(e) => {
-                  e.preventDefault();
-                  onPrimary("hero");
-                }}
-              >
-                {auth === "guest" || auth === "loading" ? "Try free" : primaryLabel}
-                <ArrowRight />
-              </a>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>
-                See pricing
-              </a>
-            </Button>
+      <Band tone="light" className="landing-hero-band">
+        <div className="landing-hero grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
+          <div className="landing-hero-copy">
+            <p className="flap-eyebrow">A little less switching. A lot more focus.</p>
+            <h1 className="landing-h1">
+              <span className="landing-hero-mark">Every project</span>
+              <br />
+              One calm inbox
+              <AccentPeriod />
+            </h1>
+            <p className="landing-lede">
+              {MARKETING.hero_subheadline}{" "}
+              <strong className="font-semibold text-[var(--foreground)]">From ${PLANS.solo.price_monthly}/mo.</strong>
+            </p>
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <Button size="pill" className="h-11 rounded-full px-7 text-sm font-semibold" asChild>
+                <a
+                  href={primaryHref}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onPrimary("hero");
+                  }}
+                >
+                  {heroCta}
+                  <ArrowRight />
+                </a>
+              </Button>
+              <span className="landing-rating-chip">
+                <Star className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" aria-hidden />
+                Free includes real mailboxes
+              </span>
+            </div>
+            <p className="mt-5 text-sm text-[var(--foreground-muted)]">
+              Start with real mailboxes for free. Add room as your projects grow.
+            </p>
           </div>
-          <p className="mt-5 text-sm text-[var(--muted)]">
-            Start with real mailboxes for free. Add room as your projects grow.
-          </p>
-        </div>
 
-        <div className="flap-mail-preview" aria-label="Example of the Flap inbox">
-          <div className="flap-preview-top"><span className="flap-eyebrow">YOUR WORKSPACE</span><span className="flap-preview-label">Product preview</span></div>
-          <div className="flap-preview-heading"><h2>All together now.</h2><Inbox size={22} /></div>
-          <div className="flap-preview-tabs"><span>All inboxes <b>3</b></span><span>Starred</span><span>Sent</span></div>
-          {[
-            { initials: "AC", name: "Alex Chen", address: "hello@studio.example", subject: "The next chapter starts here", body: "The proposal looks great. Let’s make it happen.", time: "9:41", unread: true },
-            { initials: "JL", name: "Jamie Lee", address: "team@launch.example", subject: "A small update. A big milestone.", body: "Our first release is ready for your review.", time: "9:12", unread: true },
-            { initials: "MR", name: "Morgan Reed", address: "support@studio.example", subject: "Thanks for the quick reply", body: "That was exactly what I needed. All set!", time: "Yesterday", unread: false },
-          ].map(row => <div className="flap-preview-message" key={row.initials}>
-            <span className="flap-preview-avatar">{row.initials}</span>
-            <div><div className="flap-preview-sender"><strong>{row.name}</strong><small>{row.time}</small></div><p>{row.subject}</p><small>{row.body}</small><span className="flap-preview-address">{row.address}</span></div>
-            <span className={row.unread ? "flap-unread-dot" : ""} />
-          </div>)}
-          <div className="flap-preview-bottom"><Layers size={15} /><span>Different domains. Everything in reach.</span><Check size={15} /></div>
+          <div className="landing-stage" aria-label="Example of Flap mailboxes and API">
+            <div className="landing-stage-glow" aria-hidden />
+            <div className="landing-stack">
+              {MAILBOX_CARDS.map((card) => (
+                <div className="landing-stack-card" key={card.address}>
+                  <span className="landing-stack-avatar">{card.initials}</span>
+                  <div>
+                    <strong>{card.address}</strong>
+                    <small>Mailbox on your domain</small>
+                  </div>
+                  <span className={cn("landing-badge", card.tone)}>{card.role}</span>
+                </div>
+              ))}
+              <div className="landing-code">
+                <div className="landing-code-meta">
+                  <Terminal className="h-3.5 w-3.5" aria-hidden />
+                  <span>POST {API_SEND.path}</span>
+                </div>
+                <pre>{`{
+  "to": "customer@example.com",
+  "subject": "Thanks for signing up",
+  "from": "hello@yourdomain.com"
+}`}</pre>
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
+      </Band>
 
-      <section className="mx-auto max-w-6xl px-5 md:px-8">
+      <Band tone="light">
         <div className="landing-stats">
           {STATS.map((s) => (
             <div key={s.label}>
-              <strong>{s.value}</strong>
+              <strong>
+                {s.prefix ? (
+                  <>
+                    <span className="text-[var(--accent)]">{s.suffix}</span>
+                    {s.value}
+                  </>
+                ) : (
+                  <>
+                    {s.value}
+                    {s.suffix ? <span className="text-[var(--accent)]">{s.suffix}</span> : null}
+                  </>
+                )}
+              </strong>
               <span>{s.label}</span>
               <p>{s.body}</p>
             </div>
           ))}
         </div>
-      </section>
+      </Band>
 
-      <section className="mx-auto max-w-6xl px-5 py-10 md:px-8 md:py-12" aria-hidden>
-        <div className="landing-ticker">
-          <div className="landing-ticker-track">
-            {[...ALIASES, ...ALIASES].map((a, i) => (
-              <span key={`${a}-${i}`}>{a}</span>
+      <Band tone="dark" id="features">
+        <div className="landing-section-head max-w-2xl">
+          <SectionHeading>All your email in one place</SectionHeading>
+          <p className="landing-section-lede">{MARKETING.architecture_line}</p>
+        </div>
+        <ProductFrame title="Inbox · All domains" dark>
+          <div className="landing-mock-inbox">
+            {[
+              { name: "Alex Chen", subject: "The next chapter starts here", addr: "hello@studio.example", unread: true },
+              { name: "Jamie Lee", subject: "A small update. A big milestone.", addr: "team@launch.example", unread: true },
+              { name: "Morgan Reed", subject: "Thanks for the quick reply", addr: "support@studio.example", unread: false },
+            ].map((row) => (
+              <div key={row.addr} className={cn("landing-mock-row", row.unread && "unread")}>
+                <strong>{row.name}</strong>
+                <span>{row.subject}</span>
+                <em>{row.addr}</em>
+              </div>
             ))}
           </div>
-        </div>
-      </section>
+        </ProductFrame>
+        <FeatureTrio items={INBOX_FEATURES} />
+      </Band>
 
-      <section id="how" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-8 max-w-2xl">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">
-            <Sparkles className="mr-1 inline h-3 w-3" /> Workflow
-          </p>
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-            From domain to first reply in three steps
-          </h2>
-          <p className="mt-4 text-base text-[var(--muted)] md:text-lg">Built for people who keep launching things.</p>
-        </div>
-        <ol className="landing-steps grid gap-10 md:grid-cols-3 md:gap-12">
-          {[
-            { n: "01", title: "Add every project domain", body: "Connect the domains you already own - side projects, SaaS brands, client sites." },
-            { n: "02", title: "Point DNS once per domain", body: "Copy MX/SPF/DKIM. Flap checks records and tells you exactly what is missing." },
-            { n: "03", title: "Send & receive as each brand", body: "Create addresses, open one inbox, reply as the right identity." },
-          ].map((s) => (
-            <li key={s.n} className="landing-step">
-              <span className="landing-step-n font-[family-name:var(--font-mono)] text-sm font-medium tracking-wider text-[var(--cta)]">{s.n}</span>
-              <h3 className="mt-4 text-xl font-semibold tracking-tight">{s.title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--muted)] md:text-[15px]">{s.body}</p>
-            </li>
-          ))}
-        </ol>
-        <p className="mt-10 max-w-2xl text-sm text-[var(--muted)] md:text-[15px]">
-          {ICP_LINES[0]}. {ICP_LINES[4]}.
-        </p>
-      </section>
-
-      <section id="features" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-8 max-w-2xl">
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-            All your email in one place
-          </h2>
-          <p className="mt-4 text-base text-[var(--muted)] md:text-lg">
-            {MARKETING.architecture_line}
+      <Band tone="light" id="proof">
+        <div className="landing-section-head mb-10 max-w-2xl">
+          <p className="landing-eyebrow-accent">Built to be trusted</p>
+          <SectionHeading>Know what goes into your email</SectionHeading>
+          <p className="landing-section-lede">
+            Your domain, your conversations, your choice — credibility before invented reviews.
           </p>
         </div>
-        <ul className="mb-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--muted)] md:text-[15px]">
-          {MARKETING.key_features.map((item) => (
-            <li key={item} className="flex items-center gap-2">
-              <Check className="h-4 w-4 shrink-0 text-[var(--cta)]" aria-hidden />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="grid gap-8 md:grid-cols-2 md:gap-x-12 md:gap-y-10">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="feature-row flex gap-4 border-t border-[var(--line)] pt-7">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--cta-dim)] text-[var(--cta)]">
-                <f.icon className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--muted)] md:text-[15px]">{f.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="savings" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-8 max-w-2xl">
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-            What Workspace×N actually costs
-          </h2>
-          <p className="mt-4 text-base text-[var(--muted)] md:text-lg">
-            Compare a seat per domain against Flap&apos;s domain-first plans.
-          </p>
-        </div>
-        <WorkspaceCalculator compact ctaHref={primaryHref} />
-      </section>
-
-      <section id="pricing" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-8 max-w-2xl">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Pricing</p>
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-            Simple pricing<span className="text-[var(--cta)]">.</span>
-          </h2>
-          <p className="mt-4 text-base text-[var(--muted)] md:text-lg">
-            Flat plans. Domains included. No per-seat tax for every side project.
-          </p>
-        </div>
-        <div className="mb-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-sm">
-          <button
-            type="button"
-            className={cn(
-              "rounded-full px-4 py-1.5 font-medium",
-              billingInterval === "month" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
-            )}
-            onClick={() => setBillingInterval("month")}
-          >
-            Monthly
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded-full px-4 py-1.5 font-medium",
-              billingInterval === "year" ? "bg-[var(--bg-elevated)] text-[var(--fg)] shadow-sm" : "text-[var(--muted)]",
-            )}
-            onClick={() => setBillingInterval("year")}
-          >
-            Yearly
-            <span className="ml-1 text-xs font-semibold text-[var(--cta)]">2 mo free</span>
-          </button>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={cn(
-                "landing-plan flex flex-col border p-5 md:p-6",
-                plan.highlighted
-                  ? "landing-plan-featured"
-                  : "border-[var(--line)] bg-[var(--surface)]",
-              )}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-semibold">{plan.name}</h3>
-                {plan.badge ? (
-                  <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                    plan.highlighted ? "bg-[var(--cta)] text-[var(--cta-fg)]" : "bg-[var(--surface-2)] text-[var(--muted)]",
-                  )}>
-                    {plan.badge}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-4 font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">
-                {plan.price_monthly === 0 ? "$0" : billingInterval === "year" ? `$${plan.price_yearly}` : `$${plan.price_monthly}`}
-                <span className={cn("text-sm font-normal", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>
-                  {plan.price_monthly === 0 ? "/mo" : billingInterval === "year" ? "/yr" : "/mo"}
-                </span>
-              </p>
-              {plan.price_monthly > 0 && billingInterval === "year" ? (
-                <p className={cn("text-xs", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>
-                  ${Math.round((plan.price_yearly / 12) * 100) / 100}/mo effective
-                </p>
-              ) : null}
-              <p className={cn("mt-2 text-sm", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>{plan.blurb}</p>
-              <ul className="mt-5 flex flex-1 flex-col gap-2 text-sm">
-                {plan.features.slice(0, 6).map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <Check className={cn("mt-0.5 h-4 w-4 shrink-0", plan.highlighted ? "text-[var(--cta)]" : "text-[var(--fg)]")} />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="mt-6 w-full"
-                variant={plan.highlighted ? "default" : "outline"}
-                onClick={() => {
-                  track("signup_clicked", { source: `pricing_${plan.id}` });
-                  go(auth === "user" ? "/app/billing" : primaryHref);
-                }}
-              >
-                {plan.cta}
-              </Button>
-            </div>
-          ))}
-        </div>
-        <p className="mt-6 text-sm text-[var(--muted)]">
-          Need more mailboxes? See <a className="font-medium text-[var(--cta)]" href="/pricing" onClick={(e) => { e.preventDefault(); go("/pricing"); }}>full pricing</a> including Scale.
-        </p>
-      </section>
-
-      <section id="proof" className="landing-section mx-auto max-w-6xl px-5 md:px-8">
-        <div className="landing-section-head mb-8 max-w-2xl">
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-            Built to be trusted
-          </h2>
-          <p className="mt-4 text-base text-[var(--muted)]">
-            Your domain, your conversations, your choice. Know what goes into your email.
-          </p>
-        </div>
-        <div className="grid gap-8 md:grid-cols-3 lg:grid-cols-5">
+        <div className="landing-testimonial-grid">
           {CREDIBILITY.map((c) => (
-            <div key={c.title} className="border-t border-[var(--line)] pt-4">
-              <h3 className="text-sm font-semibold">{c.title}</h3>
-              <p className="mt-2 text-sm text-[var(--muted)]">{c.body}</p>
+            <blockquote key={c.title} className="landing-quote-card">
+              <div className="landing-stars" aria-hidden>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" />
+                ))}
+              </div>
+              <p>&ldquo;{c.body}&rdquo;</p>
+              <footer>
+                <strong>{c.title}</strong>
+              </footer>
+            </blockquote>
+          ))}
+        </div>
+      </Band>
+
+      <Band tone="dark" id="calendar">
+        <div className="landing-section-head max-w-2xl">
+          <SectionHeading>Calendar and bookings, same subscription</SectionHeading>
+          <p className="landing-section-lede">
+            Week views, booking pages, and mail share one Flap workspace — not three add-on silos.
+          </p>
+        </div>
+        <ProductFrame title="Calendar · This week" dark>
+          <div className="landing-mock-cal">
+            {["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => (
+              <div key={d} className="landing-mock-cal-col">
+                <span>{d}</span>
+                {d === "Tue" ? <div className="landing-cal-event blue">Demo call</div> : null}
+                {d === "Wed" ? <div className="landing-cal-event green">Launch check</div> : null}
+                {d === "Thu" ? <div className="landing-cal-event amber">Booking open</div> : null}
+              </div>
+            ))}
+          </div>
+        </ProductFrame>
+        <FeatureTrio items={CALENDAR_FEATURES} />
+      </Band>
+
+      <Band tone="light" id="newsletters">
+        <div className="landing-section-head max-w-2xl">
+          <SectionHeading>Newsletters from your domain</SectionHeading>
+          <p className="landing-section-lede">
+            Launch notes and product updates go out on the same custom-domain stack as hello@.
+          </p>
+        </div>
+        <ProductFrame title="Newsletters · Drafts">
+          <div className="landing-mock-newsletter">
+            <Sparkles className="h-4 w-4 text-[var(--accent)]" aria-hidden />
+            <div>
+              <strong>Ship week notes</strong>
+              <p>From newsletter@yourdomain.com · Draft</p>
+            </div>
+            <Newspaper className="ml-auto h-4 w-4 text-[var(--foreground-faint)]" aria-hidden />
+          </div>
+        </ProductFrame>
+        <FeatureTrio items={NEWSLETTER_FEATURES} />
+      </Band>
+
+      <Band tone="dark" id="ai">
+        <div className="landing-section-head max-w-2xl">
+          <SectionHeading>AI that waits for your OK</SectionHeading>
+          <p className="landing-section-lede">
+            Ask your inbox, draft in your voice, and confirm before anything sends.
+          </p>
+        </div>
+        <ProductFrame title="AI assistant" dark>
+          <div className="landing-mock-ai">
+            <div className="landing-mock-ai-bubble user">Summarize unread support@ from today</div>
+            <div className="landing-mock-ai-bubble bot">
+              <Bot className="mb-2 h-4 w-4" aria-hidden />
+              Three threads need a reply. Draft ready — confirm to send.
+            </div>
+          </div>
+        </ProductFrame>
+        <FeatureTrio items={AI_FEATURES} />
+      </Band>
+
+      <Band tone="light" id="developers">
+        <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
+          <div>
+            <div className="landing-section-head max-w-xl">
+              <SectionHeading>Built for developers</SectionHeading>
+              <p className="landing-section-lede">
+                Send transactional mail with API keys, react to mail.received, and use thin SDKs plus a CLI.
+              </p>
+            </div>
+            <ul className="mt-8 space-y-3">
+              {[
+                `POST ${API_SEND.path} with Bearer API keys`,
+                "Inbound webhooks with signature verification",
+                "TypeScript & Python SDKs plus MCP confirm-before-send",
+              ].map((item) => (
+                <li key={item} className="flex gap-3 text-sm text-[var(--foreground-muted)] md:text-[15px]">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <Button variant="outline" className="mt-8 rounded-full" onClick={() => go("/docs/api")}>
+              Read API docs
+              <ArrowRight />
+            </Button>
+          </div>
+          <div className="landing-code-card">
+            <div className="landing-code-tabs">
+              {(Object.keys(API_SAMPLES) as ApiTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={cn(apiTab === tab && "active")}
+                  onClick={() => setApiTab(tab)}
+                >
+                  {tab === "typescript" ? "TypeScript" : tab === "python" ? "Python" : "cURL"}
+                </button>
+              ))}
+              <button type="button" className="landing-copy-btn" onClick={() => void copySample()} aria-label="Copy sample">
+                <Copy className="h-3.5 w-3.5" />
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <pre>{API_SAMPLES[apiTab]}</pre>
+          </div>
+        </div>
+      </Band>
+
+      <Band tone="light" id="capabilities">
+        <div className="landing-section-head mb-10 max-w-2xl">
+          <SectionHeading>Everything in one stack</SectionHeading>
+          <p className="landing-section-lede">{MARKETING.key_features.slice(0, 3).join(" · ")}.</p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {CAPABILITIES.map((cap) => (
+            <div key={cap.title} className="landing-cap-card">
+              <div className="landing-cap-icon">
+                <cap.icon className="h-5 w-5" aria-hidden />
+              </div>
+              <h3>{cap.title}</h3>
+              <p>{cap.body}</p>
             </div>
           ))}
         </div>
-      </section>
+      </Band>
 
-      <section id="faq" className="landing-section mx-auto max-w-3xl px-5 md:px-8">
-        <h2 className="mb-8 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-[2rem]">
-          Questions<span className="text-[var(--cta)]">?</span>
-        </h2>
-        <Accordion type="single" collapsible className="w-full">
-          {FAQS.map((item, i) => (
-            <AccordionItem key={item.q} value={`faq-${i}`}>
-              <AccordionTrigger>{item.q}</AccordionTrigger>
-              <AccordionContent>{item.a}</AccordionContent>
-            </AccordionItem>
+      <Band tone="light" id="faq">
+        <div className="mx-auto max-w-3xl">
+          <SectionHeading className="mb-8">Questions</SectionHeading>
+          <Accordion type="single" collapsible className="w-full landing-faq">
+            {FAQS.map((item, i) => (
+              <AccordionItem key={item.q} value={`faq-${i}`}>
+                <AccordionTrigger>{item.q}</AccordionTrigger>
+                <AccordionContent>{item.a}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      </Band>
+
+      <Band tone="compare" id="compare">
+        <div className="landing-section-head mb-10 max-w-2xl">
+          <SectionHeading>Compare and find your fit</SectionHeading>
+          <p className="landing-section-lede">Honest /vs and /for pages for founders choosing multi-domain email.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {COMPARISON_LINKS.map((link) => (
+            <a
+              key={link.path}
+              href={link.path}
+              className="landing-compare-card"
+              onClick={(e) => {
+                e.preventDefault();
+                go(link.path);
+              }}
+            >
+              <strong>{link.label}</strong>
+              <span>{link.body}</span>
+            </a>
           ))}
-        </Accordion>
-      </section>
+        </div>
+        <p className="mt-8 text-sm text-[var(--foreground-muted)]">
+          See all{" "}
+          <a
+            className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
+            href="/vs"
+            onClick={(e) => {
+              e.preventDefault();
+              go("/vs");
+            }}
+          >
+            comparisons
+          </a>{" "}
+          and{" "}
+          <a
+            className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
+            href="/for"
+            onClick={(e) => {
+              e.preventDefault();
+              go("/for");
+            }}
+          >
+            use cases
+          </a>
+          .
+        </p>
+      </Band>
 
-      <section className="mx-auto max-w-6xl px-5 pb-16 md:px-8 md:pb-20">
-        <div className="landing-cta relative overflow-hidden border border-[var(--line-strong)] px-8 py-12 md:px-14 md:py-14">
-          <div className="landing-cta-glow" aria-hidden />
-          <p className="relative font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
-            Your email, set up in minutes.
+      <Band tone="accent" className="landing-final-cta">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="landing-cta-h2">
+            Your email, set up in minutes
+            <span className="text-[var(--accent-fg)]">.</span>
+          </h2>
+          <p className="mt-4 text-base text-[color-mix(in_srgb,var(--accent-fg)_80%,transparent)] md:text-lg">
+            First receive usually takes a few minutes depending on DNS. From ${PLANS.solo.price_monthly}/month. Free
+            includes real mailboxes.
           </p>
-          <p className="relative mt-4 max-w-xl text-base text-[var(--muted)] md:text-lg">
-            First receive usually takes a few minutes depending on DNS. From ${PLANS.solo.price_monthly}/month.
-            Free includes real mailboxes.
-          </p>
-          <Button size="lg" className="relative mt-8" onClick={() => onPrimary("final_cta")}>
+          <Button
+            size="pill"
+            className="mt-8 h-11 rounded-full bg-[var(--surface)] px-8 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--surface)] hover:opacity-95"
+            onClick={() => onPrimary("final_cta")}
+          >
             {primaryLabel}
             <ArrowRight />
           </Button>
         </div>
-      </section>
+      </Band>
     </MarketingShell>
   );
 }
 
 function PLAN_ORDER_OFFERS() {
-  return planCards()
-    .filter((p) => p.id !== "free")
-    .map((p) => ({
-      "@type": "Offer",
-      price: String(p.price_monthly),
-      priceCurrency: "USD",
-      name: p.name,
-    }));
+  return (["solo", "pro", "team"] as const).map((id) => ({
+    "@type": "Offer",
+    price: String(PLANS[id].price_monthly),
+    priceCurrency: "USD",
+    name: PLANS[id].name,
+  }));
 }

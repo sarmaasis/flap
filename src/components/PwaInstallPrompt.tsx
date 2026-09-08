@@ -25,7 +25,7 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
   if (!ready || dismissed || !deferred) return null;
 
   return (
-    <div className="mail-toast" role="status">
+    <div className="mail-toast" role="status" aria-live="polite">
       <div>
         <strong>Install Flap</strong>
         <span>Faster triage on your phone.</span>
@@ -44,7 +44,7 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
         type="button"
         size="icon"
         variant="ghost"
-        className="h-8 w-8 text-[var(--sidebar-dim)] hover:bg-white/10 hover:text-white"
+        className="mail-toast-close h-8 w-8"
         aria-label="Dismiss"
         onClick={() => {
           localStorage.setItem("flap-pwa-dismiss", "1");

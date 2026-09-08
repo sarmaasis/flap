@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ChevronLeft, ChevronRight, Copy, Download, KeyRound, Plus, Trash2 } from "lucide-react";
 import AppFeaturePage from "../components/AppFeaturePage";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
+import { SegmentedControl } from "../components/ui/segmented-control";
 import {
   Dialog,
   DialogContent,
@@ -93,8 +95,22 @@ function parseAttendeeEmails(raw: string): string[] {
   ];
 }
 
+const CAL_TINTS = ["blue", "green", "purple", "amber", "rose", "teal"] as const;
+
+function calEventTint(id: string): CSSProperties {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  const name = CAL_TINTS[hash % CAL_TINTS.length];
+  return {
+    ["--cal-event-fill" as string]: `var(--cal-${name}-fill)`,
+    ["--cal-event-border" as string]: `var(--cal-${name}-border)`,
+  };
+}
+
 export default function CalendarAppPage() {
-  const [view, setView] = useState<"week" | "month" | "day">("week");
+  const [view, setView] = useState<"week" | "month" | "day">(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches ? "day" : "week",
+  );
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +131,15 @@ export default function CalendarAppPage() {
   const [freshToken, setFreshToken] = useState("");
   const [tokenBusy, setTokenBusy] = useState(false);
   const today = new Date();
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = () => {
+      if (mq.matches) setView((v) => (v === "week" ? "day" : v));
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const days = useMemo(() => {
     const first = new Date(anchor.getFullYear(), anchor.getMonth(), view === "month" ? 1 : anchor.getDate());
@@ -313,12 +338,17 @@ export default function CalendarAppPage() {
           <Button variant="ghost" size="icon" aria-label={`Next ${view}`} onClick={() => move(1)}>
             <ChevronRight />
           </Button>
-          <div className="seg-toggle">
-            {(["week", "month", "day"] as const).map((v) => (
-              <button key={v} type="button" aria-pressed={view === v} className={view === v ? "active" : ""} onClick={() => setView(v)}>
-                {v}
-              </button>
-            ))}
+          <div className="seg-toggle" role="presentation">
+            <SegmentedControl
+              aria-label="Calendar view"
+              value={view}
+              onChange={(v) => setView(v as "week" | "month" | "day")}
+              options={[
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "day", label: "Day" },
+              ]}
+            />
           </div>
           <Button
             variant="secondary"
@@ -376,7 +406,12 @@ export default function CalendarAppPage() {
                   <span className={dateKey(d) === dateKey(today) ? "cal-today-num" : ""}>{d.getDate()}</span>
                   <div className="cal-month-events">
                     {items.map((ev) => (
-                      <span key={ev.id} className="cal-month-chip" title={ev.title}>
+                      <span
+                        key={ev.id}
+                        className="cal-month-chip"
+                        title={ev.title}
+                        style={calEventTint(ev.mailbox_id || ev.id)}
+                      >
                         {ev.title}
                       </span>
                     ))}
@@ -424,7 +459,11 @@ export default function CalendarAppPage() {
                     key={ev.id}
                     type="button"
                     className="cal-event-block"
-                    style={{ top: eventTopPx(ev, d), height: eventHeightPx(ev, d) }}
+                    style={{
+                      top: eventTopPx(ev, d),
+                      height: eventHeightPx(ev, d),
+                      ...calEventTint(ev.mailbox_id || ev.id),
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       openEdit(ev);
@@ -481,10 +520,11 @@ export default function CalendarAppPage() {
                 placeholder="alex@startup.com, jordan@client.com"
               />
             </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={sendInvites} onChange={(e) => setSendInvites(e.target.checked)} />
-              Email invitations when guests are listed
-            </label>
+            <Checkbox
+              checked={sendInvites}
+              onChange={(e) => setSendInvites(e.target.checked)}
+              label="Email invitations when guests are listed"
+            />
             {selected?.attendees?.length ? (
               <ul className="muted text-sm" style={{ margin: 0, paddingLeft: "1.1rem" }}>
                 {selected.attendees.map((a) => (

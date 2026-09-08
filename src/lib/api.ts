@@ -81,7 +81,16 @@ export type MailSummary = {
   thread_id?: string | null;
   rfc_message_id?: string | null;
   assignee_user_id?: string | null;
+  workflow_status?: "" | "done" | "follow_up" | string | null;
   plus_tag?: string | null;
+  created_at: number;
+};
+export type DeliveryEventLogRow = {
+  id: string;
+  recipient_email: string;
+  kind: string;
+  provider: string;
+  provider_message_id: string;
   created_at: number;
 };
 export type MailFull = MailSummary & {
@@ -109,7 +118,15 @@ export type Filter = {
   created_at: number;
 };
 export type BlockedSender = { id: string; address: string; created_at: number };
-export type ApiKey = { id: string; name: string; key_prefix: string; created_at: number; last_used_at: number | null; token?: string };
+export type ApiKey = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: number;
+  last_used_at: number | null;
+  mode?: "live" | "test";
+  token?: string;
+};
 export type Alias = {
   id: string;
   mailbox_id: string;
@@ -396,6 +413,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ user_id }),
     }),
+  setWorkflowStatus: (messageId: string, status: "" | "done" | "follow_up") =>
+    req<{ ok: boolean; workflow_status: string }>(`/api/mail/${messageId}/workflow`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  needsYou: () =>
+    req<{ messages: MailSummary[] }>("/api/mail/needs-you"),
+  deliveryEvents: (kind?: string) =>
+    req<{ events: DeliveryEventLogRow[]; retention_days: number }>(
+      `/api/delivery-events${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`,
+    ),
+  sendingReputation: () =>
+    req<{
+      window_days: number;
+      bounce_rate: number;
+      complaint_rate: number;
+      suppressed_count: number;
+      counts: { bounce: number; complaint: number; delivery: number; soft_bounce: number };
+    }>("/api/sending-reputation"),
   suppressions: () => req<{ suppressions: Suppression[] }>("/api/suppressions"),
   deleteSuppression: (id: string) => req<{ ok: boolean }>(`/api/suppressions/${id}`, { method: "DELETE" }),
   deliverability: () =>
@@ -438,8 +474,10 @@ export const api = {
   blocked: () => req<{ blocked: BlockedSender[] }>("/api/blocked"),
   block: (address: string) => req<{ blocked: BlockedSender }>("/api/blocked", { method: "POST", body: JSON.stringify({ address }) }),
   unblock: (id: string) => req<{ ok: boolean }>(`/api/blocked/${id}`, { method: "DELETE" }),
-  keys: () => req<{ keys: ApiKey[] }>("/api/keys"),
-  createKey: (name: string) => req<{ key: ApiKey }>("/api/keys", { method: "POST", body: JSON.stringify({ name }) }),
+  keys: () =>
+    req<{ keys: ApiKey[]; counts?: { live: number; test: number; total: number } }>("/api/keys"),
+  createKey: (name: string, mode: "live" | "test" = "live") =>
+    req<{ key: ApiKey }>("/api/keys", { method: "POST", body: JSON.stringify({ name, mode }) }),
   deleteKey: (id: string) => req<{ ok: boolean }>(`/api/keys/${id}`, { method: "DELETE" }),
   aliases: () => req<{ aliases: Alias[] }>("/api/aliases"),
   createAlias: (body: { mailbox_id: string; local_part: string; label?: string; disposable?: boolean; expires_at?: number | null }) =>
@@ -452,6 +490,11 @@ export const api = {
   deleteWebhook: (id: string) => req<{ ok: boolean }>(`/api/webhooks/${id}`, { method: "DELETE" }),
   webhookDeliveries: (id: string) =>
     req<{ deliveries: WebhookDelivery[] }>(`/api/webhooks/${id}/deliveries`),
+  redeliverWebhook: (id: string, delivery_id?: string) =>
+    req<{ ok: boolean; status_code: number | null; error?: string; redelivered_from: string }>(
+      `/api/webhooks/${id}/redeliver`,
+      { method: "POST", body: JSON.stringify(delivery_id ? { delivery_id } : {}) },
+    ),
   team: () => req<TeamResponse>("/api/team"),
   inviteTeam: (email: string, role?: string, mailbox_ids?: string[]) =>
     req<{ invite: TeamInvite; deferred: boolean }>("/api/team/invites", {
@@ -483,12 +526,28 @@ export const api = {
     req<{
       items: Array<{ id: string; subject: string; status: string; capped_count: number; created_at: number }>;
       caps: { sends_per_month: number; subscribers: number };
+      audience_count?: number;
+      note?: string;
     }>("/api/newsletters"),
-  createNewsletter: (body: { subject: string; html_body?: string; domain_id?: string }) =>
+  createNewsletter: (body: { subject: string; html_body?: string; domain_id?: string; queue?: boolean }) =>
     req<{ item: { id: string; subject: string; status: string } }>("/api/newsletters", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  queueNewsletter: (id: string) =>
+    req<{ ok: boolean; status: string }>(`/api/newsletters/${id}/queue`, { method: "POST", body: "{}" }),
+  newsletterSubscribers: () =>
+    req<{
+      subscribers: Array<{ id: string; email: string; name: string; status: string; created_at: number }>;
+      note?: string;
+    }>("/api/newsletters/subscribers"),
+  addNewsletterSubscriber: (body: { email: string; name?: string }) =>
+    req<{ subscriber: { id: string; email: string; name: string; status: string } }>("/api/newsletters/subscribers", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteNewsletterSubscriber: (id: string) =>
+    req<{ ok: boolean }>(`/api/newsletters/subscribers/${id}`, { method: "DELETE" }),
   createBookingPage: (body: { slug: string; title?: string; mailbox_id?: string }) =>
     req<{ page: { id: string; slug: string; url: string } }>("/api/booking-pages", {
       method: "POST",

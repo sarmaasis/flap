@@ -33,6 +33,25 @@ export default function MailboxesAppPage() {
           body="Create hello@yourdomain.com after DNS verifies. Catch-all and aliases deliver into these inboxes."
           cta="Connect a domain"
           onCta={() => go("/app/domains")}
+          mockup={
+            <div className="feature-empty-mock" aria-hidden>
+              <div className="feature-empty-mock-row">
+                <span className="feature-empty-mock-swatch" />
+                <span className="feature-empty-mock-line grow" />
+                <span className="feature-empty-mock-chip">Shared</span>
+              </div>
+              <div className="feature-empty-mock-row">
+                <span className="feature-empty-mock-swatch" />
+                <span className="feature-empty-mock-line grow" />
+                <span className="feature-empty-mock-chip muted">Private</span>
+              </div>
+              <div className="feature-empty-mock-row dim">
+                <span className="feature-empty-mock-swatch" />
+                <span className="feature-empty-mock-line grow" />
+                <span className="feature-empty-mock-chip muted">Alias</span>
+              </div>
+            </div>
+          }
         />
       ) : (
         <ul className="app-feature-list">
