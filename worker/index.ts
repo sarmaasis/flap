@@ -310,17 +310,39 @@ app.get("/api/domains", async (c) => {
   if (user instanceof Response) return user;
   const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
   if (!ctx.canManageSettings) {
-    return c.json({ domains: [], read_only: true });
+    if (!ctx.domainIds || ctx.domainIds.length === 0) {
+      return c.json({ domains: [], read_only: true });
+    }
+    const placeholders = ctx.domainIds.map(() => "?").join(", ");
+    const rows = await c.env.DB.prepare(
+      `SELECT id, name, color, created_at
+       FROM domains WHERE user_id = ? AND id IN (${placeholders})
+       ORDER BY created_at ASC`,
+    )
+      .bind(ctx.workspaceId, ...ctx.domainIds)
+      .all();
+    return c.json({ domains: rows.results ?? [], read_only: true });
   }
   const rows = await c.env.DB.prepare(
     `SELECT id, name, catch_all_mailbox_id, color, muted_until, mail_provider, provider_state, provider_region,
             identity_verified_at, mx_verified_at, inbound_rule_ready_at, receiving_ready_at,
             sending_ready_at, last_provider_check_at, last_provider_error, migration_from,
-            migration_state, created_at
+            migration_state, created_at, client_id
      FROM domains WHERE user_id = ? ORDER BY created_at ASC`,
   )
     .bind(ctx.workspaceId)
-    .all();
+    .all()
+    .catch(async () =>
+      c.env.DB.prepare(
+        `SELECT id, name, catch_all_mailbox_id, color, muted_until, mail_provider, provider_state, provider_region,
+                identity_verified_at, mx_verified_at, inbound_rule_ready_at, receiving_ready_at,
+                sending_ready_at, last_provider_check_at, last_provider_error, migration_from,
+                migration_state, created_at
+         FROM domains WHERE user_id = ? ORDER BY created_at ASC`,
+      )
+        .bind(ctx.workspaceId)
+        .all(),
+    );
   return c.json({ domains: rows.results ?? [] });
 });
 
@@ -1171,7 +1193,7 @@ app.post("/api/mail/send", async (c) => {
     const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes - oldBodyBytes + attDelta);
     if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     await c.env.DB.prepare(
-      `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id), storage_bytes = ?
+      `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, scheduled_by_user_id = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id), storage_bytes = ?
        WHERE id = ? AND user_id = ?${access.sql}`,
     )
       .bind(
@@ -1188,6 +1210,7 @@ app.post("/api/mail/send", async (c) => {
         attachments.length ? 1 : 0,
         snippet,
         scheduledAt,
+        user.id,
         replyHeader,
         threadId,
         bodyBytes,
@@ -1203,10 +1226,10 @@ app.post("/api/mail/send", async (c) => {
     const rfcId = `<${id}@${(fromMailbox.address.split("@")[1] || "flap.local")}>`;
     await c.env.DB.prepare(
       `INSERT INTO messages
-        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, scheduled_at, in_reply_to, rfc_message_id, thread_id, storage_bytes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, snippet, scheduled_at, scheduled_by_user_id, in_reply_to, rfc_message_id, thread_id, storage_bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(id, ctx.workspaceId, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, rfcId, threadId || id, bodyBytes, now)
+      .bind(id, ctx.workspaceId, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, user.id, replyHeader, rfcId, threadId || id, bodyBytes, now)
       .run();
   }
   if (attachmentsProvided) {
@@ -1226,9 +1249,9 @@ app.post("/api/mail/send", async (c) => {
   if (undoSeconds > 0) {
     const undoAt = now + undoSeconds * 1000;
     await c.env.DB.prepare(
-      "UPDATE messages SET folder = 'scheduled', scheduled_at = ? WHERE id = ? AND user_id = ?",
+      "UPDATE messages SET folder = 'scheduled', scheduled_at = ?, scheduled_by_user_id = ? WHERE id = ? AND user_id = ?",
     )
-      .bind(undoAt, id, ctx.workspaceId)
+      .bind(undoAt, user.id, id, ctx.workspaceId)
       .run();
     return c.json({ ok: true, scheduled: true, undo: true, id, scheduled_at: undoAt, undo_seconds: undoSeconds });
   }

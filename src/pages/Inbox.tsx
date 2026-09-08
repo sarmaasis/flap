@@ -893,7 +893,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               >
                 <option value="">All mailboxes</option>
                 {mailboxes.map((m) => (
-                  <option key={m.id} value={m.id}>{m.address}</option>
+                    <option key={m.id} value={m.id}>{m.address}{m.is_shared ? " · Shared" : ""}</option>
                 ))}
               </select>
             ) : null}

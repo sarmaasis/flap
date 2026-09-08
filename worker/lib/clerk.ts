@@ -83,3 +83,56 @@ export function requestWithClerkToken(request: Request): Request {
 export function clerkConfigured(env: Env): boolean {
   return Boolean((env.CLERK_SECRET_KEY || "").trim() && (env.CLERK_PUBLISHABLE_KEY || "").trim());
 }
+
+export type ClerkSessionRevoker = {
+  listActiveSessionIds: (clerkUserId: string) => Promise<string[]>;
+  revokeSession: (sessionId: string) => Promise<void>;
+};
+
+/**
+ * Kill Clerk sessions for a Flap user after workspace removal.
+ * Fail-open: missing Clerk id or Admin API errors do not undo offboarding.
+ */
+export async function revokeClerkSessionsForFlapUser(
+  env: Env,
+  db: D1Database,
+  flapUserId: string,
+  client?: ClerkSessionRevoker,
+): Promise<{ revoked: number; skipped: string }> {
+  const row = await db
+    .prepare("SELECT clerk_user_id FROM users WHERE id = ?")
+    .bind(flapUserId)
+    .first<{ clerk_user_id: string | null }>()
+    .catch(() => null);
+  const clerkUserId = (row?.clerk_user_id || "").trim();
+  if (!clerkUserId) return { revoked: 0, skipped: "no_clerk_user" };
+
+  const revoker =
+    client ??
+    (clerkConfigured(env)
+      ? {
+          listActiveSessionIds: async (id: string) => {
+            const clerk = flapClerk(env);
+            const list = await clerk.sessions.getSessionList({ userId: id, status: "active" });
+            return (list.data ?? []).map((s) => s.id);
+          },
+          revokeSession: async (sessionId: string) => {
+            await flapClerk(env).sessions.revokeSession(sessionId);
+          },
+        }
+      : null);
+  if (!revoker) return { revoked: 0, skipped: "clerk_unconfigured" };
+
+  try {
+    const ids = await revoker.listActiveSessionIds(clerkUserId);
+    let revoked = 0;
+    for (const sessionId of ids) {
+      await revoker.revokeSession(sessionId);
+      revoked += 1;
+    }
+    return { revoked, skipped: "" };
+  } catch (err) {
+    console.warn("Clerk session revoke failed", flapUserId, err);
+    return { revoked: 0, skipped: "clerk_error" };
+  }
+}

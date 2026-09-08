@@ -16,13 +16,23 @@ import {
 } from "./mailutil";
 import {
   acceptInvite,
+  actorMayDispatchScheduled,
+  changeMemberRole,
   createInvite,
+  grantDomainMember,
   grantMailboxMember,
   listAccessibleMailboxes,
+  removeWorkspaceMember,
   resolveWorkspace,
+  revokeDomainMember,
   revokeMailboxMember,
   setMailboxShared,
 } from "./team";
+import { writeAuditLog } from "./plan-guard";
+import { hashInviteToken } from "../../shared/agency-authz";
+import { revokeClerkSessionsForFlapUser } from "./clerk";
+import { buildJsonExport, buildMboxExport, restoreWorkspaceBackup } from "./workspace-backup";
+import { postWorkspaceOperatorAlert } from "./workspace-notify";
 import { isAddressSuppressed } from "./suppressions";
 import { evaluateOutboundDomainPolicy } from "../../shared/outbound-send-policy";
 
@@ -364,6 +374,7 @@ type StoredMessage = {
   id: string;
   user_id?: string;
   mailbox_id: string | null;
+  scheduled_by_user_id?: string | null;
   from_addr: string;
   to_addr: string;
   cc_addr: string;
@@ -527,7 +538,7 @@ export async function flushScheduled(
   let flushed = 0;
   const due = opts?.userId
     ? await env.DB.prepare(
-        `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
+        `SELECT id, user_id, mailbox_id, scheduled_by_user_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
          FROM messages
          WHERE user_id = ? AND folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
          ORDER BY scheduled_at ASC
@@ -536,7 +547,7 @@ export async function flushScheduled(
         .bind(opts.userId, now)
         .all<StoredMessage & { user_id: string }>()
     : await env.DB.prepare(
-        `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
+        `SELECT id, user_id, mailbox_id, scheduled_by_user_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
          FROM messages
          WHERE folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
          ORDER BY scheduled_at ASC
@@ -545,6 +556,32 @@ export async function flushScheduled(
         .bind(now)
         .all<StoredMessage & { user_id: string }>();
   for (const message of due.results ?? []) {
+    const actorCheck = await actorMayDispatchScheduled(
+      env.DB,
+      message.user_id,
+      message.scheduled_by_user_id,
+      message.mailbox_id,
+    );
+    if (!actorCheck.ok) {
+      const error =
+        actorCheck.reason === "removed_member"
+          ? "Scheduled send cancelled: sender is no longer a workspace member."
+          : "Scheduled send cancelled: mailbox access was revoked.";
+      await env.DB.prepare(
+        "UPDATE messages SET folder = 'drafts', scheduled_at = NULL, snippet = ? WHERE id = ?",
+      )
+        .bind(error.slice(0, 160), message.id)
+        .run()
+        .catch(() => undefined);
+      await writeAuditLog(env.DB, message.user_id, message.scheduled_by_user_id || message.user_id, "mail.scheduled_denied", message.id, {
+        reason: actorCheck.reason,
+      });
+      void postWorkspaceOperatorAlert(env.DB, message.user_id, "scheduled_denied", `${message.id} ${actorCheck.reason}`).catch(
+        () => undefined,
+      );
+      failed.push({ id: message.id, error });
+      continue;
+    }
     const sendLimit = await assertSendRoom(env.DB, message.user_id);
     if (!sendLimit.ok) {
       console.warn("Scheduled send blocked by monthly send quota", message.id, message.user_id);
@@ -762,27 +799,29 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/contacts", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const q = (c.req.query("q") ?? "").trim().toLowerCase();
     let sql = "SELECT id, email, name, last_used_at, created_at FROM contacts WHERE user_id = ?";
-    const binds: unknown[] = [user.id];
+    const binds: unknown[] = [ctx.workspaceId];
     if (q) {
       sql += " AND (email LIKE ? OR name LIKE ?)";
       binds.push(`%${q}%`, `%${q}%`);
     }
     sql += " ORDER BY last_used_at DESC LIMIT 200";
     const rows = await c.env.DB.prepare(sql).bind(...binds).all();
-    return c.json({ contacts: rows.results ?? [] });
+    return c.json({ contacts: rows.results ?? [], scope: "workspace" });
   });
 
   app.post("/api/contacts", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const body = await c.req.json().catch(() => ({})) as { email?: string; name?: string };
     const email = extractEmail(body.email ?? "");
     if (!EMAIL_RE.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
-    await touchContact(c.env.DB, user.id, email, (body.name ?? "").trim());
+    await touchContact(c.env.DB, ctx.workspaceId, email, (body.name ?? "").trim());
     const row = await c.env.DB.prepare("SELECT id, email, name, last_used_at, created_at FROM contacts WHERE user_id = ? AND email = ?")
-      .bind(user.id, email)
+      .bind(ctx.workspaceId, email)
       .first();
     return c.json({ contact: row }, 201);
   });
@@ -790,8 +829,9 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.delete("/api/contacts/:id", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const res = await c.env.DB.prepare("DELETE FROM contacts WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Contact not found." }, 404);
     return c.json({ ok: true });
@@ -1032,6 +1072,8 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/keys", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage API keys." }, 403);
     let keys: Array<{
       id: string;
       name: string;
@@ -1045,7 +1087,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
         .prepare(
           "SELECT id, name, key_prefix, created_at, last_used_at, COALESCE(mode, 'live') AS mode FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
         )
-        .bind(user.id)
+        .bind(ctx.workspaceId)
         .all<{
           id: string;
           name: string;
@@ -1058,7 +1100,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     } catch {
       const rows = await c.env.DB
         .prepare("SELECT id, name, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC")
-        .bind(user.id)
+        .bind(ctx.workspaceId)
         .all<{ id: string; name: string; key_prefix: string; created_at: number; last_used_at: number | null }>();
       keys = (rows.results ?? []).map((k) => ({ ...k, mode: "live" }));
     }
@@ -1070,40 +1112,53 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.post("/api/keys", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage API keys." }, 403);
     const body = await c.req.json().catch(() => ({})) as { name?: string; mode?: string };
     const name = (body.name ?? "").trim() || "Transactional";
     const mode = body.mode === "test" ? "test" : "live";
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?")
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .first<{ n: number }>();
-    const limit = await assertWithinLimit(c.env.DB, user.id, "api_keys", Number(count?.n ?? 0));
+    const limit = await assertWithinLimit(c.env.DB, ctx.workspaceId, "api_keys", Number(count?.n ?? 0));
     if (!limit.ok) return c.json({ error: limit.error }, limit.status);
     const token = mode === "test" ? `flap_test_${randomId("").slice(0, 28)}` : `flap_${randomId("").slice(0, 32)}`;
     const id = randomId("key");
     try {
       await c.env.DB.prepare(
-        "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at, mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at, mode, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
-        .bind(id, user.id, name, await sha256Hex(token), token.slice(0, 12), nowMs(), mode)
+        .bind(id, ctx.workspaceId, name, await sha256Hex(token), token.slice(0, 12), nowMs(), mode, user.id)
         .run();
     } catch {
-      // Pre-migration fallback (no mode column).
-      await c.env.DB.prepare(
-        "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      )
-        .bind(id, user.id, name, await sha256Hex(token), token.slice(0, 10), nowMs())
-        .run();
+      try {
+        await c.env.DB.prepare(
+          "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at, mode) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(id, ctx.workspaceId, name, await sha256Hex(token), token.slice(0, 12), nowMs(), mode)
+          .run();
+      } catch {
+        await c.env.DB.prepare(
+          "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+          .bind(id, ctx.workspaceId, name, await sha256Hex(token), token.slice(0, 10), nowMs())
+          .run();
+      }
     }
+    await writeAuditLog(c.env.DB, ctx.workspaceId, user.id, "api_key.created", id, { mode });
     return c.json({ key: { id, name, token, key_prefix: token.slice(0, 12), mode } }, 201);
   });
 
   app.delete("/api/keys/:id", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage API keys." }, 403);
     const res = await c.env.DB.prepare("DELETE FROM api_keys WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "API key not found." }, 404);
+    await writeAuditLog(c.env.DB, ctx.workspaceId, user.id, "api_key.revoked", c.req.param("id"));
     return c.json({ ok: true });
   });
 
@@ -1151,44 +1206,13 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/export", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const format = (c.req.query("format") || "json").toLowerCase();
+    const actor = { userId: user.id, workspaceId: ctx.workspaceId, mailboxIds: ctx.mailboxIds };
 
     if (format === "mbox") {
-      const messages = await c.env.DB
-        .prepare(
-          `SELECT from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body, rfc_message_id, created_at
-           FROM messages WHERE user_id = ? ORDER BY date_ms ASC LIMIT 5000`,
-        )
-        .bind(user.id)
-        .all<{
-          from_addr: string;
-          to_addr: string;
-          cc_addr: string;
-          subject: string;
-          date_ms: number;
-          text_body: string;
-          html_body: string;
-          rfc_message_id: string;
-          created_at: number;
-        }>();
-      const chunks: string[] = [];
-      for (const m of messages.results ?? []) {
-        const fromAddr = extractEmail(m.from_addr) || "unknown@localhost";
-        const when = new Date(m.date_ms || m.created_at || Date.now());
-        const envelopeDate = when.toUTCString().replace(/,/g, "");
-        const raw = buildRawMime({
-          from: m.from_addr || fromAddr,
-          to: m.to_addr || "",
-          cc: m.cc_addr || undefined,
-          subject: m.subject || "",
-          text: m.text_body || "",
-          html: m.html_body || undefined,
-          messageId: m.rfc_message_id || undefined,
-        });
-        const escaped = raw.replace(/\r\n/g, "\n").replace(/^From /gm, ">From ");
-        chunks.push(`From ${fromAddr} ${envelopeDate}\n${escaped}\n`);
-      }
-      return new Response(chunks.join("\n"), {
+      const mbox = await buildMboxExport(c.env.DB, actor);
+      return new Response(mbox, {
         headers: {
           "content-type": "application/mbox; charset=utf-8",
           "content-disposition": `attachment; filename="flap-mailbox.mbox"`,
@@ -1196,46 +1220,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       });
     }
 
-    const [messages, mailboxes, contacts, templates, signatures, filters, aliases] = await Promise.all([
-      c.env.DB.prepare(
-        `SELECT id, folder, from_addr, to_addr, cc_addr, bcc_addr, subject, date_ms, text_body, html_body, has_attachments, unread, starred, snippet, label, thread_id, rfc_message_id, created_at
-         FROM messages WHERE user_id = ? ORDER BY date_ms DESC LIMIT 5000`,
-      )
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare("SELECT address, display_name FROM mailboxes WHERE user_id = ?")
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare("SELECT email, name FROM contacts WHERE user_id = ?")
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare("SELECT name, subject, html_body, text_body FROM templates WHERE user_id = ?")
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare("SELECT name, html_body, text_body, is_default FROM signatures WHERE user_id = ?")
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare(
-        "SELECT name, match_from, match_to, match_subject, action, forward_to, label, is_catch_all FROM filters WHERE user_id = ?",
-      )
-        .bind(user.id)
-        .all(),
-      c.env.DB.prepare("SELECT address, label, disposable, expires_at FROM aliases WHERE user_id = ?")
-        .bind(user.id)
-        .all(),
-    ]);
-    const payload = {
-      exported_at: new Date().toISOString(),
-      version: 2,
-      user: { email: user.email },
-      mailboxes: mailboxes.results ?? [],
-      contacts: contacts.results ?? [],
-      templates: templates.results ?? [],
-      signatures: signatures.results ?? [],
-      filters: filters.results ?? [],
-      aliases: aliases.results ?? [],
-      messages: messages.results ?? [],
-    };
+    const payload = await buildJsonExport(c.env.DB, actor, user.email);
     return new Response(JSON.stringify(payload, null, 2), {
       headers: {
         "content-type": "application/json; charset=utf-8",
@@ -1247,75 +1232,14 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.post("/api/restore", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const body = await c.req.json().catch(() => null) as {
-      contacts?: Array<{ email?: string; name?: string }>;
-      templates?: Array<{ name?: string; subject?: string; html_body?: string; text_body?: string }>;
-      signatures?: Array<{ name?: string; html_body?: string; text_body?: string; is_default?: number }>;
-      filters?: Array<{
-        name?: string;
-        match_from?: string;
-        match_to?: string;
-        match_subject?: string;
-        action?: string;
-        forward_to?: string;
-        label?: string;
-        is_catch_all?: number;
-      }>;
-    } | null;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = (await c.req.json().catch(() => null)) as Parameters<typeof restoreWorkspaceBackup>[2] | null;
     if (!body || typeof body !== "object") return c.json({ error: "Upload a valid Flap backup JSON." }, 400);
-    const now = nowMs();
-    let restored = 0;
-    for (const contact of body.contacts ?? []) {
-      const email = extractEmail(contact.email ?? "");
-      if (!EMAIL_RE.test(email)) continue;
-      await touchContact(c.env.DB, user.id, email, (contact.name ?? "").trim());
-      restored += 1;
-    }
-    for (const template of body.templates ?? []) {
-      const name = (template.name ?? "").trim();
-      if (!name) continue;
-      await c.env.DB.prepare(
-        "INSERT INTO templates (id, user_id, name, subject, html_body, text_body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-        .bind(randomId("tpl"), user.id, name, template.subject ?? "", template.html_body ?? "", template.text_body ?? "", now, now)
-        .run();
-      restored += 1;
-    }
-    for (const signature of body.signatures ?? []) {
-      const name = (signature.name ?? "").trim();
-      if (!name) continue;
-      await c.env.DB.prepare(
-        "INSERT INTO signatures (id, user_id, name, html_body, text_body, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      )
-        .bind(randomId("sig"), user.id, name, signature.html_body ?? "", signature.text_body ?? "", signature.is_default ? 1 : 0, now)
-        .run();
-      restored += 1;
-    }
-    for (const filter of body.filters ?? []) {
-      const name = (filter.name ?? "").trim();
-      const action = (filter.action ?? "").toLowerCase();
-      if (!name || !FILTER_ACTIONS.has(action)) continue;
-      await c.env.DB.prepare(
-        `INSERT INTO filters
-          (id, user_id, name, match_from, match_to, match_subject, action, forward_to, label, is_catch_all, enabled, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-      )
-        .bind(
-          randomId("flt"),
-          user.id,
-          name,
-          (filter.match_from ?? "").toLowerCase(),
-          (filter.match_to ?? "").toLowerCase(),
-          (filter.match_subject ?? "").toLowerCase(),
-          action,
-          filter.forward_to ?? "",
-          filter.label ?? "",
-          filter.is_catch_all ? 1 : 0,
-          now,
-        )
-        .run();
-      restored += 1;
-    }
+    const restored = await restoreWorkspaceBackup(
+      c.env.DB,
+      { userId: user.id, workspaceId: ctx.workspaceId, mailboxIds: ctx.mailboxIds },
+      body,
+    );
     return c.json({ ok: true, restored });
   });
 
@@ -1390,10 +1314,12 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.get("/api/webhooks", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const rows = await c.env.DB.prepare(
       "SELECT id, name, url, events, enabled, created_at, last_triggered_at FROM webhooks WHERE user_id = ? ORDER BY created_at DESC",
     )
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .all();
     return c.json({ webhooks: rows.results ?? [] });
   });
@@ -1401,36 +1327,49 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.post("/api/webhooks", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const body = await c.req.json().catch(() => ({})) as { name?: string; url?: string; events?: string };
     const name = (body.name ?? "").trim() || "Inbound hook";
     const url = (body.url ?? "").trim();
     if (!/^https:\/\//i.test(url)) return c.json({ error: "Webhook URL must be https." }, 400);
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM webhooks WHERE user_id = ?")
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .first<{ n: number }>();
-    const limit = await assertWithinLimit(c.env.DB, user.id, "webhooks", Number(count?.n ?? 0));
+    const limit = await assertWithinLimit(c.env.DB, ctx.workspaceId, "webhooks", Number(count?.n ?? 0));
     if (!limit.ok) return c.json({ error: limit.error }, limit.status);
     const id = randomId("wh");
     const secret = randomId("sec").slice(0, 32);
     const events = (body.events ?? "mail.received").trim() || "mail.received";
-    await c.env.DB.prepare(
-      "INSERT INTO webhooks (id, user_id, name, url, secret, events, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-    )
-      .bind(id, user.id, name, url, secret, events, nowMs())
-      .run();
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO webhooks (id, user_id, name, url, secret, events, enabled, created_at, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+      )
+        .bind(id, ctx.workspaceId, name, url, secret, events, nowMs(), user.id)
+        .run();
+    } catch {
+      await c.env.DB.prepare(
+        "INSERT INTO webhooks (id, user_id, name, url, secret, events, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+      )
+        .bind(id, ctx.workspaceId, name, url, secret, events, nowMs())
+        .run();
+    }
+    await writeAuditLog(c.env.DB, ctx.workspaceId, user.id, "webhook.created", id);
     return c.json({ webhook: { id, name, url, events, secret } }, 201);
   });
 
   app.post("/api/webhooks/:id/toggle", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const row = await c.env.DB.prepare("SELECT enabled FROM webhooks WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .first<{ enabled: number }>();
     if (!row) return c.json({ error: "Webhook not found." }, 404);
     const next = row.enabled ? 0 : 1;
     await c.env.DB.prepare("UPDATE webhooks SET enabled = ? WHERE id = ? AND user_id = ?")
-      .bind(next, c.req.param("id"), user.id)
+      .bind(next, c.req.param("id"), ctx.workspaceId)
       .run();
     return c.json({ ok: true, enabled: next });
   });
@@ -1438,10 +1377,13 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.delete("/api/webhooks/:id", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const res = await c.env.DB.prepare("DELETE FROM webhooks WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Webhook not found." }, 404);
+    await writeAuditLog(c.env.DB, ctx.workspaceId, user.id, "webhook.revoked", c.req.param("id"));
     return c.json({ ok: true });
   });
 
@@ -1449,8 +1391,10 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const hookId = c.req.param("id");
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const hook = await c.env.DB.prepare("SELECT id FROM webhooks WHERE id = ? AND user_id = ?")
-      .bind(hookId, user.id)
+      .bind(hookId, ctx.workspaceId)
       .first<{ id: string }>();
     if (!hook) return c.json({ error: "Webhook not found." }, 404);
     const rows = await c.env.DB
@@ -1482,10 +1426,12 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.post("/api/webhooks/:id/redeliver", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage webhooks." }, 403);
     const hookId = c.req.param("id");
     const hook = await c.env.DB
       .prepare("SELECT id, url, secret FROM webhooks WHERE id = ? AND user_id = ?")
-      .bind(hookId, user.id)
+      .bind(hookId, ctx.workspaceId)
       .first<{ id: string; url: string; secret: string }>();
     if (!hook) return c.json({ error: "Webhook not found." }, 404);
     const bodyJson = await c.req.json().catch(() => ({})) as { delivery_id?: string };
@@ -1592,10 +1538,14 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
         can_manage_team: ctx.canManageTeam,
       },
       members: members.results ?? [],
-      invites: (invites.results ?? []).map((inv) => ({
-        ...inv,
-        accept_path: inv.token ? `/invite/${inv.token}` : null,
-      })),
+      invites: (invites.results ?? []).map((inv) => {
+        const token = ctx.canManageTeam ? inv.token : null;
+        return {
+          ...inv,
+          token,
+          accept_path: token ? `/invite/${token}` : null,
+        };
+      }),
       shared_mailboxes: shared.results ?? [],
     });
   });
@@ -1608,11 +1558,13 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       email?: string;
       role?: string;
       mailbox_ids?: string[];
+      domain_ids?: string[];
     };
     const result = await createInvite(c.env.DB, ctx, {
       email: body.email ?? "",
       role: body.role,
       mailbox_ids: body.mailbox_ids,
+      domain_ids: body.domain_ids,
     });
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ invite: result.invite, deferred: false }, 201);
@@ -1627,14 +1579,26 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   });
 
   app.get("/api/team/invites/:token", async (c) => {
+    const token = c.req.param("token");
+    const hashed = await hashInviteToken(token);
     const invite = await c.env.DB.prepare(
       `SELECT i.id, i.email, i.role, i.status, i.expires_at, i.workspace_id, u.email AS inviter_email
        FROM workspace_invites i
        LEFT JOIN users u ON u.id = i.invited_by
-       WHERE i.token = ?`,
+       WHERE i.token = ? OR i.token_hash = ?`,
     )
-      .bind(c.req.param("token"))
-      .first();
+      .bind(token, hashed)
+      .first()
+      .catch(async () =>
+        c.env.DB.prepare(
+          `SELECT i.id, i.email, i.role, i.status, i.expires_at, i.workspace_id, u.email AS inviter_email
+           FROM workspace_invites i
+           LEFT JOIN users u ON u.id = i.invited_by
+           WHERE i.token = ?`,
+        )
+          .bind(token)
+          .first(),
+      );
     if (!invite) return c.json({ error: "Invite not found." }, 404);
     return c.json({ invite });
   });
@@ -1651,6 +1615,7 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Invite not found." }, 404);
+    await writeAuditLog(c.env.DB, ctx.workspaceId, user.id, "team.invite_revoked", c.req.param("id"));
     return c.json({ ok: true });
   });
 
@@ -1658,21 +1623,21 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    if (!ctx.canManageTeam) return c.json({ error: "Forbidden." }, 403);
     const memberId = c.req.param("userId");
-    if (memberId === ctx.workspaceId) {
-      return c.json({ error: "Cannot remove the workspace owner." }, 400);
-    }
-    await c.env.DB.batch([
-      c.env.DB.prepare("DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?").bind(
-        ctx.workspaceId,
-        memberId,
-      ),
-      c.env.DB.prepare(
-        `DELETE FROM mailbox_members WHERE user_id = ? AND mailbox_id IN
-         (SELECT id FROM mailboxes WHERE user_id = ?)`,
-      ).bind(memberId, ctx.workspaceId),
-    ]);
+    const result = await removeWorkspaceMember(c.env.DB, ctx, memberId);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    void revokeClerkSessionsForFlapUser(c.env, c.env.DB, memberId).catch(() => undefined);
+    void postWorkspaceOperatorAlert(c.env.DB, ctx.workspaceId, "member_removed", memberId).catch(() => undefined);
+    return c.json({ ok: true });
+  });
+
+  app.patch("/api/team/members/:userId", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = await c.req.json().catch(() => ({})) as { role?: string };
+    const result = await changeMemberRole(c.env.DB, ctx, c.req.param("userId"), body.role ?? "");
+    if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ ok: true });
   });
 
@@ -1680,8 +1645,10 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    const body = await c.req.json().catch(() => ({})) as { is_shared?: boolean };
-    const result = await setMailboxShared(c.env.DB, ctx, c.req.param("id"), body.is_shared !== false);
+    const body = await c.req.json().catch(() => ({})) as { is_shared?: boolean; revoke_members?: boolean };
+    const result = await setMailboxShared(c.env.DB, ctx, c.req.param("id"), body.is_shared !== false, {
+      revokeMembers: body.revoke_members === true,
+    });
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ ok: true });
   });
@@ -1704,6 +1671,166 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const result = await revokeMailboxMember(c.env.DB, ctx, c.req.param("id"), c.req.param("userId"));
     if (!result.ok) return c.json({ error: result.error }, result.status);
     return c.json({ ok: true });
+  });
+
+  app.get("/api/team/members/:userId/grants", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageTeam) return c.json({ error: "Forbidden." }, 403);
+    const memberId = c.req.param("userId");
+    const member = await c.env.DB.prepare(
+      `SELECT user_id FROM workspace_members WHERE workspace_id = ? AND user_id = ?`,
+    )
+      .bind(ctx.workspaceId, memberId)
+      .first();
+    if (!member) return c.json({ error: "Member not found." }, 404);
+    const mailboxes = await c.env.DB.prepare(
+      `SELECT mm.mailbox_id FROM mailbox_members mm
+       JOIN mailboxes m ON m.id = mm.mailbox_id
+       WHERE mm.user_id = ? AND m.user_id = ?`,
+    )
+      .bind(memberId, ctx.workspaceId)
+      .all<{ mailbox_id: string }>();
+    const domains = await c.env.DB.prepare(
+      `SELECT domain_id FROM workspace_member_domains WHERE workspace_id = ? AND user_id = ?`,
+    )
+      .bind(ctx.workspaceId, memberId)
+      .all<{ domain_id: string }>()
+      .catch(() => ({ results: [] as { domain_id: string }[] }));
+    return c.json({
+      mailbox_ids: (mailboxes.results ?? []).map((r) => r.mailbox_id),
+      domain_ids: (domains.results ?? []).map((r) => r.domain_id),
+    });
+  });
+
+  app.post("/api/team/domains/:id/members", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const body = await c.req.json().catch(() => ({})) as { user_id?: string };
+    if (!body.user_id) return c.json({ error: "user_id required." }, 400);
+    const result = await grantDomainMember(c.env.DB, ctx, c.req.param("id"), body.user_id);
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/team/domains/:id/members/:userId", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const result = await revokeDomainMember(c.env.DB, ctx, c.req.param("id"), c.req.param("userId"));
+    if (!result.ok) return c.json({ error: result.error }, result.status);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/clients", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const rows = await c.env.DB.prepare(
+      "SELECT id, name, created_at FROM clients WHERE workspace_id = ? ORDER BY name COLLATE NOCASE",
+    )
+      .bind(ctx.workspaceId)
+      .all()
+      .catch(() => ({ results: [] }));
+    return c.json({ clients: rows.results ?? [] });
+  });
+
+  app.post("/api/clients", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const body = await c.req.json().catch(() => ({})) as { name?: string };
+    const name = (body.name ?? "").trim().slice(0, 80);
+    if (!name) return c.json({ error: "Name is required." }, 400);
+    const id = randomId("cli");
+    await c.env.DB.prepare("INSERT INTO clients (id, workspace_id, name, created_at) VALUES (?, ?, ?, ?)")
+      .bind(id, ctx.workspaceId, name, nowMs())
+      .run();
+    return c.json({ client: { id, name } }, 201);
+  });
+
+  app.patch("/api/clients/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const body = await c.req.json().catch(() => ({})) as { name?: string };
+    const name = (body.name ?? "").trim().slice(0, 80);
+    if (!name) return c.json({ error: "Name is required." }, 400);
+    const res = await c.env.DB.prepare("UPDATE clients SET name = ? WHERE id = ? AND workspace_id = ?")
+      .bind(name, c.req.param("id"), ctx.workspaceId)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "Client not found." }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/clients/:id", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const id = c.req.param("id");
+    const owned = await c.env.DB.prepare("SELECT id FROM clients WHERE id = ? AND workspace_id = ?")
+      .bind(id, ctx.workspaceId)
+      .first();
+    if (!owned) return c.json({ error: "Client not found." }, 404);
+    await c.env.DB.prepare("UPDATE domains SET client_id = NULL WHERE user_id = ? AND client_id = ?")
+      .bind(ctx.workspaceId, id)
+      .run()
+      .catch(() => undefined);
+    await c.env.DB.prepare("DELETE FROM clients WHERE id = ? AND workspace_id = ?").bind(id, ctx.workspaceId).run();
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/domains/:id/client", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const body = await c.req.json().catch(() => ({})) as { client_id?: string | null };
+    const clientId = body.client_id || null;
+    if (clientId) {
+      const client = await c.env.DB.prepare("SELECT id FROM clients WHERE id = ? AND workspace_id = ?")
+        .bind(clientId, ctx.workspaceId)
+        .first();
+      if (!client) return c.json({ error: "Client not found." }, 404);
+    }
+    const res = await c.env.DB.prepare("UPDATE domains SET client_id = ? WHERE id = ? AND user_id = ?")
+      .bind(clientId, c.req.param("id"), ctx.workspaceId)
+      .run();
+    if (!res.meta.changes) return c.json({ error: "Domain not found." }, 404);
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/agency/usage", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const domains = await c.env.DB.prepare(
+      `SELECT d.id, d.name,
+              (SELECT COUNT(*) FROM mailboxes m WHERE m.domain_id = d.id) AS mailboxes,
+              (SELECT COUNT(*) FROM aliases a WHERE a.domain_id = d.id) AS aliases,
+              (SELECT COALESCE(SUM(msg.storage_bytes), 0) FROM messages msg
+                 JOIN mailboxes m ON m.id = msg.mailbox_id WHERE m.domain_id = d.id) AS storage_bytes
+       FROM domains d WHERE d.user_id = ? ORDER BY d.name COLLATE NOCASE`,
+    )
+      .bind(ctx.workspaceId)
+      .all();
+    const members = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM workspace_members WHERE workspace_id = ? AND COALESCE(status, 'active') = 'active'`,
+    )
+      .bind(ctx.workspaceId)
+      .first<{ n: number }>();
+    return c.json({
+      workspace_id: ctx.workspaceId,
+      member_count: Number(members?.n ?? 0),
+      domains: domains.results ?? [],
+    });
   });
 
   app.post("/api/v1/send", async (c) => {

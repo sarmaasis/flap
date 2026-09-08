@@ -16,7 +16,8 @@
 | **Next — Security/Core** | **COMPLETE** (P0 + most P1; P2 deferred) | `docs/next-security-core-plan.md` + `docs/next-security-core-results.md` + `docs/audit-http-tenant-isolation.md` | **Yes** — staging migrate + smoke |
 | **C — Positioning** | **COMPLETE** | `docs/audit-phase-c-positioning.md` + Landing / trust pages | Yes — copy, FAQ, migrate/why-not-SES claims |
 | **D — SEO** | **COMPLETE** (reconciled; claim review before publish) | `docs/audit-phase-d-seo.md` + 7 landings/aliases | Yes — human review required for `/vs/*` claims before publish |
-| **E — Agency RFC** | **COMPLETE** (design only) | `docs/rfc-agency-workspaces.md` | Yes — approve build order P2-E1→E5 before any agency UI |
+| **E — Agency RFC** | **COMPLETE** (design only) | `docs/rfc-agency-workspaces.md` | Superseded for build by agency production wave |
+| **Agency / studio production** | **IN PROGRESS / NO-GO** | `docs/agency-production-master-plan.md` + `docs/agency-production-results.md` | Yes — not production-ready until live Gmail/Outlook, restore drill, alerts |
 
 ---
 
@@ -46,7 +47,8 @@
 - See `docs/audit-phase-d-seo.md`. Landings + aliases complete; **human `/vs/*` claim review before publish**.
 
 ### Phase E — Agency
-- `docs/rfc-agency-workspaces.md` design only — no implementation this wave.
+- `docs/rfc-agency-workspaces.md` design only (historical).
+- **Build wave:** `docs/agency-production-master-plan.md` + `docs/agency-production-results.md` (P0–P2 code; **NO-GO** for 10/10 until live mail + restore + alerts).
 
 ---
 

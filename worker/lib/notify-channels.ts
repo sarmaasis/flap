@@ -15,6 +15,7 @@ export function registerNotifyChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const rows = await c.env.DB.prepare(
       "SELECT id, kind, domain_id, mailbox_id, muted, created_at, substr(webhook_url,1,48) AS webhook_preview FROM notify_channels WHERE user_id = ?",
     )
@@ -27,6 +28,7 @@ export function registerNotifyChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can add notify channels." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "solo")) return c.json({ error: "Notify channels require Solo or higher." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as {
@@ -59,6 +61,7 @@ export function registerNotifyChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can delete notify channels." }, 403);
     await c.env.DB.prepare("DELETE FROM notify_channels WHERE id = ? AND user_id = ?")
       .bind(c.req.param("id"), ctx.workspaceId)
       .run();

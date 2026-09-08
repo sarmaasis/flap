@@ -303,6 +303,16 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
   const [teamInfo, setTeamInfo] = useState<Pick<TeamResponse, "teams_unlocked" | "plan_id" | "limits" | "workspace" | "shared_mailboxes"> | null>(null);
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteMailboxes, setInviteMailboxes] = useState<string[]>([]);
+  const [inviteDomains, setInviteDomains] = useState<string[]>([]);
+  const [grantUserId, setGrantUserId] = useState("");
+  const [grantMailboxIds, setGrantMailboxIds] = useState<string[]>([]);
+  const [grantDomainIds, setGrantDomainIds] = useState<string[]>([]);
+  const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
+  const [usage, setUsage] = useState<{
+    member_count: number;
+    domains: Array<{ id: string; name: string; mailboxes: number; aliases: number; storage_bytes: number }>;
+  } | null>(null);
+  const [auditEntries, setAuditEntries] = useState<Array<{ id: string; action: string; target: string; created_at: number }>>([]);
   const [prefs, setPrefs] = useState<Prefs>({ vacation_enabled: 0, vacation_body: "", notify_browser: 0, undo_send_seconds: 10 });
   const [labels, setLabels] = useState<Label[]>([]);
   const [labelName, setLabelName] = useState("");
@@ -491,6 +501,23 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             workspace: team.workspace,
             shared_mailboxes: team.shared_mailboxes ?? [],
           });
+          if (team.workspace?.can_manage_team) {
+            const [clientRes, usageRes, auditRes] = await Promise.all([
+              api.clients().catch(() => ({ clients: [] })),
+              api.agencyUsage().catch(() => null),
+              api.auditLog().catch(() => ({ entries: [] })),
+            ]);
+            setClients(clientRes.clients ?? []);
+            setUsage(usageRes);
+            setAuditEntries(
+              (auditRes.entries ?? []).map((e) => ({
+                id: e.id,
+                action: e.action,
+                target: e.target,
+                created_at: e.created_at,
+              })),
+            );
+          }
           break;
         }
         case "referrals": {
@@ -2066,7 +2093,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </section>
             <section>
               <h2 className={settingsH2}>API keys</h2>
-              <p className={cn("text-sm", tw.muted)}>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p>
+              <p className={cn("text-sm", tw.muted)}>Workspace-scoped keys (owners and admins). The token is shown once. Members cannot create keys. Docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p>
               <div className={tw.settingsCard}>
               <form className={tw.rowForm} onSubmit={(e) => {
                 e.preventDefault();
@@ -2735,7 +2762,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               <h2 className={settingsH2}>Team &amp; shared mailboxes</h2>
               <p className={cn("text-sm", tw.muted)}>
                   {teamInfo?.teams_unlocked
-                    ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
+                    ? `First setup: invite an admin, then grant each member a client domain or mailbox. Shared vs granted is not the same — the roster below shows who can open each shared inbox. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
                     : "Upgrade to Pro or Team to invite members and share mailboxes. Free and Solo stay solo-friendly."}
               </p>
               <div className={tw.settingsCard}>
@@ -2762,7 +2789,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   const form = e.currentTarget;
                   const input = form.elements.namedItem("invite") as HTMLInputElement;
                   void api
-                    .inviteTeam(input.value, inviteRole, inviteMailboxes)
+                    .inviteTeam(input.value, inviteRole, inviteMailboxes, inviteDomains)
                     .then((res) => {
                       const link = res.invite.accept_path
                         ? `${window.location.origin}${res.invite.accept_path}`
@@ -2784,7 +2811,9 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </div>
                 {mailboxes.length ? (
                   <div className="flex flex-col gap-2.5 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] p-3">
-                    <p className={tw.muted} style={{ fontSize: 13, marginBottom: 8 }}>Grant mailbox access (optional — defaults to shared inboxes):</p>
+                    <p className={tw.muted} style={{ fontSize: 13, marginBottom: 8 }}>
+                      This person will see the mailboxes you check. Leave empty to default to shared inboxes only.
+                    </p>
                     {mailboxes.map((mb) => (
                       <Checkbox
                         key={mb.id}
@@ -2795,9 +2824,27 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                             e.target.checked ? [...prev, mb.id] : prev.filter((id) => id !== mb.id),
                           );
                         }}
-                        label={`${mb.address}${mb.is_shared ? " · shared" : ""}`}
+                        label={`${mb.address}${mb.is_shared ? " · shared" : " · private"}`}
                       />
                     ))}
+                    {domains.length ? (
+                      <>
+                        <p className={tw.muted} style={{ fontSize: 13, marginTop: 8 }}>Or grant a whole client domain (current and future mailboxes):</p>
+                        {domains.map((d) => (
+                          <Checkbox
+                            key={d.id}
+                            checked={inviteDomains.includes(d.id)}
+                            disabled={!teamInfo?.teams_unlocked}
+                            onChange={(e) => {
+                              setInviteDomains((prev) =>
+                                e.target.checked ? [...prev, d.id] : prev.filter((id) => id !== d.id),
+                              );
+                            }}
+                            label={d.name}
+                          />
+                        ))}
+                      </>
+                    ) : null}
                   </div>
                 ) : null}
               </form>
@@ -2814,19 +2861,42 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     <tr key={m.user_id}>
                       <td>{m.email}{m.name ? ` (${m.name})` : ""}</td>
                       <td>{m.role}</td>
-                      <td>
+                      <td className="flex flex-wrap gap-2">
                         {teamInfo?.workspace?.can_manage_team && m.role !== "owner" ? (
-                          <Button size="sm"
-                            variant="ghost"
-                            type="button"
-                            onClick={() => {
-                              void api.removeMember(m.user_id).then(refresh).catch((ex) =>
-                                setErr(ex instanceof Error ? ex.message : "Could not remove member."),
-                              );
-                            }}
-                          >
-                            Remove
-                          </Button>
+                          <>
+                            {teamInfo.workspace.role === "owner" ? (
+                              <Button size="sm" variant="ghost" type="button" onClick={() => {
+                                void api.changeMemberRole(m.user_id, m.role === "admin" ? "member" : "admin").then(refresh).catch((ex) =>
+                                  setErr(ex instanceof Error ? ex.message : "Could not change role."),
+                                );
+                              }}>
+                                {m.role === "admin" ? "Make member" : "Make admin"}
+                              </Button>
+                            ) : null}
+                            <Button size="sm" variant="ghost" type="button" onClick={() => {
+                              setGrantUserId(m.user_id);
+                              void api.memberGrants(m.user_id).then((g) => {
+                                setGrantMailboxIds(g.mailbox_ids);
+                                setGrantDomainIds(g.domain_ids);
+                              }).catch(() => {
+                                setGrantMailboxIds([]);
+                                setGrantDomainIds([]);
+                              });
+                            }}>
+                              Grants
+                            </Button>
+                            <Button size="sm"
+                              variant="ghost"
+                              type="button"
+                              onClick={() => {
+                                void api.removeMember(m.user_id).then(refresh).catch((ex) =>
+                                  setErr(ex instanceof Error ? ex.message : "Could not remove member."),
+                                );
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          </>
                         ) : null}
                       </td>
                     </tr>
@@ -2889,12 +2959,19 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </p>
             {mailboxes.length ? (
               <div className="overflow-x-auto"><table className={settingsTable}>
-                <thead><tr><th>Address</th><th>Shared</th><th></th></tr></thead>
+                <thead><tr><th>Address</th><th>Shared</th><th>Granted members</th><th></th></tr></thead>
                 <tbody>
                   {mailboxes.map((mb) => (
                     <tr key={mb.id}>
                       <td>{mb.address}</td>
                       <td>{mb.is_shared ? "Yes" : "No"}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {(teamInfo?.shared_mailboxes?.find((s) => s.id === mb.id)?.member_ids || "")
+                          .split(",")
+                          .filter(Boolean)
+                          .map((id) => members.find((m) => m.user_id === id)?.email || id)
+                          .join(", ") || "Owner/admins only until you grant"}
+                      </td>
                       <td>
                         {teamInfo?.workspace?.can_manage_team ? (
                           <Button size="sm"
@@ -2902,8 +2979,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                             type="button"
                             disabled={!teamInfo.teams_unlocked && !mb.is_shared}
                             onClick={() => {
+                              const nextShared = !mb.is_shared;
+                              const revoke = !nextShared && window.confirm("Unshare this mailbox and revoke existing member grants?");
                               void api
-                                .shareMailbox(mb.id, !mb.is_shared)
+                                .shareMailbox(mb.id, nextShared, revoke)
                                 .then(refresh)
                                 .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update."));
                             }}
@@ -2919,6 +2998,137 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             ) : (
               <p className={tw.emptyState}>Create a mailbox under Domains first.</p>
             )}
+
+            {teamInfo?.workspace?.can_manage_team && grantUserId ? (
+              <div className="mt-6 flex flex-col gap-2.5 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] p-3">
+                <h3 style={{ margin: 0 }}>Access for {members.find((m) => m.user_id === grantUserId)?.email || grantUserId}</h3>
+                <p className={tw.muted} style={{ fontSize: 13 }}>
+                  Domain grants include every mailbox on that domain. Mailbox grants are one address only.
+                </p>
+                {domains.map((d) => (
+                  <Checkbox
+                    key={d.id}
+                    checked={grantDomainIds.includes(d.id)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      void (checked ? api.grantDomainMember(d.id, grantUserId) : api.revokeDomainMember(d.id, grantUserId))
+                        .then(() => setGrantDomainIds((prev) => checked ? [...prev, d.id] : prev.filter((id) => id !== d.id)))
+                        .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update domain grant."));
+                    }}
+                    label={`Domain ${d.name}`}
+                  />
+                ))}
+                {mailboxes.map((mb) => (
+                  <Checkbox
+                    key={mb.id}
+                    checked={grantMailboxIds.includes(mb.id)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      void (checked ? api.grantMailboxMember(mb.id, grantUserId) : api.revokeMailboxMember(mb.id, grantUserId))
+                        .then(() => setGrantMailboxIds((prev) => checked ? [...prev, mb.id] : prev.filter((id) => id !== mb.id)))
+                        .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mailbox grant."));
+                    }}
+                    label={mb.address}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {teamInfo?.workspace?.can_manage_team ? (
+              <>
+                <h3 style={{ marginTop: 28, marginBottom: 12 }}>Client groups</h3>
+                <p className={tw.muted} style={{ fontSize: 13, marginBottom: 12 }}>
+                  Optional labels for navigation. Groups are not a security boundary — grants still are.
+                </p>
+                <form
+                  className={tw.rowForm}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const input = (e.currentTarget.elements.namedItem("client") as HTMLInputElement);
+                    void api.createClient(input.value).then(() => { input.value = ""; return refresh(); }).catch((ex) =>
+                      setErr(ex instanceof Error ? ex.message : "Could not create client."),
+                    );
+                  }}
+                >
+                  <input className={tw.nativeControl} name="client" placeholder="Client A" />
+                  <Button size="sm" type="submit">Add</Button>
+                </form>
+                {clients.length ? (
+                  <ul className="mt-3 flex flex-col gap-2">
+                    {clients.map((cl) => (
+                      <li key={cl.id} className="flex items-center justify-between gap-3 text-sm">
+                        <span>{cl.name}</span>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => {
+                          void api.deleteClient(cl.id).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not delete."));
+                        }}>Remove</Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {domains.length && clients.length ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {domains.map((d) => (
+                      <label key={d.id} className="flex items-center gap-2 text-sm">
+                        <span className="min-w-32">{d.name}</span>
+                        <select
+                          className={tw.nativeControl}
+                          value={d.client_id || ""}
+                          onChange={(e) => {
+                            void api.setDomainClient(d.id, e.target.value || null).then(refresh).catch((ex) =>
+                              setErr(ex instanceof Error ? ex.message : "Could not assign client."),
+                            );
+                          }}
+                        >
+                          <option value="">No client</option>
+                          {clients.map((cl) => (
+                            <option key={cl.id} value={cl.id}>{cl.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+
+                {usage ? (
+                  <>
+                    <h3 style={{ marginTop: 28, marginBottom: 12 }}>Usage</h3>
+                    <p className={tw.muted} style={{ fontSize: 13 }}>{usage.member_count} members · storage and mailbox counts by domain (no deliverability scores).</p>
+                    <div className="overflow-x-auto"><table className={settingsTable}>
+                      <thead><tr><th>Domain</th><th>Mailboxes</th><th>Aliases</th><th>Storage</th></tr></thead>
+                      <tbody>
+                        {usage.domains.map((row) => (
+                          <tr key={row.id}>
+                            <td>{row.name}</td>
+                            <td>{row.mailboxes}</td>
+                            <td>{row.aliases}</td>
+                            <td>{Math.round(Number(row.storage_bytes || 0) / 1024)} KB</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table></div>
+                  </>
+                ) : null}
+
+                <h3 style={{ marginTop: 28, marginBottom: 12 }}>Audit log</h3>
+                <p className={tw.muted} style={{ fontSize: 13, marginBottom: 12 }}>Team and permission changes. Message bodies are never stored.</p>
+                {auditEntries.length ? (
+                  <div className="overflow-x-auto"><table className={settingsTable}>
+                    <thead><tr><th>When</th><th>Action</th><th>Target</th></tr></thead>
+                    <tbody>
+                      {auditEntries.slice(0, 40).map((e) => (
+                        <tr key={e.id}>
+                          <td>{new Date(e.created_at).toLocaleString()}</td>
+                          <td>{e.action}</td>
+                          <td>{e.target}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table></div>
+                ) : (
+                  <p className={tw.emptyState}>No audit events yet.</p>
+                )}
+              </>
+            ) : null}
               </div>
             </section>
           </div>

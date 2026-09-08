@@ -278,25 +278,33 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can view delivery events." }, 403);
     const kind = (c.req.query("kind") || "").trim();
     const since = Date.now() - 30 * 86400_000;
+    const domainFilter =
+      ctx.domainIds === null
+        ? { sql: "", binds: [] as unknown[] }
+        : ctx.domainIds.length === 0
+          ? { sql: " AND 1 = 0", binds: [] as unknown[] }
+          : {
+              sql: ` AND domain_id IN (${ctx.domainIds.map(() => "?").join(", ")})`,
+              binds: [...ctx.domainIds],
+            };
     const rows = kind
       ? await c.env.DB.prepare(
-          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at
+          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at, domain_id
            FROM delivery_event_log
-           WHERE user_id = ? AND created_at >= ? AND kind = ?
+           WHERE user_id = ? AND created_at >= ? AND kind = ?${domainFilter.sql}
            ORDER BY created_at DESC LIMIT 500`,
         )
-          .bind(ctx.workspaceId, since, kind)
+          .bind(ctx.workspaceId, since, kind, ...domainFilter.binds)
           .all()
       : await c.env.DB.prepare(
-          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at
+          `SELECT id, recipient_email, kind, provider, provider_message_id, created_at, domain_id
            FROM delivery_event_log
-           WHERE user_id = ? AND created_at >= ?
+           WHERE user_id = ? AND created_at >= ?${domainFilter.sql}
            ORDER BY created_at DESC LIMIT 500`,
         )
-          .bind(ctx.workspaceId, since)
+          .bind(ctx.workspaceId, since, ...domainFilter.binds)
           .all();
     return c.json({ events: rows.results ?? [], retention_days: 30 });
   });

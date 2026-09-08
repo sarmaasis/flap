@@ -9,6 +9,7 @@
   "exclude": [
     "shared/**/*.test.ts",
     "shared/d1-memory.ts",
-    "shared/http-tenant-isolation-harness.ts"
+    "shared/http-tenant-isolation-harness.ts",
+    "shared/agency-test-fixture.ts"
   ]
 }

@@ -5,8 +5,10 @@
  * Auth: `X-Flap-Test-User-Id` header selects the acting user (test-only; never used in production Worker).
  */
 import { Hono } from "hono";
-import { mailboxAccessSql } from "./security-guards.ts";
+import { memberCanAccessMailbox } from "./agency-authz.ts";
 import { MemoryD1Database, type HarnessD1 } from "./d1-memory.ts";
+import { mailboxAccessClause, resolveWorkspace as resolveProdWorkspace } from "../worker/lib/team.ts";
+import { buildJsonExport, restoreWorkspaceBackup } from "../worker/lib/workspace-backup.ts";
 
 export type TenantSeed = {
   userId: string;
@@ -36,15 +38,10 @@ type TestAttachments = {
 
 type AppEnv = { Bindings: { DB: HarnessD1; ATTACHMENTS?: TestAttachments } };
 
-type WorkspaceCtx = {
-  userId: string;
-  workspaceId: string;
-  canManageSettings: boolean;
-  mailboxIds: string[] | null;
-};
+type WorkspaceCtx = Awaited<ReturnType<typeof resolveProdWorkspace>>;
 
 function accessClause(ctx: WorkspaceCtx, column = "mailbox_id") {
-  return mailboxAccessSql({ mailboxIds: ctx.mailboxIds }, column);
+  return mailboxAccessClause(ctx, column);
 }
 
 async function resolveTestUser(c: {
@@ -62,28 +59,8 @@ async function resolveTestUser(c: {
   return row;
 }
 
-async function resolveWorkspace(db: HarnessD1, userId: string): Promise<WorkspaceCtx> {
-  // Solo owners: workspace_id === user_id (Flap ownership model).
-  const member = await db
-    .prepare("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-    .bind(userId, userId)
-    .first<{ role: string }>();
-  const role = (member?.role || "owner").toLowerCase();
-  const isOwner = role === "owner";
-  let mailboxIds: string[] | null = null;
-  if (!isOwner && role !== "admin") {
-    const granted = await db
-      .prepare("SELECT mailbox_id FROM mailbox_members WHERE user_id = ?")
-      .bind(userId)
-      .all<{ mailbox_id: string }>();
-    mailboxIds = (granted.results ?? []).map((r: { mailbox_id: string }) => r.mailbox_id);
-  }
-  return {
-    userId,
-    workspaceId: userId,
-    canManageSettings: isOwner || role === "admin",
-    mailboxIds,
-  };
+async function resolveWorkspace(db: HarnessD1, userId: string, preferred?: string | null): Promise<WorkspaceCtx> {
+  return resolveProdWorkspace(db as unknown as D1Database, userId, preferred);
 }
 
 export function createIdorTestApp() {
@@ -92,7 +69,7 @@ export function createIdorTestApp() {
   app.get("/api/mail/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const msg = await c.env.DB.prepare(
       `SELECT id, user_id, mailbox_id, subject, text_body FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -106,7 +83,7 @@ export function createIdorTestApp() {
   app.get("/api/mail/:id/thread", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const root = await c.env.DB.prepare(
       `SELECT thread_id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -126,7 +103,7 @@ export function createIdorTestApp() {
   app.get("/api/mail/:id/attachments/:attId", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx, "m.mailbox_id");
     const att = await c.env.DB.prepare(
       `SELECT a.id, a.r2_key, a.filename, a.content_type
@@ -147,7 +124,7 @@ export function createIdorTestApp() {
   app.delete("/api/mail/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const existing = await c.env.DB.prepare(
       `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -164,7 +141,7 @@ export function createIdorTestApp() {
   app.post("/api/mail/:id/move", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const existing = await c.env.DB.prepare(
       `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -181,7 +158,7 @@ export function createIdorTestApp() {
   app.post("/api/mail/:id/undo-send", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const row = await c.env.DB.prepare(
       `SELECT id, folder FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -200,7 +177,7 @@ export function createIdorTestApp() {
   app.post("/api/mail/:id/open-track", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const msg = await c.env.DB.prepare(
       `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
@@ -214,9 +191,13 @@ export function createIdorTestApp() {
   app.get("/api/mailboxes/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    const mailboxId = c.req.param("id");
+    if (!memberCanAccessMailbox(ctx.mailboxIds, mailboxId)) {
+      return c.json({ error: "Mailbox not found." }, 404);
+    }
     const row = await c.env.DB.prepare("SELECT id, address, user_id FROM mailboxes WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), ctx.workspaceId)
+      .bind(mailboxId, ctx.workspaceId)
       .first();
     if (!row) return c.json({ error: "Mailbox not found." }, 404);
     return c.json({ mailbox: row });
@@ -225,7 +206,7 @@ export function createIdorTestApp() {
   app.get("/api/domains/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const row = await c.env.DB.prepare("SELECT id, name, user_id FROM domains WHERE id = ? AND user_id = ?")
       .bind(c.req.param("id"), ctx.workspaceId)
@@ -237,7 +218,7 @@ export function createIdorTestApp() {
   app.get("/api/suppressions", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const rows = await c.env.DB.prepare(
       "SELECT id, email, user_id FROM mail_suppressions WHERE user_id = ? ORDER BY created_at DESC LIMIT 200",
@@ -250,7 +231,7 @@ export function createIdorTestApp() {
   app.delete("/api/suppressions/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const res = await c.env.DB.prepare("DELETE FROM mail_suppressions WHERE id = ? AND user_id = ?")
       .bind(c.req.param("id"), ctx.workspaceId)
@@ -262,12 +243,20 @@ export function createIdorTestApp() {
   app.get("/api/delivery-events", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
-    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    const domainFilter =
+      ctx.domainIds === null
+        ? { sql: "", binds: [] as unknown[] }
+        : ctx.domainIds.length === 0
+          ? { sql: " AND 1 = 0", binds: [] as unknown[] }
+          : {
+              sql: ` AND domain_id IN (${ctx.domainIds.map(() => "?").join(", ")})`,
+              binds: [...ctx.domainIds],
+            };
     const rows = await c.env.DB.prepare(
-      "SELECT id, recipient_email, kind, user_id FROM delivery_event_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 500",
+      `SELECT id, recipient_email, kind, user_id FROM delivery_event_log WHERE user_id = ?${domainFilter.sql} ORDER BY created_at DESC LIMIT 500`,
     )
-      .bind(ctx.workspaceId)
+      .bind(ctx.workspaceId, ...domainFilter.binds)
       .all();
     return c.json({ events: rows.results ?? [] });
   });
@@ -275,7 +264,7 @@ export function createIdorTestApp() {
   app.get("/api/quarantine", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const access = accessClause(ctx);
     const rows = await c.env.DB.prepare(
       `SELECT id, subject FROM messages WHERE user_id = ? AND virus_status = 'quarantine'${access.sql}`,
@@ -288,10 +277,11 @@ export function createIdorTestApp() {
   app.get("/api/contacts", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const rows = await c.env.DB.prepare(
       "SELECT id, email, user_id FROM contacts WHERE user_id = ? ORDER BY created_at DESC LIMIT 200",
     )
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .all();
     return c.json({ contacts: rows.results ?? [] });
   });
@@ -299,8 +289,9 @@ export function createIdorTestApp() {
   app.delete("/api/contacts/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const res = await c.env.DB.prepare("DELETE FROM contacts WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Contact not found." }, 404);
     return c.json({ ok: true });
@@ -309,10 +300,12 @@ export function createIdorTestApp() {
   app.get("/api/keys", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const rows = await c.env.DB.prepare(
       "SELECT id, name, key_prefix, user_id FROM api_keys WHERE user_id = ? ORDER BY created_at DESC",
     )
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .all();
     return c.json({ keys: rows.results ?? [] });
   });
@@ -320,8 +313,10 @@ export function createIdorTestApp() {
   app.delete("/api/keys/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const res = await c.env.DB.prepare("DELETE FROM api_keys WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "API key not found." }, 404);
     return c.json({ ok: true });
@@ -330,10 +325,12 @@ export function createIdorTestApp() {
   app.get("/api/webhooks", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const rows = await c.env.DB.prepare(
       "SELECT id, name, url, user_id FROM webhooks WHERE user_id = ? ORDER BY created_at DESC",
     )
-      .bind(user.id)
+      .bind(ctx.workspaceId)
       .all();
     return c.json({ webhooks: rows.results ?? [] });
   });
@@ -341,8 +338,10 @@ export function createIdorTestApp() {
   app.delete("/api/webhooks/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    if (!ctx.canManageSettings) return c.json({ error: "Forbidden." }, 403);
     const res = await c.env.DB.prepare("DELETE FROM webhooks WHERE id = ? AND user_id = ?")
-      .bind(c.req.param("id"), user.id)
+      .bind(c.req.param("id"), ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Webhook not found." }, 404);
     return c.json({ ok: true });
@@ -351,7 +350,7 @@ export function createIdorTestApp() {
   app.get("/api/newsletters/:id", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const row = await c.env.DB.prepare(
       "SELECT id, name, user_id FROM newsletters WHERE id = ? AND user_id = ?",
     )
@@ -364,7 +363,7 @@ export function createIdorTestApp() {
   app.post("/api/calendar/rsvp", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const body = (await c.req.json().catch(() => ({}))) as { message_id?: string };
     const access = accessClause(ctx);
     const msg = await c.env.DB.prepare(
@@ -379,15 +378,18 @@ export function createIdorTestApp() {
   app.post("/api/presence/:threadKey", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const threadKey = c.req.param("threadKey").slice(0, 200);
     // Workspace-scoped: thread must belong to this workspace (message id or thread_id).
     const owned = await c.env.DB.prepare(
-      `SELECT id FROM messages WHERE user_id = ? AND (id = ? OR thread_id = ?) LIMIT 1`,
+      `SELECT id, mailbox_id FROM messages WHERE user_id = ? AND (id = ? OR thread_id = ?) LIMIT 1`,
     )
       .bind(ctx.workspaceId, threadKey, threadKey)
-      .first();
+      .first<{ id: string; mailbox_id: string | null }>();
     if (!owned) return c.json({ error: "Thread not found." }, 404);
+    if (owned.mailbox_id && !memberCanAccessMailbox(ctx.mailboxIds, owned.mailbox_id)) {
+      return c.json({ error: "Thread not found." }, 404);
+    }
     const now = Date.now();
     await c.env.DB.prepare(
       `INSERT INTO thread_presence (thread_key, workspace_id, user_id, display_name, last_seen_at)
@@ -413,9 +415,12 @@ export function createIdorTestApp() {
   app.post("/api/mail/send-as-check", async (c) => {
     const user = await resolveTestUser(c);
     if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
     const body = (await c.req.json().catch(() => ({}))) as { from?: string; mailbox_id?: string };
     if (body.mailbox_id) {
+      if (!memberCanAccessMailbox(ctx.mailboxIds, body.mailbox_id)) {
+        return c.json({ error: "Mailbox not found." }, 404);
+      }
       const mb = await c.env.DB.prepare("SELECT id FROM mailboxes WHERE id = ? AND user_id = ?")
         .bind(body.mailbox_id, ctx.workspaceId)
         .first();
@@ -431,6 +436,32 @@ export function createIdorTestApp() {
       if (!mb) return c.json({ error: "Cannot send from that address." }, 403);
     }
     return c.json({ ok: true });
+  });
+
+  app.get("/api/export", async (c) => {
+    const user = await resolveTestUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    const payload = await buildJsonExport(
+      c.env.DB as unknown as D1Database,
+      { userId: user.id, workspaceId: ctx.workspaceId, mailboxIds: ctx.mailboxIds },
+      user.email,
+    );
+    return c.json(payload);
+  });
+
+  app.post("/api/restore", async (c) => {
+    const user = await resolveTestUser(c);
+    if (user instanceof Response) return user;
+    const ctx = await resolveWorkspace(c.env.DB, user.id, c.req.header("x-flap-workspace"));
+    const body = (await c.req.json().catch(() => null)) as { contacts?: Array<{ email?: string; name?: string }> } | null;
+    if (!body) return c.json({ error: "Upload a valid Flap backup JSON." }, 400);
+    const restored = await restoreWorkspaceBackup(
+      c.env.DB as unknown as D1Database,
+      { userId: user.id, workspaceId: ctx.workspaceId, mailboxIds: ctx.mailboxIds },
+      body,
+    );
+    return c.json({ ok: true, restored });
   });
 
   return app;
@@ -449,7 +480,16 @@ export function applyIdorSchema(db: MemoryD1Database): void {
       user_id TEXT NOT NULL,
       role TEXT NOT NULL,
       created_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
       PRIMARY KEY (workspace_id, user_id)
+    );
+    CREATE TABLE workspace_member_domains (
+      workspace_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      domain_id TEXT NOT NULL,
+      permission_level TEXT NOT NULL DEFAULT 'send',
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (workspace_id, user_id, domain_id)
     );
     CREATE TABLE mailbox_members (
       user_id TEXT NOT NULL,
@@ -469,6 +509,7 @@ export function applyIdorSchema(db: MemoryD1Database): void {
       domain_id TEXT NOT NULL,
       local_part TEXT NOT NULL,
       address TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL
     );
     CREATE TABLE messages (
@@ -486,7 +527,15 @@ export function applyIdorSchema(db: MemoryD1Database): void {
       created_at INTEGER NOT NULL,
       virus_status TEXT NOT NULL DEFAULT '',
       open_track INTEGER NOT NULL DEFAULT 0,
-      scheduled_at INTEGER
+      scheduled_at INTEGER,
+      has_attachments INTEGER NOT NULL DEFAULT 0,
+      unread INTEGER NOT NULL DEFAULT 0,
+      starred INTEGER NOT NULL DEFAULT 0,
+      snippet TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      rfc_message_id TEXT NOT NULL DEFAULT '',
+      cc_addr TEXT NOT NULL DEFAULT '',
+      bcc_addr TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE attachments (
       id TEXT PRIMARY KEY,
@@ -525,6 +574,7 @@ export function applyIdorSchema(db: MemoryD1Database): void {
       last_used_at INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
+    CREATE UNIQUE INDEX idx_contacts_user_email ON contacts (user_id, email);
     CREATE TABLE api_keys (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -542,6 +592,47 @@ export function applyIdorSchema(db: MemoryD1Database): void {
       events TEXT NOT NULL DEFAULT '',
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
+    );
+    CREATE TABLE templates (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL DEFAULT '',
+      html_body TEXT NOT NULL DEFAULT '',
+      text_body TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE signatures (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      html_body TEXT NOT NULL DEFAULT '',
+      text_body TEXT NOT NULL DEFAULT '',
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE filters (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      match_from TEXT NOT NULL DEFAULT '',
+      match_to TEXT NOT NULL DEFAULT '',
+      match_subject TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL,
+      forward_to TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      is_catch_all INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE aliases (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      address TEXT NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      disposable INTEGER NOT NULL DEFAULT 0,
+      expires_at INTEGER
     );
     CREATE TABLE newsletters (
       id TEXT PRIMARY KEY,

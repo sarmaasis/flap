@@ -45,7 +45,7 @@ No cross-tenant message/attachment content leak was observed against the mirrore
 ## Residual gaps
 
 1. Harness mirrors production SQL; it does not boot the full Worker with Clerk/ASSETS/Durable Objects. Drift risk if a route stops using `messageAuthzWhere` / workspace binds — keep contracts + harness in sync.
-2. Contacts / API keys / webhooks are scoped to session `user.id` (solo-owner safe; team member acting in another workspace is a known model quirk — see agency RFC).
+2. Contacts / API keys / webhooks are workspace-scoped as of the agency wave (`ctx.workspaceId`; keys/webhooks owner/admin only). See `docs/agency-production-results.md`.
 3. Amazon CA pinning beyond SNS host allowlist remains deferred (intentional).
 4. Full live Wrangler `unstable_dev` + real Clerk JWT suite not added (CI cost); local D1 HTTP harness is the ship gate for B-R4.
 

@@ -90,6 +90,14 @@ export class MemoryD1Database implements HarnessD1 {
     return new MemoryD1PreparedStatement(this.#db, sql);
   }
 
+  async batch(statements: Array<{ run: () => Promise<StmtResult> }>): Promise<StmtResult[]> {
+    const out: StmtResult[] = [];
+    for (const stmt of statements) {
+      out.push(await stmt.run());
+    }
+    return out;
+  }
+
   exec(sql: string): void {
     this.#db.exec(sql);
   }

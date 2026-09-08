@@ -6,7 +6,7 @@ import { getCookie } from "hono/cookie";
 import { requireUser } from "./auth";
 import { getEffectivePlan } from "./billing";
 import { nowMs, randomId } from "./ids";
-import { resolveWorkspace } from "./team";
+import { assertMailboxAccess, resolveWorkspace } from "./team";
 import { planAtLeast, type AppEnv } from "./plan-guard";
 
 export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
@@ -20,11 +20,15 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     const threadKey = c.req.param("threadKey").slice(0, 200);
     // Deny presence on threads that are not in this workspace (prevents cross-tenant inference).
     const owned = await c.env.DB.prepare(
-      `SELECT id FROM messages WHERE user_id = ? AND (id = ? OR thread_id = ?) LIMIT 1`,
+      `SELECT id, mailbox_id FROM messages WHERE user_id = ? AND (id = ? OR thread_id = ?) LIMIT 1`,
     )
       .bind(ctx.workspaceId, threadKey, threadKey)
-      .first();
+      .first<{ id: string; mailbox_id: string | null }>();
     if (!owned) return c.json({ error: "Thread not found." }, 404);
+    if (owned.mailbox_id) {
+      const access = await assertMailboxAccess(c.env.DB, ctx, owned.mailbox_id);
+      if (!access.ok) return c.json({ error: "Thread not found." }, 404);
+    }
     const display = (user.email || "Teammate").split("@")[0];
     await c.env.DB.prepare(
       `INSERT INTO thread_presence (thread_key, workspace_id, user_id, display_name, last_seen_at) VALUES (?, ?, ?, ?, ?)
@@ -50,6 +54,7 @@ export function registerCollaborationExtraRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageTeam) return c.json({ error: "Forbidden." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Audit log requires Team.", entries: [] }, 402);
     const rows = await c.env.DB.prepare(

@@ -34,6 +34,7 @@ export type NewsletterBlastDetail = NewsletterBlast & { html_body: string };
 export type Domain = {
   id: string;
   name: string;
+  client_id?: string | null;
   catch_all_mailbox_id?: string | null;
   color?: string | null;
   muted_until?: number | null;
@@ -578,11 +579,47 @@ export const api = {
       { method: "POST", body: JSON.stringify(delivery_id ? { delivery_id } : {}) },
     ),
   team: () => req<TeamResponse>("/api/team"),
-  inviteTeam: (email: string, role?: string, mailbox_ids?: string[]) =>
+  inviteTeam: (email: string, role?: string, mailbox_ids?: string[], domain_ids?: string[]) =>
     req<{ invite: TeamInvite; deferred: boolean }>("/api/team/invites", {
       method: "POST",
-      body: JSON.stringify({ email, role, mailbox_ids }),
+      body: JSON.stringify({ email, role, mailbox_ids, domain_ids }),
     }),
+  changeMemberRole: (userId: string, role: string) =>
+    req<{ ok: boolean }>(`/api/team/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  memberGrants: (userId: string) =>
+    req<{ mailbox_ids: string[]; domain_ids: string[] }>(`/api/team/members/${userId}/grants`),
+  grantDomainMember: (domainId: string, user_id: string) =>
+    req<{ ok: boolean }>(`/api/team/domains/${domainId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ user_id }),
+    }),
+  revokeDomainMember: (domainId: string, userId: string) =>
+    req<{ ok: boolean }>(`/api/team/domains/${domainId}/members/${userId}`, { method: "DELETE" }),
+  clients: () => req<{ clients: Array<{ id: string; name: string; created_at: number }> }>("/api/clients"),
+  createClient: (name: string) =>
+    req<{ client: { id: string; name: string } }>("/api/clients", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  deleteClient: (id: string) => req<{ ok: boolean }>(`/api/clients/${id}`, { method: "DELETE" }),
+  setDomainClient: (domainId: string, client_id: string | null) =>
+    req<{ ok: boolean }>(`/api/domains/${domainId}/client`, {
+      method: "POST",
+      body: JSON.stringify({ client_id }),
+    }),
+  agencyUsage: () =>
+    req<{
+      workspace_id: string;
+      member_count: number;
+      domains: Array<{ id: string; name: string; mailboxes: number; aliases: number; storage_bytes: number }>;
+    }>("/api/agency/usage"),
+  auditLog: () =>
+    req<{ entries: Array<{ id: string; actor_user_id: string; action: string; target: string; created_at: number }>; retention_days: number }>(
+      "/api/audit-log",
+    ),
   revokeInvite: (id: string) => req<{ ok: boolean }>(`/api/team/invites/${id}`, { method: "DELETE" }),
   removeMember: (userId: string) => req<{ ok: boolean }>(`/api/team/members/${userId}`, { method: "DELETE" }),
   acceptInvite: (token: string) =>
@@ -591,10 +628,10 @@ export const api = {
     req<{ invite: { email: string; role: string; status: string; inviter_email?: string; expires_at?: number } }>(
       `/api/team/invites/${token}`,
     ),
-  shareMailbox: (id: string, is_shared = true) =>
+  shareMailbox: (id: string, is_shared = true, revoke_members = false) =>
     req<{ ok: boolean }>(`/api/team/mailboxes/${id}/share`, {
       method: "POST",
-      body: JSON.stringify({ is_shared }),
+      body: JSON.stringify({ is_shared, revoke_members }),
     }),
   grantMailboxMember: (mailboxId: string, user_id: string, role?: string) =>
     req<{ ok: boolean }>(`/api/team/mailboxes/${mailboxId}/members`, {
@@ -797,7 +834,6 @@ export const api = {
     req<{ viewers: Array<{ user_id: string; display_name: string }> }>(`/api/presence/${encodeURIComponent(threadKey)}`, { method: "POST", body: "{}" }),
   assignMail: (id: string, assignee_user_id: string | null) =>
     req<{ ok: boolean }>(`/api/mail/${id}/assign`, { method: "POST", body: JSON.stringify({ assignee_user_id }) }),
-  auditLog: () => req<{ entries: unknown[] }>("/api/audit-log"),
   migrateCfRouting: (body: Record<string, unknown>) =>
     req<Record<string, unknown>>("/api/migrate/cf-routing", { method: "POST", body: JSON.stringify(body) }),
   wizardNewProject: (body: Record<string, unknown>) =>
