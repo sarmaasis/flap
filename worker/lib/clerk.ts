@@ -59,6 +59,10 @@ export function clerkAuthorizedParties(env: Env, request?: Request): string[] {
  * Flap APIs authenticate via Bearer JWT (or `?__clerk_token=` for WebSockets).
  * Strip Cookie so Clerk's development handshake (`dev-browser-missing`) cannot
  * override a valid Authorization token when the SPA also sends Clerk cookies.
+ *
+ * Important: do not forward the original body. `new Request(request, { headers })`
+ * can lock/consume the body stream in Workers, so later `c.req.json()` returns {}
+ * and every POST (mail send, calendar, etc.) fails validation with empty fields.
  */
 export function requestWithClerkToken(request: Request): Request {
   const headers = new Headers(request.headers);
@@ -70,7 +74,10 @@ export function requestWithClerkToken(request: Request): Request {
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  return new Request(request, { headers });
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+  });
 }
 
 export function clerkConfigured(env: Env): boolean {

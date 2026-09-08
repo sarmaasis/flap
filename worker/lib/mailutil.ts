@@ -1,4 +1,5 @@
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_FIND_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 export const HEADER_VALUE_RE = /^[^\r\n]*$/;
 
 export function extractEmail(value: string): string {
@@ -13,19 +14,34 @@ export function extractName(value: string): string {
   return "";
 }
 
-export function parseRecipients(value: string): string[] {
-  const recipients = value.split(/[,;]/).map((recipient) => recipient.trim()).filter(Boolean);
-  const emails = recipients.map(extractEmail).filter((recipient) => EMAIL_RE.test(recipient));
-  // If the field had content but nothing valid, signal failure with [].
-  // Callers that need “strict all-or-nothing” should compare against the raw token count.
-  return [...new Set(emails)];
+/** Strip trailing commas / semicolons left by autocomplete (e.g. "a@b.com, "). */
+export function normalizeRecipientField(value: string): string {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[,;\s]+$/g, "")
+    .trim();
 }
 
-/** True when every non-empty token in the field is a valid email (or the field is empty). */
+export function parseRecipients(value: string): string[] {
+  const normalized = normalizeRecipientField(value);
+  if (!normalized) return [];
+  // Extract emails with a finder so trailing commas, display names, and light junk don't wipe the list.
+  const found = normalized.match(EMAIL_FIND_RE) || [];
+  return [...new Set(found.map((email) => email.toLowerCase()).filter((email) => EMAIL_RE.test(email)))];
+}
+
+/** Empty fields are fine; non-empty fields must yield at least one valid address and no leftover address-like junk. */
 export function recipientsFieldValid(value: string): boolean {
-  const tokens = value.split(/[,;]/).map((recipient) => recipient.trim()).filter(Boolean);
-  if (!tokens.length) return true;
-  return tokens.every((token) => EMAIL_RE.test(extractEmail(token)));
+  const normalized = normalizeRecipientField(value);
+  if (!normalized) return true;
+  const parsed = parseRecipients(normalized);
+  if (!parsed.length) return false;
+  // Reject tokens that look like attempts at an email but failed to parse (e.g. "foo@", "bar.com").
+  const tokens = normalized.split(/[,;，；]+/).map((token) => token.trim()).filter(Boolean);
+  return tokens.every((token) => {
+    if (!/[.@]/.test(token)) return true; // display-name fragment without @/. is ok beside angled addresses
+    return EMAIL_RE.test(extractEmail(token));
+  });
 }
 
 export function makeSnippet(text: string, html: string): string {

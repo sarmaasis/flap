@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { api, type Contact, type Domain, type Mailbox, type Signature, type Template } from "../lib/api";
 import { htmlToText } from "../lib/format";
+import { normalizeRecipientField, parseRecipientEmails } from "../lib/recipients";
 import type { EditorHandle } from "../components/RichTextEditor";
 import { Button } from "../components/ui/button";
 
@@ -113,11 +114,14 @@ export default function Compose({
   const payload = useCallback((draftFlag: boolean, scheduled_at?: number | null) => {
     const html = editorRef.current?.getHtml() ?? "";
     const text = htmlToText(html);
+    const toNorm = normalizeRecipientField(to);
+    const ccNorm = normalizeRecipientField(cc);
+    const bccNorm = normalizeRecipientField(bcc);
     return {
       id: draftId,
-      to,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
+      to: toNorm,
+      cc: ccNorm || undefined,
+      bcc: bccNorm || undefined,
       subject,
       text,
       html: text ? html : undefined,
@@ -135,21 +139,21 @@ export default function Compose({
       setErr("Finish sending setup for your domain before sending.");
       return;
     }
-    const toList = to
-      .split(/[,;]/)
-      .map((part) => part.trim())
-      .filter(Boolean);
+    // Autocomplete leaves a trailing ", " — normalize before validating / sending.
+    const toNorm = normalizeRecipientField(to);
+    const ccNorm = normalizeRecipientField(cc);
+    const bccNorm = normalizeRecipientField(bcc);
+    if (toNorm !== to) setTo(toNorm);
+    if (ccNorm !== cc) setCc(ccNorm);
+    if (bccNorm !== bcc) setBcc(bccNorm);
+
+    const toList = parseRecipientEmails(toNorm);
     if (kind !== "draft") {
       if (!toList.length) {
         setErr("Add at least one recipient.");
         return;
       }
       if (toList.length > 20) {
-        setErr("Enter between 1 and 20 valid recipient addresses, separated by commas.");
-        return;
-      }
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (toList.some((addr) => !emailOk.test(addr.replace(/^.*<([^>]+)>.*$/, "$1").trim()))) {
         setErr("Enter between 1 and 20 valid recipient addresses, separated by commas.");
         return;
       }
@@ -165,7 +169,12 @@ export default function Compose({
         setErr("Choose a future send time.");
         return;
       }
-      const result = await api.send(payload(kind === "draft", scheduled_at));
+      const result = await api.send({
+        ...payload(kind === "draft", scheduled_at),
+        to: toNorm,
+        cc: ccNorm || undefined,
+        bcc: bccNorm || undefined,
+      });
       setDraftId(result.id);
       dirtyRef.current = false;
       const sentKind = kind === "schedule" ? "scheduled" : kind === "draft" ? "draft" : "sent";
@@ -223,9 +232,10 @@ export default function Compose({
   function applyContact(contact: Contact) {
     const setter = suggest === "cc" ? setCc : suggest === "bcc" ? setBcc : setTo;
     const current = suggest === "cc" ? cc : suggest === "bcc" ? bcc : to;
-    const parts = current.split(/[,;]/).map((part) => part.trim()).filter(Boolean);
+    const parts = current.split(/[,;，；]/).map((part) => part.trim()).filter(Boolean);
     parts[parts.length - 1] = contact.email;
-    setter(parts.join(", ") + ", ");
+    // Keep a trailing separator only so the next address is easy to type — strip on send.
+    setter(`${parts.join(", ")}, `);
     setSuggest(null);
     markDirty();
   }
@@ -480,7 +490,17 @@ function RecipientField({
   return (
     <div className="compose-field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} type="text" inputMode="email" autoComplete="off" placeholder="name@example.com" value={value} onChange={(e) => onChange(e.target.value)} onFocus={onFocus} />
+      <input
+        id={id}
+        type="text"
+        inputMode="email"
+        autoComplete="off"
+        placeholder="name@example.com"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={() => onChange(normalizeRecipientField(value))}
+      />
     </div>
   );
 }

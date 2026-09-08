@@ -4,7 +4,13 @@ import { getSessionUser, requireUser, userCount } from "./lib/auth";
 import { clerkConfigured } from "./lib/clerk";
 import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
-import { HEADER_VALUE_RE, makeSnippet, parseRecipients, recipientsFieldValid } from "./lib/mailutil";
+import {
+  HEADER_VALUE_RE,
+  makeSnippet,
+  normalizeRecipientField,
+  parseRecipients,
+  recipientsFieldValid,
+} from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { processQueuedNewsletterBlasts } from "./lib/studio-channels";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
@@ -944,9 +950,9 @@ app.post("/api/mail/send", async (c) => {
     in_reply_to?: string;
     attachments?: OutboundAttachment[];
   };
-  const to = String(body.to ?? "").trim();
-  const cc = String(body.cc ?? "").trim();
-  const bcc = String(body.bcc ?? "").trim();
+  const to = normalizeRecipientField(String(body.to ?? ""));
+  const cc = normalizeRecipientField(String(body.cc ?? ""));
+  const bcc = normalizeRecipientField(String(body.bcc ?? ""));
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
   const html = body.html ?? "";
