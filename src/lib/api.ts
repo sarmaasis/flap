@@ -363,15 +363,27 @@ export const api = {
     req<{ ok: boolean }>(`/api/mailboxes/${id}`, { method: "PATCH", body: JSON.stringify({ display_name }) }),
   deleteMailbox: (id: string) => req<{ ok: boolean }>(`/api/mailboxes/${id}`, { method: "DELETE" }),
   dns: (domain: string) => req<{ records: DnsRecords }>(`/api/dns?domain=${encodeURIComponent(domain)}`),
-  mail: (folder: string, mailbox?: string, signal?: AbortSignal, domain?: string) =>
-    req<{ folder: string; messages: MailSummary[] }>(
-      `/api/mail?folder=${encodeURIComponent(folder)}${
-        mailbox ? `&mailbox=${encodeURIComponent(mailbox)}`
-          : domain ? `&domain=${encodeURIComponent(domain)}`
-            : ""
-      }`,
-      { signal },
-    ),
+  mail: (
+    folder: string,
+    mailbox?: string,
+    signal?: AbortSignal,
+    domain?: string,
+    page?: { limit?: number; offset?: number },
+  ) => {
+    const qs = new URLSearchParams({ folder });
+    if (mailbox) qs.set("mailbox", mailbox);
+    else if (domain) qs.set("domain", domain);
+    if (page?.limit != null) qs.set("limit", String(page.limit));
+    if (page?.offset != null) qs.set("offset", String(page.offset));
+    return req<{
+      folder: string;
+      messages: MailSummary[];
+      offset: number;
+      limit: number;
+      has_more: boolean;
+      next_offset: number | null;
+    }>(`/api/mail?${qs}`, { signal });
+  },
   message: (id: string, signal?: AbortSignal) => req<{ message: MailFull; attachments: Attachment[] }>(`/api/mail/${id}`, { signal }),
   thread: (id: string, signal?: AbortSignal) =>
     req<{ thread_id: string; messages: MailSummary[] }>(`/api/mail/${id}/thread`, { signal }),
@@ -423,8 +435,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status }),
     }),
-  needsYou: () =>
-    req<{ messages: MailSummary[] }>("/api/mail/needs-you"),
+  needsYou: (signal?: AbortSignal, page?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (page?.limit != null) qs.set("limit", String(page.limit));
+    if (page?.offset != null) qs.set("offset", String(page.offset));
+    const q = qs.toString();
+    return req<{
+      messages: MailSummary[];
+      offset: number;
+      limit: number;
+      has_more: boolean;
+      next_offset: number | null;
+    }>(`/api/mail/needs-you${q ? `?${q}` : ""}`, { signal });
+  },
   deliveryEvents: (kind?: string) =>
     req<{ events: DeliveryEventLogRow[]; retention_days: number }>(
       `/api/delivery-events${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`,
@@ -446,7 +469,19 @@ export const api = {
       suppressions_by_reason: Record<string, number>;
       imap: { status: string; note: string };
     }>("/api/deliverability"),
-  search: (q: string, signal?: AbortSignal) => req<{ q: string; messages: MailSummary[] }>(`/api/search?q=${encodeURIComponent(q)}`, { signal }),
+  search: (q: string, signal?: AbortSignal, page?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams({ q });
+    if (page?.limit != null) qs.set("limit", String(page.limit));
+    if (page?.offset != null) qs.set("offset", String(page.offset));
+    return req<{
+      q: string;
+      messages: MailSummary[];
+      offset: number;
+      limit: number;
+      has_more: boolean;
+      next_offset: number | null;
+    }>(`/api/search?${qs}`, { signal });
+  },
   contacts: () => req<{ contacts: Contact[] }>("/api/contacts"),
   createContact: (email: string, name?: string) =>
     req<{ contact: Contact }>("/api/contacts", { method: "POST", body: JSON.stringify({ email, name }) }),

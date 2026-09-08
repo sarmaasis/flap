@@ -705,11 +705,21 @@ app.get("/api/mail", async (c) => {
     sql += " AND mailbox_id IN (SELECT id FROM mailboxes WHERE domain_id = ? AND user_id = ?)";
     binds.push(domainId, ctx.workspaceId);
   }
-  sql += " ORDER BY date_ms DESC LIMIT 200";
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") || 50) || 50));
+  const offset = Math.max(0, Number(c.req.query("offset") || 0) || 0);
+  sql += " ORDER BY date_ms DESC LIMIT ? OFFSET ?";
+  binds.push(limit + 1, offset);
   const rows = await c.env.DB.prepare(sql).bind(...binds).all();
+  const raw = (rows.results ?? []) as Array<{ rfc_message_id?: string; date_ms?: number }>;
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
   return c.json({
     folder,
-    messages: dedupeByRfcMessageId((rows.results ?? []) as Array<{ rfc_message_id?: string; date_ms?: number }>),
+    messages: dedupeByRfcMessageId(page),
+    offset,
+    limit,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
   });
 });
 
@@ -721,17 +731,64 @@ app.get("/api/search", async (c) => {
   if (q.length < 2) return c.json({ error: "Type at least two characters." }, 400);
   const like = `%${q.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
   const access = mailboxAccessClause(ctx);
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") || 50) || 50));
+  const offset = Math.max(0, Number(c.req.query("offset") || 0) || 0);
   const rows = await c.env.DB.prepare(
     `SELECT ${LIST_COLUMNS}
      FROM messages
      WHERE user_id = ?${access.sql}
        AND (subject LIKE ? ESCAPE '\\' OR from_addr LIKE ? ESCAPE '\\' OR to_addr LIKE ? ESCAPE '\\' OR snippet LIKE ? ESCAPE '\\' OR text_body LIKE ? ESCAPE '\\')
      ORDER BY date_ms DESC
-     LIMIT 100`,
+     LIMIT ? OFFSET ?`,
   )
-    .bind(ctx.workspaceId, ...access.binds, like, like, like, like, like)
+    .bind(ctx.workspaceId, ...access.binds, like, like, like, like, like, limit + 1, offset)
     .all();
-  return c.json({ q, messages: rows.results ?? [] });
+  const raw = rows.results ?? [];
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
+  return c.json({
+    q,
+    messages: page,
+    offset,
+    limit,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
+  });
+});
+
+app.get("/api/mail/needs-you", async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+  const access = mailboxAccessClause(ctx);
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") || 50) || 50));
+  const offset = Math.max(0, Number(c.req.query("offset") || 0) || 0);
+  // Assigned to me (not done) OR marked follow_up — works for solo and team.
+  const rows = await c.env.DB.prepare(
+    `SELECT ${LIST_COLUMNS}
+     FROM messages
+     WHERE user_id = ?${access.sql}
+       AND folder NOT IN ('trash', 'spam', 'drafts')
+       AND IFNULL(workflow_status, '') != 'done'
+       AND (
+         assignee_user_id = ?
+         OR IFNULL(workflow_status, '') = 'follow_up'
+       )
+     ORDER BY date_ms DESC
+     LIMIT ? OFFSET ?`,
+  )
+    .bind(ctx.workspaceId, ...access.binds, user.id, limit + 1, offset)
+    .all();
+  const raw = (rows.results ?? []) as Array<{ rfc_message_id?: string; date_ms?: number }>;
+  const hasMore = raw.length > limit;
+  const page = hasMore ? raw.slice(0, limit) : raw;
+  return c.json({
+    messages: dedupeByRfcMessageId(page),
+    offset,
+    limit,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + limit : null,
+  });
 });
 
 app.get("/api/mail/:id", async (c) => {

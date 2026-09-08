@@ -39,7 +39,10 @@ import {
 
 const Compose = lazy(() => import("./Compose"));
 
+const PAGE_SIZE = 50;
+
 const EMPTY: Record<string, string> = {
+  "needs-you": "Assign mail to yourself or mark Follow up — those messages show up here.",
   inbox: "You're all caught up. New mail for your domain will land here.",
   starred: "Star messages you want to find again.",
   snoozed: "Nothing is waiting to come back. Snooze a message from the reader.",
@@ -83,6 +86,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const nextOffsetRef = useRef(0);
   const [loadingMessage, setLoadingMessage] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [thread, setThread] = useState<MailSummary[]>([]);
@@ -184,28 +190,46 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
     };
   }, [authLoaded, isSignedIn, getToken, refreshBootstrap]);
 
-  const loadList = useCallback(async (signal?: AbortSignal) => {
+  const loadList = useCallback(async (signal?: AbortSignal, opts?: { append?: boolean }) => {
     setErr("");
+    const append = Boolean(opts?.append);
+    const offset = append ? nextOffsetRef.current : 0;
+    const page = { limit: PAGE_SIZE, offset };
     try {
+      if (append) setLoadingMore(true);
       const data =
         qDebounced.length >= 2
-          ? await api.search(qDebounced, signal)
+          ? await api.search(qDebounced, signal, page)
           : folder === "needs-you"
-            ? await api.needsYou()
-            : await api.mail(folder, mailbox || undefined, signal, domainFilter || undefined);
+            ? await api.needsYou(signal, page)
+            : await api.mail(folder, mailbox || undefined, signal, domainFilter || undefined, page);
       if (signal?.aborted) return;
-      setList(data.messages);
+      if (append) {
+        setList((prev) => {
+          const seen = new Set(prev.map((m) => m.id));
+          return [...prev, ...data.messages.filter((m) => !seen.has(m.id))];
+        });
+      } else {
+        setList(data.messages);
+      }
+      setHasMore(Boolean(data.has_more));
+      nextOffsetRef.current = data.next_offset ?? offset + data.messages.length;
     } catch (ex) {
       if (ex instanceof DOMException && ex.name === "AbortError") return;
       setErr(ex instanceof Error ? ex.message : "Could not load mail.");
     } finally {
-      if (!signal?.aborted) setLoadingList(false);
+      if (!signal?.aborted) {
+        setLoadingList(false);
+        setLoadingMore(false);
+      }
     }
   }, [folder, mailbox, domainFilter, qDebounced]);
 
   useEffect(() => {
     const ac = new AbortController();
     setLoadingList(true);
+    setHasMore(false);
+    nextOffsetRef.current = 0;
     void loadList(ac.signal);
     return () => ac.abort();
   }, [loadList]);
@@ -910,24 +934,39 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 ) : null}
               </div>
             ) : (
-              visibleList.map((m) => {
-                const mb = mailboxes.find((item) => item.id === m.mailbox_id);
-                const domain = domains.find((d) => d.id === mb?.domain_id);
-                const via = domain?.name || mb?.address || undefined;
-                return (
-                <MessageRow
-                  key={m.id}
-                  row={m}
-                  folder={folder}
-                  domainColor={domain?.color || undefined}
-                  via={via}
-                  active={selected === m.id || composeDraft?.id === m.id}
-                  onOpen={() => onRowClick(m)}
-                  onStar={() => void toggleStar(m)}
-                  onDelete={() => void discardMail(m.id, m.folder || folder)}
-                />
-                );
-              })
+              <>
+                {visibleList.map((m) => {
+                  const mb = mailboxes.find((item) => item.id === m.mailbox_id);
+                  const domain = domains.find((d) => d.id === mb?.domain_id);
+                  const via = domain?.name || mb?.address || undefined;
+                  return (
+                  <MessageRow
+                    key={m.id}
+                    row={m}
+                    folder={folder}
+                    domainColor={domain?.color || undefined}
+                    via={via}
+                    active={selected === m.id || composeDraft?.id === m.id}
+                    onOpen={() => onRowClick(m)}
+                    onStar={() => void toggleStar(m)}
+                    onDelete={() => void discardMail(m.id, m.folder || folder)}
+                  />
+                  );
+                })}
+                {hasMore ? (
+                  <div style={{ padding: "12px 16px" }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={loadingMore}
+                      onClick={() => void loadList(undefined, { append: true })}
+                    >
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </Button>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </section>

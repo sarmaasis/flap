@@ -273,23 +273,6 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     return c.json({ ok: true, workflow_status: status });
   });
 
-  app.get("/api/mail/needs-you", async (c) => {
-    const user = await requireUser(c);
-    if (user instanceof Response) return user;
-    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    const access = mailboxAccessClause(ctx);
-    const rows = await c.env.DB.prepare(
-      `SELECT id, subject, from_addr, to_addr, date_ms, folder, assignee_user_id, workflow_status,
-              unread, starred, has_attachments, snippet, label, mailbox_id, created_at
-       FROM messages
-       WHERE user_id = ? AND assignee_user_id = ? AND IFNULL(workflow_status, '') != 'done'${access.sql}
-       ORDER BY date_ms DESC LIMIT 200`,
-    )
-      .bind(ctx.workspaceId, user.id, ...access.binds)
-      .all();
-    return c.json({ messages: rows.results ?? [] });
-  });
-
   app.get("/api/delivery-events", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
