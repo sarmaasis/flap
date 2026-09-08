@@ -105,7 +105,22 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   useEffect(() => {
     if (!undoToast) return;
     if (undoToast.seconds <= 0) {
+      const id = undoToast.id;
       setUndoToast(null);
+      void api
+        .flushOutbox()
+        .then((res) => {
+          if (res.failed?.length) {
+            const first = res.failed.find((f) => f.id === id) || res.failed[0];
+            setErr(first?.error || "Send failed. Message returned to Drafts.");
+            setFolder("drafts");
+          } else {
+            setFolder("sent");
+            setToast({ title: "Sent", body: "Your message was delivered to the mail provider." });
+          }
+          return Promise.all([loadList(), refreshCounts({ reloadListOnNew: false })]);
+        })
+        .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not finish send."));
       return;
     }
     const t = window.setTimeout(() => {

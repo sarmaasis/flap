@@ -392,6 +392,11 @@ export const api = {
     ),
   undoSend: (id: string) =>
     req<{ ok: boolean; draft?: boolean; id: string }>(`/api/mail/${id}/undo-send`, { method: "POST", body: "{}" }),
+  flushOutbox: () =>
+    req<{ flushed: number; failed: Array<{ id: string; error: string }> }>("/api/mail/flush-outbox", {
+      method: "POST",
+      body: "{}",
+    }),
   labels: () => req<{ labels: Label[] }>("/api/labels"),
   createLabel: (name: string, color?: string) =>
     req<{ label: Label }>("/api/labels", { method: "POST", body: JSON.stringify({ name, color }) }),

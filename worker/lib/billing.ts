@@ -574,6 +574,7 @@ async function collectUsage(db: D1Database, userId: string) {
     webhooks: Number(webhooks?.n ?? 0),
     storage_bytes,
     send_per_month: sends.count,
+    sends_this_month: sends.count,
     team_seats: Number(seats?.n ?? 0),
   };
 }

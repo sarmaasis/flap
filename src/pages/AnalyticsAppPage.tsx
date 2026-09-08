@@ -281,7 +281,7 @@ export default function AnalyticsAppPage() {
   const planId = (bill?.plan_id || "free") as PlanId;
   const plan = PLANS[planId] || PLANS.free;
   const usage = bill?.usage || {};
-  const sendsUsed = Number(usage.sends_this_month ?? usage.sends ?? 0);
+  const sendsUsed = Number(usage.sends_this_month ?? usage.send_per_month ?? usage.sends ?? 0);
   const domainsUsed = Number(usage.domains ?? domains.length);
   const mailboxesUsed = Number(usage.mailboxes ?? mailboxCount);
   const aliasesUsed = Number(usage.aliases ?? 0);

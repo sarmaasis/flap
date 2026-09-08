@@ -5,6 +5,10 @@
  * SES → S3 → queue → Lambda → POST /api/inbound/ses.
  * System mail (useflap.online): Cloudflare SEB (prefer) / never customer SES config.
  * Legacy: Mailgun webhook + CF Email Routing `email` handler remain for cutover.
+ *
+ * Important: never send customer-domain mail via SEB. SEB only delivers for
+ * Cloudflare Email Routing–verified addresses and will otherwise “succeed”
+ * without the recipient ever getting the message.
  */
 
 import {
@@ -55,7 +59,17 @@ export function mailgunConfigured(env: Env): boolean {
 }
 
 export function canSendMail(env: Env): boolean {
-  return Boolean(env.SEB) || sesConfigured(env) || mailgunConfigured(env);
+  // SEB alone is not enough for customer domains (hello@yourdomain.com).
+  return sesConfigured(env) || mailgunConfigured(env) || Boolean(env.SEB);
+}
+
+/** True when this From domain can be sent with a real transport. */
+export function canSendFromDomain(env: Env, fromAddress: string): boolean {
+  const fromDomain = extractAddr(fromAddress).split("@")[1]?.toLowerCase() || "";
+  const systemDomain =
+    (env.SYSTEM_FROM_EMAIL || "noreply@useflap.online").split("@")[1]?.toLowerCase() || "useflap.online";
+  if (fromDomain === systemDomain) return Boolean(env.SEB) || sesConfigured(env) || mailgunConfigured(env);
+  return sesConfigured(env) || mailgunConfigured(env);
 }
 
 export function mailgunApiBase(env: Env): string {
@@ -391,9 +405,10 @@ export async function sendRawEmail(
   const fromDomain = extractAddr(opts.envelopeFrom).split("@")[1]?.toLowerCase() || "";
   const systemDomain =
     (env.SYSTEM_FROM_EMAIL || "noreply@useflap.online").split("@")[1]?.toLowerCase() || "useflap.online";
+  const isSystemFrom = fromDomain === systemDomain;
   const useSeb =
     Boolean(env.SEB) &&
-    (opts.preferSeb === true || fromDomain === systemDomain);
+    (opts.preferSeb === true || isSystemFrom);
 
   if (useSeb && env.SEB) {
     const { EmailMessage } = await import("cloudflare:email");
@@ -408,7 +423,7 @@ export async function sendRawEmail(
   const provider = (opts.mailProvider || "ses").toLowerCase();
   const preferSes = provider === "ses" || (!opts.mailProvider && sesConfigured(env));
 
-  if (preferSes && sesConfigured(env) && fromDomain !== systemDomain) {
+  if (preferSes && sesConfigured(env) && !isSystemFrom) {
     const sent = await sendRawViaSes(env, {
       from: opts.envelopeFrom,
       to: opts.recipients,
@@ -426,7 +441,7 @@ export async function sendRawEmail(
     return { provider: "mailgun" };
   }
 
-  if (sesConfigured(env) && fromDomain !== systemDomain) {
+  if (sesConfigured(env) && !isSystemFrom) {
     const sent = await sendRawViaSes(env, {
       from: opts.envelopeFrom,
       to: opts.recipients,
@@ -435,7 +450,7 @@ export async function sendRawEmail(
     return { provider: "ses", messageId: sent.messageId };
   }
 
-  if (env.SEB) {
+  if (isSystemFrom && env.SEB) {
     const { EmailMessage } = await import("cloudflare:email");
     await Promise.all(
       opts.recipients.map((recipient) =>
@@ -445,7 +460,13 @@ export async function sendRawEmail(
     return { provider: "seb" };
   }
 
-  throw new Error("No mail transport configured (Amazon SES credentials, Mailgun API key, or SEB binding).");
+  if (!isSystemFrom && !sesConfigured(env) && !mailgunConfigured(env)) {
+    throw new Error(
+      "Customer-domain sending needs Amazon SES credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). Cloudflare Email (SEB) cannot deliver mail from your custom domain.",
+    );
+  }
+
+  throw new Error("No mail transport configured (Amazon SES credentials, Mailgun API key, or SEB binding for system mail).");
 }
 
 /** Verify Mailgun webhook signature (timestamp + token). */

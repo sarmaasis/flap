@@ -51,7 +51,10 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 ## Developers
 
 - [Docs](https://useflap.online/docs): Documentation index
-- [API & webhooks](https://useflap.online/docs/api): POST /api/v1/send with Bearer flap_… keys; inbound mail.received webhooks
+- [Getting started](https://useflap.online/docs/getting-started): Domain → DNS → mailbox → first send
+- [Core concepts](https://useflap.online/docs/concepts): Domains, mailboxes, live vs test keys
+- [Webhooks](https://useflap.online/docs/webhooks): mail.received events and signature verification
+- [API overview](https://useflap.online/docs/api): POST /api/v1/send with Bearer flap_… keys
 
 ## Tools
 

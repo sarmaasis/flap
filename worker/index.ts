@@ -20,6 +20,7 @@ import { registerInboundWebhookRoutes } from "./lib/inbound-webhook";
 import { registerProductFeatureRoutes } from "./lib/product-features";
 import { registerFeatureRoutes } from "./lib/feature-routes";
 import {
+  canSendFromDomain,
   canSendMail,
   defaultCustomerDnsRecords,
   deleteCustomerDomain,
@@ -991,6 +992,16 @@ app.post("/api/mail/send", async (c) => {
   const fromMailbox = await pickFromMailbox(c.env.DB, ctx, body.from);
   if (!fromMailbox) {
     return c.json({ error: "Create a mailbox before sending, or pick an address you can send from." }, 400);
+  }
+
+  if (!draft && !scheduledAt && !canSendFromDomain(c.env, fromMailbox.address || fromMailbox.fromHeader)) {
+    return c.json(
+      {
+        error:
+          "Customer-domain sending needs Amazon SES credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). Cloudflare Email cannot deliver from your custom domain.",
+      },
+      501,
+    );
   }
 
   // Resolve domain sending readiness for compose From.

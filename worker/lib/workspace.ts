@@ -5,7 +5,7 @@ import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan,
 import { markFirstEmailSent } from "./activation";
 import { randomId, nowMs } from "./ids";
 import { buildRawMime } from "./mime";
-import { canSendMail, sendRawEmail } from "./mail-provider";
+import { canSendFromDomain, canSendMail, sendRawEmail } from "./mail-provider";
 import {
   EMAIL_RE,
   extractEmail,
@@ -393,6 +393,9 @@ async function loadAttachmentContents(env: Env, messageId: string) {
 }
 
 export async function dispatchStoredMessage(env: Env, message: StoredMessage): Promise<string | null> {
+  if (!canSendFromDomain(env, message.from_addr)) {
+    return "Amazon SES is not configured for customer-domain sending. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (Cloudflare Email cannot deliver from your custom domain).";
+  }
   if (!canSendMail(env)) {
     return "Mail sending is not configured. Set AWS SES credentials (customer domains) or the SEB send_email binding.";
   }
@@ -463,8 +466,10 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export async function flushScheduled(env: Env): Promise<void> {
+export async function flushScheduled(env: Env): Promise<{ flushed: number; failed: Array<{ id: string; error: string }> }> {
   const now = nowMs();
+  const failed: Array<{ id: string; error: string }> = [];
+  let flushed = 0;
   const due = await env.DB.prepare(
     `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
      FROM messages
@@ -483,6 +488,14 @@ export async function flushScheduled(env: Env): Promise<void> {
     const error = await dispatchStoredMessage(env, message);
     if (error) {
       console.warn("Scheduled send failed", message.id, error);
+      // Bounce back to drafts so the user can fix and retry — do not fake "Sent".
+      await env.DB.prepare(
+        "UPDATE messages SET folder = 'drafts', scheduled_at = NULL, snippet = ? WHERE id = ?",
+      )
+        .bind(`Send failed: ${error}`.slice(0, 160), message.id)
+        .run()
+        .catch(() => undefined);
+      failed.push({ id: message.id, error });
       continue;
     }
     await env.DB.prepare("UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0 WHERE id = ?")
@@ -490,7 +503,9 @@ export async function flushScheduled(env: Env): Promise<void> {
       .run();
     await recordOutboundSend(env.DB, message.user_id);
     await markFirstEmailSent(env.DB, message.user_id).catch(() => undefined);
+    flushed += 1;
   }
+  return { flushed, failed };
 }
 
 /** Count each Message-ID once (same rule as list dedupe) so badges match visible rows. */
@@ -654,7 +669,8 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    // Cron flushes scheduled sends; keep this path read-only and fast.
+    // Eagerly flush due undo-send / scheduled messages so delivery does not wait on cron alone.
+    const flush = await flushScheduled(c.env).catch(() => ({ flushed: 0, failed: [] as Array<{ id: string; error: string }> }));
     const [counts, domain_unread] = await Promise.all([
       folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
       domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
@@ -663,7 +679,15 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
       counts,
       domain_unread,
       server_time: nowMs(),
+      flush,
     });
+  });
+
+  app.post("/api/mail/flush-outbox", async (c) => {
+    const user = await requireUser(c);
+    if (user instanceof Response) return user;
+    const flush = await flushScheduled(c.env);
+    return c.json(flush);
   });
 
   app.get("/api/contacts", async (c) => {
