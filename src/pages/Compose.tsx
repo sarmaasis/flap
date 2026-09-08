@@ -421,7 +421,7 @@ export default function Compose({
               ))}
             </div>
           ) : (
-            <span className="compose-hint">⌘/Ctrl+Enter to send · drafts save as you type</span>
+            <span className="compose-hint hidden sm:inline">⌘/Ctrl+Enter to send · drafts save as you type</span>
           )}
         </div>
         <div className="compose-action-buttons">

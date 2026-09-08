@@ -5686,3 +5686,180 @@ body { background: var(--surface); }
   min-width: 420px;
 }
 
+/* ─────────────────────────────────────────────────────────
+   MOBILE POLISH — ROUND 2 (settings, compose, docs, analytics)
+   ───────────────────────────────────────────────────────── */
+
+/* ── Settings: all bare .table elements scroll on mobile ── */
+@media (max-width: 767px) {
+  /* Any .table not already wrapped gets block overflow */
+  .settings-card .table,
+  .settings .settings-card table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  /* Re-hide thead/tbody display so scrolling works */
+  .settings-card .table thead,
+  .settings-card .table tbody,
+  .settings-card .table tr {
+    display: table-row-group;
+  }
+  .settings-card .table thead { display: table-header-group; }
+  .settings-card .table tr { display: table-row; min-width: max-content; }
+  /* section-heading wraps on mobile */
+  .section-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* row-form in settings stacks on mobile */
+  .settings .row-form {
+    flex-wrap: wrap;
+  }
+  .settings .row-form input,
+  .settings .row-form select,
+  .settings .row-form .input,
+  .settings .row-form button[type="submit"] {
+    min-width: 0 !important;
+    flex: 1 1 100%;
+  }
+  .settings .row-form button[type="submit"] {
+    flex: 0 0 auto;
+  }
+  /* settings-tabs scroll on mobile */
+  .settings-tabs-list {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+  .settings-tabs-list::-webkit-scrollbar { display: none; }
+}
+
+/* ── Compose: meta selects stack on narrow phones ── */
+@media (max-width: 540px) {
+  .compose-select {
+    min-width: 0;
+    flex: 1 1 45%;
+  }
+  .compose-meta-row {
+    gap: 8px;
+  }
+}
+
+/* ── Domains table: card layout on mobile ── */
+@media (max-width: 640px) {
+  .domains-table-mobile-card .table-wrap { overflow-x: unset; }
+  .table.domains-table {
+    display: block;
+    min-width: unset !important;
+  }
+  .table.domains-table thead { display: none; }
+  .table.domains-table tbody { display: flex; flex-direction: column; gap: 0; }
+  .table.domains-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .table.domains-table tr:last-child { border-bottom: 0; }
+  .table.domains-table td {
+    display: block;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  /* Domain name: top-left */
+  .table.domains-table td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+    font-weight: 600;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Status: top-right */
+  .table.domains-table td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+    font-size: 12px;
+  }
+  /* Catch-all select: second row full-width */
+  .table.domains-table td:nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .table.domains-table td:nth-child(3) select {
+    width: 100%;
+    min-width: 0;
+  }
+  /* Actions: second row right */
+  .table.domains-table td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: right;
+  }
+  .domains-row-actions { justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+}
+
+/* ── Analytics: event filter + delivery table ── */
+@media (max-width: 640px) {
+  .analytics-event-filter {
+    width: 100%;
+  }
+  .analytics-event-filter .seg-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .analytics-event-filter .seg-toggle button {
+    flex: 1;
+  }
+}
+
+/* ── AppFeaturePage: actions row more compact on mobile ── */
+@media (max-width: 640px) {
+  .app-feature-actions {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .app-feature-actions .btn,
+  .app-feature-actions button {
+    font-size: 13px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* ── Calendar: header nav buttons always visible ── */
+@media (max-width: 480px) {
+  .app-feature-actions [aria-label*="Previous"],
+  .app-feature-actions [aria-label*="Next"] {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+  }
+}
+
+/* ── Docs: prose content improvements on mobile ── */
+@media (max-width: 640px) {
+  .docs-prose [&_h2] { font-size: 1.1rem !important; }
+  .docs-prose pre { font-size: 12px; padding: 12px; }
+}
+
+/* ── Compose float: tighter padding on narrow phones ── */
+@media (max-width: 480px) {
+  .compose-float > form { padding: 12px 14px 0; }
+  .compose-title h2 { font-size: 16px; }
+  .compose-title .eyebrow { font-size: 10px; }
+  .compose-field { grid-template-columns: 48px 1fr; }
+  .compose-from-row { gap: 8px; }
+  .compose-actions { padding: 8px 10px; }
+  .attachment-chip { font-size: 11px; padding: 3px 7px; }
+}
+

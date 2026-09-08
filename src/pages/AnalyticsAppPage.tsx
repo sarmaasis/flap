@@ -412,6 +412,7 @@ export default function AnalyticsAppPage() {
             <h2>Delivery events</h2>
             <p className="muted">One row per recipient. Kept for 30 days.</p>
           </div>
+          <div className="analytics-event-filter">
           <SegmentedControl
             aria-label="Filter delivery events"
             value={eventKind}
@@ -423,6 +424,7 @@ export default function AnalyticsAppPage() {
               { value: "soft_bounce", label: "Soft" },
             ]}
           />
+          </div>
         </div>
         {events.length === 0 ? (
           <p className="muted">No delivery events in this range.</p>

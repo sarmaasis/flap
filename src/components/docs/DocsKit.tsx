@@ -130,7 +130,7 @@ function SideNav({
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between lg:hidden">
+      <div className="mb-2 flex items-center justify-between lg:hidden">
         <DocsLink
           href={brandHref}
           className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]"
@@ -299,7 +299,7 @@ export function DocsShell({
   return (
     <MarketingShell>
       <div className="border-t border-[var(--line)]">
-        <div className="mx-auto flex max-w-7xl gap-8 px-4 py-6 lg:px-6 lg:py-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 lg:flex-row lg:gap-8 lg:px-6 lg:py-8">
           <SideNav
             pathname={pathname}
             nav={nav}
@@ -335,7 +335,7 @@ export function DocsPage({
     <div className="flex min-w-0 flex-1 gap-8">
       <article className="min-w-0 flex-1">
         <header className="mb-8 space-y-3">
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--foreground)]">
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">
             {title}
           </h1>
           {description ? (
