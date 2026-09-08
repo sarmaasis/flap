@@ -202,6 +202,8 @@ export default function MessageReader({
   const [rsvpBusy, setRsvpBusy] = useState(false);
   const [rsvpNotice, setRsvpNotice] = useState("");
   const [rsvpError, setRsvpError] = useState("");
+  const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
+  const [downloadErr, setDownloadErr] = useState("");
   const viaLabel = domainName || undefined;
   const fromDisplay = senderName(message.from_addr);
   const fromEmail = extractEmail(message.from_addr) || message.from_addr;
@@ -227,6 +229,18 @@ export default function MessageReader({
       setRsvpError(ex instanceof Error ? ex.message : "Could not send RSVP.");
     } finally {
       setRsvpBusy(false);
+    }
+  }
+
+  async function downloadAttachment(att: Attachment) {
+    setDownloadErr("");
+    setDownloadBusyId(att.id);
+    try {
+      await api.downloadAttachment(message.id, att.id, att.filename);
+    } catch (ex) {
+      setDownloadErr(ex instanceof Error ? ex.message : "Could not download attachment.");
+    } finally {
+      setDownloadBusyId(null);
     }
   }
 
@@ -519,17 +533,24 @@ export default function MessageReader({
             </div>
             <div className="flex flex-wrap gap-2">
               {attachments.map((a) => (
-                <a
+                <button
                   key={a.id}
-                  href={`/api/mail/${message.id}/attachments/${a.id}`}
-                  className="inline-flex max-w-[280px] items-center gap-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-hover)] px-3 py-2 text-[12.5px] font-medium text-[var(--foreground)] no-underline hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--line-strong))]"
+                  type="button"
+                  disabled={downloadBusyId === a.id}
+                  onClick={() => void downloadAttachment(a)}
+                  className="inline-flex max-w-[280px] items-center gap-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-hover)] px-3 py-2 text-left text-[12.5px] font-medium text-[var(--foreground)] hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--line-strong))] disabled:opacity-60"
                 >
                   <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <span className="truncate">{a.filename}</span>
                   <span className="font-mono text-[11px] text-[var(--foreground-muted)]">{Math.ceil(a.size / 1024)} KB</span>
-                </a>
+                </button>
               ))}
             </div>
+            {downloadErr ? (
+              <p className="mt-2 text-[12.5px] text-[var(--error-text)]" role="alert">
+                {downloadErr}
+              </p>
+            ) : null}
           </div>
         ) : message.has_attachments ? (
           <p className="m-0 border-b border-[var(--line)] bg-[var(--surface-overlay)] px-5 py-3.5 text-[12.5px] text-[var(--foreground-muted)]">

@@ -406,6 +406,24 @@ export const api = {
     }>(`/api/mail?${qs}`, { signal });
   },
   message: (id: string, signal?: AbortSignal) => req<{ message: MailFull; attachments: Attachment[] }>(`/api/mail/${id}`, { signal }),
+  downloadAttachment: async (messageId: string, attId: string, filename: string) => {
+    const res = await fetch(`/api/mail/${messageId}/attachments/${attId}`, {
+      credentials: "same-origin",
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "Could not download attachment.");
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "attachment";
+    a.rel = "noopener";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
   thread: (id: string, signal?: AbortSignal) =>
     req<{ thread_id: string; messages: MailSummary[] }>(`/api/mail/${id}/thread`, { signal }),
   move: (id: string, folder: string) =>

@@ -372,15 +372,28 @@ type StoredMessage = {
   in_reply_to: string | null;
 };
 
+/** Collapse duplicate files created by draft autosave inserting the same attachment repeatedly. */
+export function uniqueAttachmentsByFile<T extends { filename: string; content_type?: string; size?: number }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const row of rows) {
+    const key = `${row.filename}\0${row.content_type ?? ""}\0${row.size ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  return unique;
+}
+
 async function loadAttachmentContents(env: Env, messageId: string) {
   const rows = await env.DB.prepare(
-    "SELECT r2_key, filename, content_type FROM attachments WHERE message_id = ?",
+    "SELECT r2_key, filename, content_type, size FROM attachments WHERE message_id = ? ORDER BY created_at ASC",
   )
     .bind(messageId)
-    .all<{ r2_key: string; filename: string; content_type: string }>();
+    .all<{ r2_key: string; filename: string; content_type: string; size: number }>();
   const files: Array<{ filename: string; contentType: string; content: Uint8Array }> = [];
   if (!env.ATTACHMENTS) return files;
-  for (const row of rows.results ?? []) {
+  for (const row of uniqueAttachmentsByFile(rows.results ?? [])) {
     const obj = await env.ATTACHMENTS.get(row.r2_key);
     if (!obj) continue;
     files.push({

@@ -11,7 +11,7 @@ import {
   parseRecipients,
   recipientsFieldValid,
 } from "./lib/mailutil";
-import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
+import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact, uniqueAttachmentsByFile } from "./lib/workspace";
 import { processQueuedNewsletterBlasts } from "./lib/newsletters";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
@@ -811,11 +811,14 @@ app.get("/api/mail/:id", async (c) => {
       .run();
   }
   const atts = await c.env.DB.prepare(
-    "SELECT id, filename, content_type, size FROM attachments WHERE message_id = ?",
+    "SELECT id, filename, content_type, size FROM attachments WHERE message_id = ? ORDER BY created_at ASC",
   )
     .bind(id)
-    .all();
-  return c.json({ message: { ...msg, unread: 0 }, attachments: atts.results ?? [] });
+    .all<{ id: string; filename: string; content_type: string; size: number }>();
+  return c.json({
+    message: { ...msg, unread: 0 },
+    attachments: uniqueAttachmentsByFile(atts.results ?? []),
+  });
 });
 
 app.get("/api/mail/:id/thread", async (c) => {
@@ -1115,6 +1118,7 @@ app.post("/api/mail/send", async (c) => {
     bcc_addr: bcc,
   });
   const newAttBytes = attachments.reduce((sum, att) => sum + att.content.byteLength, 0);
+  const attachmentsProvided = Array.isArray(body.attachments);
 
   const folder = scheduledAt ? "scheduled" : "drafts";
   let replyHeader: string | null = null;
@@ -1141,6 +1145,7 @@ app.post("/api/mail/send", async (c) => {
 
   let id = (body.id ?? "").trim();
   let oldBodyBytes = 0;
+  let oldAttBytes = 0;
   if (id) {
     const existing = await c.env.DB.prepare("SELECT id, folder, storage_bytes FROM messages WHERE id = ? AND user_id = ?")
       .bind(id, ctx.workspaceId)
@@ -1149,7 +1154,12 @@ app.post("/api/mail/send", async (c) => {
       return c.json({ error: "Draft not found." }, 404);
     }
     oldBodyBytes = Number(existing.storage_bytes ?? 0);
-    const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes - oldBodyBytes + newAttBytes);
+    const attSum = await c.env.DB.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM attachments WHERE message_id = ?")
+      .bind(id)
+      .first<{ n: number }>();
+    oldAttBytes = Number(attSum?.n ?? 0);
+    const attDelta = attachmentsProvided ? newAttBytes - oldAttBytes : 0;
+    const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes - oldBodyBytes + attDelta);
     if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     await c.env.DB.prepare(
       `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id), storage_bytes = ?
@@ -1170,8 +1180,8 @@ app.post("/api/mail/send", async (c) => {
       .bind(id, ctx.workspaceId, fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, rfcId, threadId || id, bodyBytes, now)
       .run();
   }
-  if (attachments.length) {
-    await saveOutboundAttachments(c.env, id, attachments, now);
+  if (attachmentsProvided) {
+    await syncOutboundAttachments(c.env, id, attachments, now);
   }
 
   for (const address of uniqueRecipients) {
@@ -1241,6 +1251,29 @@ function decodeOutboundAttachments(input: OutboundAttachment[]): Array<{ filenam
     files.push({ filename: safeFilename(item.filename ?? "attachment"), contentType: safeContentType(item.content_type ?? match[1]), content });
   }
   return files;
+}
+
+async function syncOutboundAttachments(env: Env, messageId: string, attachments: Array<{ filename: string; contentType: string; content: Uint8Array }>, now: number) {
+  const existing = await env.DB.prepare(
+    "SELECT id, r2_key, filename, content_type, size FROM attachments WHERE message_id = ? ORDER BY created_at ASC",
+  )
+    .bind(messageId)
+    .all<{ id: string; r2_key: string; filename: string; content_type: string; size: number }>();
+  const rows = existing.results ?? [];
+  const unique = uniqueAttachmentsByFile(rows);
+  const incomingKey = (file: { filename: string; contentType: string; content: Uint8Array }) =>
+    `${file.filename}\0${file.contentType}\0${file.content.byteLength}`;
+  const storedKey = (row: { filename: string; content_type: string; size: number }) =>
+    `${row.filename}\0${row.content_type}\0${row.size}`;
+  const want = attachments.map(incomingKey).sort().join("\n");
+  const have = unique.map(storedKey).sort().join("\n");
+  if (want === have && unique.length === rows.length) return;
+
+  if (env.ATTACHMENTS) {
+    await Promise.all(rows.map((row) => env.ATTACHMENTS!.delete(row.r2_key).catch(() => undefined)));
+  }
+  await env.DB.prepare("DELETE FROM attachments WHERE message_id = ?").bind(messageId).run();
+  await saveOutboundAttachments(env, messageId, attachments, now);
 }
 
 async function saveOutboundAttachments(env: Env, messageId: string, attachments: Array<{ filename: string; contentType: string; content: Uint8Array }>, now: number) {
