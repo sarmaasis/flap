@@ -4,6 +4,8 @@ import { EmailLinkErrorCodeStatus, isEmailLinkError } from "@clerk/clerk-react/e
 import BrandMark from "../components/BrandMark";
 import { ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type VerifyStatus = "loading" | "verified" | "failed" | "expired" | "client_mismatch";
 
@@ -57,10 +59,10 @@ function VerifyCard({
   const isError = status === "failed" || status === "expired" || status === "client_mismatch";
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
+    <div className={tw.authShell}>
+      <div className={tw.authCard}>
         <a
-          className="brand"
+          className={tw.brand}
           href="/"
           onClick={(e) => {
             e.preventDefault();
@@ -70,16 +72,16 @@ function VerifyCard({
           <BrandMark /> Flap
         </a>
         <h1>{title}</h1>
-        <p className={isError ? "error" : "muted"} role={status === "loading" ? "status" : "alert"}>
+        <p className={isError ? tw.error : tw.muted} role={status === "loading" ? "status" : "alert"}>
           {body}
         </p>
         {children}
         {isError ? (
-          <div className="stack gap-2" style={{ marginTop: 16 }}>
-            <button type="button" className="auth-password-toggle" onClick={() => go("/login")}>
+          <div className={cn("gap-2", tw.stack)} style={{ marginTop: 16 }}>
+            <button type="button" className={tw.authPasswordToggle} onClick={() => go("/login")}>
               Back to sign in
             </button>
-            <button type="button" className="auth-password-toggle" onClick={() => go("/signup")}>
+            <button type="button" className={tw.authPasswordToggle} onClick={() => go("/signup")}>
               Create a workspace
             </button>
           </div>

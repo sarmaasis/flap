@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
 
 /**
  * Legacy OAuth return URL. Flap is magic-link only; redirect to sign-in.
@@ -11,8 +12,8 @@ export default function SsoCallback() {
   }, []);
 
   return (
-    <div className="auth-shell">
-      <p className="muted">Redirecting to sign in…</p>
+    <div className={tw.authShell}>
+      <p className={tw.muted}>Redirecting to sign in…</p>
     </div>
   );
 }

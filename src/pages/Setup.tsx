@@ -3,6 +3,7 @@ import BrandMark from "../components/BrandMark";
 import { Button } from "../components/ui/button";
 import { api } from "../lib/api";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
 
 /** First-boot: redirect into Clerk signup once the deployment has no users. */
 export default function Setup() {
@@ -22,14 +23,14 @@ export default function Setup() {
   }, []);
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
+    <div className={tw.authShell}>
+      <div className={tw.authCard}>
+        <a className={tw.brand} href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
           <BrandMark /> Flap
         </a>
         <h1>Create your workspace</h1>
-        <p className="muted">Opening signup for the first account…</p>
-        {err ? <p className="error" role="alert">{err}</p> : null}
+        <p className={tw.muted}>Opening signup for the first account…</p>
+        {err ? <p className={tw.error} role="alert">{err}</p> : null}
         <Button className="w-full mt-4" onClick={() => go("/signup")}>
           Continue to signup
         </Button>

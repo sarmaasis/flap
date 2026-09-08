@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { setClerkTokenGetter } from "./api";
+import { tw } from "./tw";
 
 type BootstrapState =
   | { status: "loading" }
@@ -114,8 +115,8 @@ export function FlapClerkProvider({ children }: { children: ReactNode }) {
 
   if (state.status === "loading") {
     return (
-      <div className="auth-shell">
-        <p className="muted">Loading Flap…</p>
+      <div className={tw.authShell}>
+        <p className={tw.muted}>Loading Flap…</p>
       </div>
     );
   }
@@ -141,10 +142,10 @@ export function FlapClerkProvider({ children }: { children: ReactNode }) {
 
 export function ClerkMissingCard() {
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
+    <div className={tw.authShell}>
+      <div className={tw.authCard}>
         <h1>Clerk is not configured</h1>
-        <p className="muted">
+        <p className={tw.muted}>
           Set <code>CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code> in{" "}
           <code>.dev.vars</code> (see <code>.dev.vars.example</code>), then restart{" "}
           <code>npm run dev</code>.

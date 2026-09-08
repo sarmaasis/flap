@@ -22,6 +22,8 @@ import {
 } from "../components/ui/select";
 import { api, type CalendarAppToken, type CalendarEvent } from "../lib/api";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
@@ -415,18 +417,16 @@ export default function CalendarAppPage() {
           <Button variant="ghost" size="icon" aria-label={`Next ${view}`} onClick={() => move(1)}>
             <ChevronRight />
           </Button>
-          <div className="seg-toggle" role="presentation">
-            <SegmentedControl
-              aria-label="Calendar view"
-              value={view}
-              onChange={(v) => setView(v as "week" | "month" | "day")}
-              options={[
-                { value: "week", label: "Week" },
-                { value: "month", label: "Month" },
-                { value: "day", label: "Day" },
-              ]}
-            />
-          </div>
+          <SegmentedControl
+            aria-label="Calendar view"
+            value={view}
+            onChange={(v) => setView(v as "week" | "month" | "day")}
+            options={[
+              { value: "week", label: "Week" },
+              { value: "month", label: "Month" },
+              { value: "day", label: "Day" },
+            ]}
+          />
           <div className="hidden sm:contents">
             <Button
               variant="secondary"
@@ -451,22 +451,25 @@ export default function CalendarAppPage() {
       }
     >
       {notice ? (
-        <p className="notice mb-4" role="status">
+        <p className={cn("mb-4", tw.notice)} role="status">
           {notice}
         </p>
       ) : null}
       {error ? (
-        <p className="error mb-4" role="alert">
+        <p className={cn("mb-4", tw.error)} role="alert">
           {error}
         </p>
       ) : null}
-      {loading ? <p className="muted mb-3 text-sm">Loading events…</p> : null}
+      {loading ? <p className={cn("mb-3 text-sm", tw.muted)}>Loading events…</p> : null}
 
       {view === "month" ? (
-        <div className="cal-month-wrap">
-          <div className="cal-month">
+        <div className="overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface)]">
+          <div className="grid min-w-[560px] grid-cols-7 max-md:min-w-[420px]">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div className="cal-month-label" key={d}>
+              <div
+                className="border-b border-[var(--line)] p-3.5 text-center text-[13px] text-[var(--foreground-muted)]"
+                key={d}
+              >
                 {d}
               </div>
             ))}
@@ -476,19 +479,30 @@ export default function CalendarAppPage() {
                 <button
                   key={dateKey(d)}
                   type="button"
-                  className={`cal-month-day ${d.getMonth() !== anchor.getMonth() ? "outside" : ""}`}
+                  className={cn(
+                    "h-[110px] cursor-pointer border-r border-b border-[var(--line)] p-3 text-left hover:bg-[var(--surface-hover)] max-md:h-20 max-md:p-2",
+                    d.getMonth() !== anchor.getMonth() && "bg-[var(--surface)] text-[var(--foreground-muted)]",
+                  )}
                   aria-label={`View ${d.toLocaleDateString()}`}
                   onClick={() => {
                     setAnchor(d);
                     setView("day");
                   }}
                 >
-                  <span className={dateKey(d) === dateKey(today) ? "cal-today-num" : ""}>{d.getDate()}</span>
-                  <div className="cal-month-events">
+                  <span
+                    className={
+                      dateKey(d) === dateKey(today)
+                        ? "inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-fg)]"
+                        : undefined
+                    }
+                  >
+                    {d.getDate()}
+                  </span>
+                  <div className="mt-1.5 flex w-full flex-col gap-0.5">
                     {items.map((ev) => (
                       <span
                         key={ev.id}
-                        className="cal-month-chip"
+                        className="block w-full overflow-hidden text-ellipsis whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] bg-[var(--cal-event-fill,var(--cal-blue-fill))] shadow-[inset_2px_0_var(--cal-event-border,var(--cal-blue-border))]"
                         title={ev.title}
                         style={calEventTint(ev.mailbox_id || ev.id)}
                       >
@@ -496,7 +510,9 @@ export default function CalendarAppPage() {
                       </span>
                     ))}
                     {dayEvents(d).length > 3 ? (
-                      <span className="cal-month-more">+{dayEvents(d).length - 3}</span>
+                      <span className="block w-full overflow-hidden text-ellipsis whitespace-nowrap rounded bg-transparent py-0.5 pl-0.5 text-[10px] text-[var(--foreground-muted)]">
+                        +{dayEvents(d).length - 3}
+                      </span>
                     ) : null}
                   </div>
                 </button>
@@ -505,31 +521,59 @@ export default function CalendarAppPage() {
           </div>
         </div>
       ) : (
-        <div className={`cal-week ${view === "day" ? "cal-single-day" : ""}`}>
-          <div className="cal-week-head">
-            <div className="cal-gutter" />
+        <div className="overflow-x-auto overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)]">
+          <div
+            className={cn(
+              "border-b border-[var(--line)]",
+              view === "day"
+                ? "grid min-w-0 grid-cols-[56px_minmax(0,1fr)]"
+                : "grid min-w-[660px] grid-cols-[56px_repeat(7,minmax(0,1fr))] max-md:min-w-[500px]",
+            )}
+          >
+            <div />
             {days.map((d) => (
-              <div key={dateKey(d)} className="cal-day-head">
+              <div
+                key={dateKey(d)}
+                className="flex flex-col items-center gap-1 px-1 py-2.5 text-xs text-[var(--foreground-muted)]"
+              >
                 <span>{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
-                <strong className={dateKey(d) === dateKey(today) ? "cal-today-num" : ""}>{d.getDate()}</strong>
+                <strong
+                  className={
+                    dateKey(d) === dateKey(today)
+                      ? "inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-fg)]"
+                      : undefined
+                  }
+                >
+                  {d.getDate()}
+                </strong>
               </div>
             ))}
           </div>
-          <div className="cal-week-grid">
-            <div className="cal-hours">
+          <div
+            className={cn(
+              "relative min-h-[520px]",
+              view === "day"
+                ? "grid min-w-0 grid-cols-[56px_minmax(0,1fr)]"
+                : "grid min-w-[660px] grid-cols-[56px_repeat(7,minmax(0,1fr))] max-md:min-w-[500px]",
+            )}
+          >
+            <div className="border-r border-[var(--line)]">
               {HOURS.map((h) => (
-                <div key={h} className="cal-hour">
+                <div key={h} className="h-12 pr-1.5 pt-1 text-right text-xs text-[var(--foreground-muted)]">
                   {`${h % 12 || 12} ${h >= 12 ? "PM" : "AM"}`}
                 </div>
               ))}
             </div>
             {days.map((d) => (
-              <div key={dateKey(d)} className="cal-day-col">
+              <div
+                key={dateKey(d)}
+                className="relative border-r border-[var(--line)] bg-[repeating-linear-gradient(to_bottom,transparent,transparent_47px,var(--line)_47px,var(--line)_48px)] last:border-r-0"
+              >
                 {HOURS.map((h) => (
                   <button
                     key={h}
                     type="button"
-                    className="cal-slot"
+                    className="block h-12 w-full cursor-pointer hover:bg-[var(--surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:-outline-offset-2"
                     aria-label={`Create event on ${d.toLocaleDateString()} at ${h}:00`}
                     onClick={() => openCreate(dateKey(d), `${String(h).padStart(2, "0")}:00`)}
                   />
@@ -538,7 +582,7 @@ export default function CalendarAppPage() {
                   <button
                     key={ev.id}
                     type="button"
-                    className="cal-event-block"
+                    className="absolute left-1 right-1 z-[2] flex cursor-pointer flex-col gap-0.5 overflow-hidden rounded-md border-0 px-1.5 py-1 text-left text-[11px] leading-[1.25] text-[var(--foreground)] bg-[var(--cal-event-fill,var(--cal-blue-fill))] shadow-[inset_3px_0_var(--cal-event-border,var(--cal-blue-border))]"
                     style={{
                       top: eventTopPx(ev, d),
                       height: eventHeightPx(ev, d),
@@ -550,8 +594,10 @@ export default function CalendarAppPage() {
                     }}
                     title={ev.title}
                   >
-                    <strong>{ev.title}</strong>
-                    <span>
+                    <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-semibold">
+                      {ev.title}
+                    </strong>
+                    <span className="whitespace-nowrap text-[var(--foreground-muted)]">
                       {new Date(ev.starts_at).toLocaleTimeString(undefined, {
                         hour: "numeric",
                         minute: "2-digit",

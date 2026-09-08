@@ -30,6 +30,8 @@ import { Input } from "../components/ui/input";
 import { FOLDERS } from "../lib/mailFolders";
 import type { ComposeDraft } from "./Compose";
 import { Search, MoreHorizontal } from "lucide-react";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -772,9 +774,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       }}
       onLogout={() => void logout()}
     >
-      <div className="mail-main">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)]">
         {needsSetup && folder === "inbox" && !qDebounced ? (
-          <div className="onboarding-banner inbox-onboarding" role="status">
+          <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2.5 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] px-3 py-2.5 max-md:[&_p]:hidden" role="status">
             <div>
               <strong>Finish setup to receive mail</strong>
               <p>Add your domain and create a mailbox under Domains, then publish the SES DNS records Flap shows at your DNS host.</p>
@@ -785,7 +787,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         ) : null}
         {domainSetupPending && !needsSetup && folder === "inbox" && !qDebounced ? (
-          <div className="onboarding-banner inbox-onboarding" role="status">
+          <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2.5 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] px-3 py-2.5 max-md:[&_p]:hidden" role="status">
             <div>
               <strong>Your mailboxes are ready. Finish domain verification to receive mail.</strong>
               <p>Publish SES verification, DKIM, and MX records, then click Check setup.</p>
@@ -795,8 +797,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             </Button>
           </div>
         ) : null}
-      <div className="workspace">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col lg:grid lg:grid-cols-[260px_minmax(280px,340px)_minmax(0,1fr)]">
         <MailFolderRail
+          className={cn((message || composeInPane) && "max-lg:hidden")}
           folder={folder}
           counts={counts}
           domains={domains}
@@ -809,19 +812,24 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             openCompose();
           }}
         />
-        <section className={`list-pane${message || composeInPane ? " has-selection" : ""}`}>
-          <div className="list-head">
-            <div className="list-title-row">
+        <section
+          className={cn(
+            "flex min-h-0 flex-1 flex-col border-r border-[var(--line)] bg-[var(--surface)] lg:h-full",
+            (message || composeInPane) && "max-lg:hidden",
+          )}
+        >
+          <div className="flex shrink-0 flex-col gap-2.5 border-b border-[var(--line)] px-4 py-3">
+            <div className="mb-0 flex items-end justify-between gap-3">
               <div>
-                <span className="eyebrow"><span className="live-dot" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
+                <span className={tw.eyebrow}><span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--success-text)]" aria-hidden />{qDebounced ? "Search results" : "Mailbox"}</span>
                 <h2>{qDebounced ? `Results for “${qDebounced}”` : title}</h2>
               </div>
-              <Badge variant="secondary" className="mail-count border-[var(--line-strong)] font-mono text-xs">
+              <Badge variant="secondary" className="min-w-7 border-[var(--line-strong)] px-2 py-0.5 text-center font-mono text-xs font-bold">
                 {loadingList ? "…" : headerCount}
               </Badge>
             </div>
-            <div className="list-controls">
-              <div className="list-search relative min-w-0 flex-1">
+            <div className="flex flex-col gap-2">
+              <div className="relative min-w-0 flex-1">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
                   aria-hidden
@@ -837,7 +845,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               </div>
               {!qDebounced ? (
                 <>
-                  <div className="list-toolbar list-toolbar-desktop flex flex-wrap items-center gap-2">
+                  <div className="hidden flex-wrap items-center gap-2 md:flex">
                     <Button
                       type="button"
                       size="sm"
@@ -856,7 +864,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="list-toolbar-more"
+                        className="md:hidden"
                         aria-label="List filters"
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -878,7 +886,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             </div>
             {mailboxes.length > 1 ? (
               <select
-                className="mailbox-filter h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm"
+                className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm"
                 value={mailbox}
                 onChange={(e) => {
                   setMailbox(e.target.value);
@@ -893,14 +901,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               </select>
             ) : null}
           </div>
-          {err ? <div className="err" style={{ margin: 12 }}>{err}</div> : null}
-          <div className="list-body">
+          {err ? <div className={tw.err} style={{ margin: 12 }}>{err}</div> : null}
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {loadingList ? (
-              <div className="skeleton-stack" aria-hidden>
-                <div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" />
+              <div className={tw.skeletonStack} aria-hidden>
+                <div className={tw.skeletonRow} /><div className={tw.skeletonRow} /><div className={tw.skeletonRow} />
               </div>
             ) : visibleList.length === 0 ? (
-              <div className="empty-panel">
+              <div className="px-[18px] py-7 text-[var(--foreground-muted)]">
                 <strong>
                   {qDebounced
                     ? "No matches"
@@ -971,12 +979,18 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           </div>
         </section>
 
-        <section className={`read-pane${message || composeInPane ? " has-message" : ""}${composeInPane ? " has-compose" : ""}`}>
+        <section
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--surface-overlay)] lg:h-full",
+            message || composeInPane ? "max-lg:flex" : "max-lg:hidden",
+            composeInPane && "flex flex-col bg-[var(--surface)] px-4 py-4 pb-7 md:px-7",
+          )}
+        >
           {composeInPane ? (
             <>
               <button
                 type="button"
-                className="mobile-back"
+                className="mx-4 mt-3 mb-0 inline-flex h-9 items-center rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--foreground)] lg:hidden"
                 onClick={() => {
                   if (showCompose) closeCompose();
                   else {
@@ -989,9 +1003,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                 Back to {title}
               </button>
               {openingDraft && !editingDraft ? (
-                <div className="empty-panel"><p className="muted">Opening draft…</p></div>
+                <div className="px-[18px] py-7 text-[var(--foreground-muted)]"><p className={tw.muted}>Opening draft…</p></div>
               ) : (
-                <Suspense fallback={<div className="empty-panel"><p className="muted">Opening composer…</p></div>}>
+                <Suspense fallback={<div className="px-[18px] py-7 text-[var(--foreground-muted)]"><p className={tw.muted}>Opening composer…</p></div>}>
                   <Compose
                     key={composeDraft?.id ?? "draft"}
                     mailboxes={mailboxes}
@@ -1017,10 +1031,10 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
               )}
             </>
           ) : loadingMessage && selected ? (
-            <div className="empty-panel"><p className="muted">Opening message…</p></div>
+            <div className="px-[18px] py-7 text-[var(--foreground-muted)]"><p className={tw.muted}>Opening message…</p></div>
           ) : !message ? (
-            <div className="read-empty">
-              <div className="empty-panel">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="px-[18px] py-7 text-[var(--foreground-muted)]">
                 {folder === "drafts" || folder === "scheduled" ? (
                   <>
                     <strong>{folder === "drafts" ? "Drafts open in compose" : "Scheduled messages open in compose"}</strong>
@@ -1040,7 +1054,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
             </div>
           ) : (
             <>
-              <button type="button" className="mobile-back" onClick={() => setSelected(null)}>Back to {title}</button>
+              <button type="button" className="mx-4 mt-3 mb-0 inline-flex h-9 items-center rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] font-medium text-[var(--foreground)] lg:hidden" onClick={() => setSelected(null)}>Back to {title}</button>
               {(() => {
                 const mb = mailboxes.find((item) => item.id === message.mailbox_id);
                 const domain = domains.find((d) => d.id === mb?.domain_id);
@@ -1081,7 +1095,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                       void copyText(extractEmail(message.from_addr) || message.from_addr, "Sender copied");
                     }}
                     onPrint={() => {
-                      const frame = document.querySelector<HTMLIFrameElement>(".message-frame");
+                      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Message body"]');
                       if (frame?.contentWindow) frame.contentWindow.print();
                       else window.print();
                     }}
@@ -1131,13 +1145,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
       </div>
 
       {toast ? (
-        <div className="mail-toast" role="status" aria-live="polite">
+        <div className={tw.mailToast} role="status" aria-live="polite">
           <div>
             <strong>{toast.title}</strong>
             <span>{toast.body}</span>
           </div>
           <button
             type="button"
+            className={tw.mailToastAction}
             onClick={() => {
               setFolder("inbox");
               setUnreadOnly(false);
@@ -1147,12 +1162,12 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           >
             View
           </button>
-          <button type="button" className="mail-toast-close" aria-label="Close notification" onClick={() => setToast(null)}>×</button>
+          <button type="button" className={tw.mailToastClose} aria-label="Close notification" onClick={() => setToast(null)}>×</button>
         </div>
       ) : null}
 
       {showCompose && !editingDraft ? (
-        <Suspense fallback={<div className="modal-back"><div className="modal"><p className="muted">Opening composer…</p></div></div>}>
+        <Suspense fallback={<div className={tw.modalBack}><div className={tw.modal}><p className={tw.muted}>Opening composer…</p></div></div>}>
           <Compose
             key={composeDraft?.id ?? composeDraft?.mode ?? "new"}
             mailboxes={mailboxes}
@@ -1177,13 +1192,14 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
         </Suspense>
       ) : null}
       {undoToast ? (
-        <div className="mail-toast" role="status" aria-live="polite">
+        <div className={tw.mailToast} role="status" aria-live="polite">
           <div>
             <strong>Message queued</strong>
             <span>Sending in {undoToast.seconds}s — undo to keep as draft.</span>
           </div>
           <button
             type="button"
+            className={tw.mailToastAction}
             onClick={() => {
               const id = undoToast.id;
               setUndoToast(null);
@@ -1195,15 +1211,25 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
           >
             Undo
           </button>
-          <button type="button" className="mail-toast-close" aria-label="Close notification" onClick={() => setUndoToast(null)}>×</button>
+          <button type="button" className={tw.mailToastClose} aria-label="Close notification" onClick={() => setUndoToast(null)}>×</button>
         </div>
       ) : null}
       {helpOpen ? (
-        <div className="modal-back" onClick={() => setHelpOpen(false)}>
-          <div className="modal shortcuts-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="compose-title"><h2>Keyboard shortcuts</h2><button type="button" className="icon-btn" onClick={() => setHelpOpen(false)} aria-label="Close">×</button></div>
-            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Press <kbd>?</kbd> anytime in the inbox. Shortcuts ignore focused inputs.</p>
-            <ul className="shortcut-list">
+        <div className={tw.modalBack} onClick={() => setHelpOpen(false)}>
+          <div className={tw.modal} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <h2 className="m-0 text-lg font-semibold">Keyboard shortcuts</h2>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[var(--line)] bg-transparent text-xl leading-none text-[var(--foreground-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                onClick={() => setHelpOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <p className={tw.muted} style={{ marginTop: 0, fontSize: 13 }}>Press <kbd>?</kbd> anytime in the inbox. Shortcuts ignore focused inputs.</p>
+            <ul className="m-0 grid list-none gap-2 p-0 [&_li]:flex [&_li]:items-center [&_li]:gap-2.5 [&_li]:text-[var(--foreground-muted)]">
               <li><kbd>?</kbd> This help</li>
               <li><kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd> Command palette</li>
               <li><kbd>c</kbd> Compose</li>
@@ -1276,39 +1302,58 @@ const MessageRow = memo(function MessageRow({
     : source === "trash"
       ? "Delete forever"
       : "Move to Trash";
+  const messageChip = "shrink-0 rounded-[3px] border border-[var(--line)] px-1 py-px font-mono text-[10px] uppercase tracking-wide text-[var(--accent)]";
   return (
     <div
-      className={`msg-row${active ? " active" : ""}${row.unread ? " unread" : ""}`}
+      className={cn(
+        "group relative grid min-h-[72px] w-full grid-cols-[28px_minmax(0,1fr)_28px] gap-x-0.5 border-0 border-b border-[var(--line)] bg-transparent px-3 py-2 text-left hover:bg-[color-mix(in_srgb,var(--domain-color,var(--accent))_6%,transparent)]",
+        active && "bg-[color-mix(in_srgb,var(--domain-color,var(--accent))_10%,transparent)] shadow-[inset_3px_0_var(--accent)]",
+        row.unread && "shadow-[inset_3px_0_var(--accent)]",
+      )}
       style={domainColor ? ({ ["--domain-color"]: domainColor } as CSSProperties) : undefined}
     >
-      <button type="button" className="star-btn" aria-label={row.starred ? "Unstar" : "Star"} onClick={(e) => { e.stopPropagation(); onStar(); }}>{row.starred ? "★" : "☆"}</button>
-      <button type="button" className="msg-row-main" onClick={onOpen}>
-        <span className="mail-avatar" aria-hidden>{initials(who)}</span>
-        <div className="msg-row-copy">
-          <div className="msg-meta">
-            <span className="msg-sender-block">
+      <button
+        type="button"
+        className={cn(
+          "cursor-pointer self-center border-0 bg-transparent p-0 text-[15px] text-[var(--foreground-faint)] hover:text-[var(--warning-text)]",
+          row.unread && "text-[var(--warning-text)]",
+        )}
+        aria-label={row.starred ? "Unstar" : "Star"}
+        onClick={(e) => { e.stopPropagation(); onStar(); }}
+      >
+        {row.starred ? "★" : "☆"}
+      </button>
+      <button
+        type="button"
+        className="grid min-w-0 cursor-pointer grid-cols-[28px_minmax(0,1fr)] items-center gap-2 border-0 bg-transparent p-0 text-left max-md:grid-cols-[minmax(0,1fr)]"
+        onClick={onOpen}
+      >
+        <span className="grid h-7 w-7 place-items-center self-center rounded border border-[color-mix(in_srgb,var(--domain-color,var(--accent))_22%,var(--line))] bg-[color-mix(in_srgb,var(--domain-color,var(--accent))_12%,transparent)] font-mono text-[10px] font-extrabold text-[var(--domain-color,var(--accent))] max-md:hidden" aria-hidden>{initials(who)}</span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="mb-0.5 flex justify-between gap-2 font-mono text-xs text-[var(--foreground-muted)]">
+            <span className="flex min-w-0 flex-col gap-0.5">
               <span>{senderName(who)}</span>
               {via ? (
-                <span className="msg-via">
-                  <span className="domain-swatch msg-via-chip" aria-hidden style={domainColor ? { background: domainColor } : undefined} />
+                <span className="inline-flex max-w-full items-center gap-1 overflow-hidden font-mono text-[10px] font-medium tracking-[0.08em] text-[var(--foreground-muted)] uppercase">
+                  <span className={tw.domainSwatch} aria-hidden style={domainColor ? { background: domainColor } : undefined} />
                   via {via}
                 </span>
               ) : null}
             </span>
             <span>{fmtDate(row.date_ms)}</span>
           </div>
-          <div className="mail-summary">
-            <div className="subj">{row.subject || "(no subject)"}</div>
-            {row.label ? <span className="message-chip chip-label">{row.label}</span> : null}
-            {!row.label && row.has_attachments ? <span className="message-chip">Attachment</span> : null}
-            {!row.label && !row.has_attachments && row.folder === "drafts" ? <span className="message-chip">Draft</span> : null}
+          <div className="flex min-w-0 items-center gap-2">
+            <div className={cn("min-w-0 truncate text-sm", row.unread && "font-bold text-[var(--foreground)]")}>{row.subject || "(no subject)"}</div>
+            {row.label ? <span className={cn(messageChip, "border-[color-mix(in_srgb,var(--warning-text)_35%,var(--line))] text-[var(--warning-text)]")}>{row.label}</span> : null}
+            {!row.label && row.has_attachments ? <span className={messageChip}>Attachment</span> : null}
+            {!row.label && !row.has_attachments && row.folder === "drafts" ? <span className={messageChip}>Draft</span> : null}
           </div>
-          {row.snippet ? <div className="preview">{row.snippet}</div> : null}
+          {row.snippet ? <div className="truncate text-xs text-[var(--foreground-muted)]">{row.snippet}</div> : null}
         </div>
       </button>
       <button
         type="button"
-        className="row-delete-btn"
+        className="self-center cursor-pointer rounded-md border-0 bg-transparent px-1 text-[var(--foreground-faint)] opacity-0 hover:text-[var(--error-text)] group-hover:opacity-100 focus-visible:opacity-100"
         aria-label={deleteLabel}
         title={deleteLabel}
         onClick={(e) => { e.stopPropagation(); onDelete(); }}

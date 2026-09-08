@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Domain } from "../lib/api";
 import { FOLDERS } from "../lib/mailFolders";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 export type CommandAction = {
   id: string;
@@ -111,15 +113,15 @@ export default function CommandPalette({
   let lastGroup = "";
 
   return (
-    <div className="modal-back command-palette-back" role="presentation" onClick={onClose}>
+    <div className={cn(tw.modalBack, "z-[80] backdrop-blur-[2px]")} role="presentation" onClick={onClose}>
       <div
-        className="command-palette"
+        className="flex max-h-[min(440px,calc(100vh-48px))] w-[min(520px,calc(100vw-24px))] flex-col overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface)] shadow-[var(--shadow)]"
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="command-palette-input-wrap">
+        <div className="flex items-center gap-2.5 border-b border-[var(--line)] px-3.5 py-3 text-[var(--foreground-muted)]">
           <span aria-hidden>⌕</span>
           <input
             ref={inputRef}
@@ -127,6 +129,7 @@ export default function CommandPalette({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Compose, jump to domain, open settings…"
             aria-label="Command search"
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] text-[var(--foreground)] shadow-none outline-none"
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 e.preventDefault();
@@ -145,21 +148,24 @@ export default function CommandPalette({
           />
           <kbd>esc</kbd>
         </div>
-        <ul className="command-palette-list" role="listbox">
+        <ul className="m-0 list-none overflow-y-auto p-1.5" role="listbox">
           {filtered.length === 0 ? (
-            <li className="command-palette-empty muted">No matching actions</li>
+            <li className={cn("px-3 py-4 text-[13px]", tw.muted)}>No matching actions</li>
           ) : (
             filtered.map((action, index) => {
               const showGroup = action.group !== lastGroup;
               lastGroup = action.group;
               return (
                 <li key={action.id}>
-                  {showGroup ? <div className="command-palette-group">{action.group}</div> : null}
+                  {showGroup ? <div className="px-2.5 pt-2 pb-1 font-mono text-[11px] uppercase tracking-wide text-[var(--foreground-muted)]">{action.group}</div> : null}
                   <button
                     type="button"
                     role="option"
                     aria-selected={index === active}
-                    className={`command-palette-item${index === active ? " active" : ""}`}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[var(--foreground)]",
+                      index === active && "bg-[rgb(var(--accent-rgb)/0.1)]",
+                    )}
                     onMouseEnter={() => setActive(index)}
                     onClick={() => runAt(index)}
                   >

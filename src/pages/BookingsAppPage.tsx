@@ -4,6 +4,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { api } from "../lib/api";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 export default function BookingsAppPage() {
   const [slug, setSlug] = useState("");
@@ -46,11 +48,11 @@ export default function BookingsAppPage() {
       title="Booking pages"
       subtitle="Let guests request a meeting with a link. Automatic availability checks are not yet available."
     >
-      {err ? <p className="error" role="alert">{err}</p> : null}
-      {notice ? <p className="notice" role="status">{notice}</p> : null}
-      <form className="app-feature-card stack gap-3" onSubmit={(e) => void createPage(e)}>
+      {err ? <p className={tw.error} role="alert">{err}</p> : null}
+      {notice ? <p className={tw.notice} role="status">{notice}</p> : null}
+      <form className={cn(tw.appFeatureCard, "gap-3", tw.stack)} onSubmit={(e) => void createPage(e)}>
         <h2>Create a page</h2>
-        <div className="stack gap-1.5">
+        <div className={cn("gap-1.5", tw.stack)}>
           <Label htmlFor="book-slug">Slug</Label>
           <Input
             id="book-slug"
@@ -61,7 +63,7 @@ export default function BookingsAppPage() {
             pattern="[a-z0-9-]+"
           />
         </div>
-        <div className="stack gap-1.5">
+        <div className={cn("gap-1.5", tw.stack)}>
           <Label htmlFor="book-title">Title</Label>
           <Input id="book-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Book a call" />
         </div>
@@ -69,7 +71,7 @@ export default function BookingsAppPage() {
           {busy ? "Creating…" : "Create booking page"}
         </Button>
         {createdUrl ? (
-          <p className="muted text-sm">
+          <p className={cn("text-sm", tw.muted)}>
             Public URL: <a href={createdUrl} className="break-all">{createdUrl}</a>
           </p>
         ) : null}
@@ -80,15 +82,15 @@ export default function BookingsAppPage() {
             title="No booking pages yet"
             body="Create your first link to collect meeting requests. Review each request before confirming a time."
             mockup={
-              <div className="feature-empty-mock" aria-hidden>
-                <div className="feature-empty-mock-cal">
+              <div className={tw.featureEmptyMock} aria-hidden>
+                <div className={tw.featureEmptyCal}>
                   {Array.from({ length: 7 }, (_, i) => (
-                    <span key={i} className={`feature-empty-mock-day${i === 2 || i === 4 ? " hit" : ""}`} />
+                    <span key={i} className={i === 2 || i === 4 ? tw.featureEmptyDayHit : tw.featureEmptyDay} />
                   ))}
                 </div>
-                <div className="feature-empty-mock-row">
-                  <span className="feature-empty-mock-line grow" />
-                  <span className="feature-empty-mock-chip">30 min</span>
+                <div className={tw.featureEmptyRow}>
+                  <span className={tw.featureEmptyLine} />
+                  <span className={tw.featureEmptyChip}>30 min</span>
                 </div>
               </div>
             }

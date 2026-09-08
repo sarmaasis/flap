@@ -33,6 +33,30 @@ import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
 import { DomainColorPicker } from "../../components/ui/domain-color-picker";
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { tw } from "../../lib/tw";
+import { cn } from "../../lib/utils";
+
+const settingsH2 = "mb-1 text-[1.05rem] font-semibold";
+const settingsTable = "w-full text-[13px] [&_th]:px-1.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold [&_td]:px-1.5 [&_td]:py-1.5 [&_td:last-child]:text-right";
+const stackForm =
+  "my-2 grid gap-2 [&>input]:w-full [&>select]:w-full [&>textarea]:w-full [&>button]:h-9 [&>button]:w-auto [&>button]:max-w-max [&>button]:justify-self-start";
+const rowActions = "flex flex-wrap items-center justify-end gap-2";
+const grid2 = "grid grid-cols-1 gap-3 sm:grid-cols-2";
+const statusPill = "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold";
+const statusPillOk = `${statusPill} bg-[color-mix(in_srgb,var(--success-text)_14%,transparent)] text-[var(--success-text)]`;
+const statusPillWarn = `${statusPill} bg-[color-mix(in_srgb,var(--warning-text)_14%,transparent)] text-[var(--warning-text)]`;
+const dnsStatusPill =
+  "rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-2.5 py-2 [&_strong]:block [&_strong]:text-xs [&_strong]:text-[var(--foreground)] [&_span]:mt-0.5 [&_span]:block [&_span]:text-xs";
+const dnsStatusPillOk = `${dnsStatusPill} [&_span]:text-[var(--success-text)]`;
+const dnsStatusPillWarn = `${dnsStatusPill} [&_span]:text-[var(--warning-text)]`;
+const dnsStepTitle = "mt-[18px] mb-1.5 text-sm font-semibold text-[var(--foreground)]";
+const dnsStepHelp = "mb-2 mt-0 text-xs leading-[1.4] text-[var(--foreground-muted)]";
+const domainsTips =
+  "mt-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-[13px] [&_summary]:cursor-pointer [&_summary]:text-xs [&_summary]:font-semibold [&_summary]:text-[var(--foreground-muted)]";
+const deferredBanner =
+  "mb-4 rounded-[10px] border border-dashed border-[var(--line-strong)] px-3.5 py-3 text-[13px] text-[var(--foreground-muted)]";
+const domainEntryCard =
+  "flex cursor-pointer flex-col gap-1 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left hover:border-[var(--line-strong)]";
 
 type Tab =
   | "general"
@@ -920,24 +944,24 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
 
   return (
     <AppShell email={email} current={shellCurrent} onLogout={() => void logout()}>
-      <main className="settings settings-shipmail">
-        <div className="settings-shell">
-        <header className="settings-header">
+      <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth bg-[var(--surface)] [-webkit-overflow-scrolling:touch]">
+        <div className="mx-auto box-border w-full max-w-[1090px] px-3.5 pb-10 pt-0 md:px-6 md:pb-14">
+        <header className="-mx-3.5 mb-[18px] flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-3.5 py-3 md:-mx-6 md:px-6">
           <div className="min-w-0">
-            <h1>{pageTitle}</h1>
-            <p className="lede">{pageLede}</p>
+            <h1 className="m-0 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{pageTitle}</h1>
+            <p className="mt-0.5 max-w-[62ch] text-[13px] leading-[1.45] text-[var(--foreground-muted)]">{pageLede}</p>
           </div>
           <div className="md:hidden shrink-0">
             <ThemeToggle />
           </div>
         </header>
         {surface === "domains" && onboardingBanner ? (
-          <div className="onboarding-banner" role="status">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] px-3.5 py-3 max-md:flex-col max-md:items-start" role="status">
             <div>
               <strong>Finish setup</strong>
-              <p className="muted" style={{ margin: "4px 0 0" }}>
+              <p className={tw.muted} style={{ margin: "4px 0 0" }}>
                 Add a domain, publish DNS, create an address, then send a test.{" "}
-                <button type="button" className="text-button" onClick={() => go("/app/get-started")}>
+                <button type="button" className={tw.textButton} onClick={() => go("/app/get-started")}>
                   Get started checklist
                 </button>
               </p>
@@ -954,8 +978,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
           </div>
         ) : null}
         {tabs.length > 1 ? (
-          <Tabs value={tab} onValueChange={(v) => selectTab(v as Tab)} className="settings-tabs-root settings-tabs-underline">
-            <TabsList className="settings-tabs-list h-auto w-full justify-start gap-1 border-b border-[var(--line)] bg-transparent p-0">
+          <Tabs value={tab} onValueChange={(v) => selectTab(v as Tab)} className="mb-[22px] w-full">
+            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto border-b border-[var(--line)] bg-transparent p-0">
               {tabs.map(([id, label]) => (
                 <TabsTrigger
                   key={id}
@@ -969,25 +993,24 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
           </Tabs>
         ) : null}
         <div ref={bannerRef} className="sticky top-0 z-20 -mx-1 space-y-2 bg-[var(--bg)]/95 px-1 py-1 backdrop-blur-sm">
-          {err ? <div className="err">{err}</div> : null}
-          {notice ? <div className="notice" role="status">{notice}</div> : null}
+          {err ? <div className={tw.err}>{err}</div> : null}
+          {notice ? <div className={tw.notice} role="status">{notice}</div> : null}
         </div>
 
         {tab === "general" ? (
-          <div className="settings-general stack gap-8">
-            <section className="settings-block">
-              <h2>Workspace</h2>
-              <p className="muted text-sm">Manage your organization settings.</p>
-              <div className="settings-card">
-                <label className="stack gap-1.5">
+          <div className={cn("gap-8", tw.stack)}>
+            <section>
+              <h2 className={settingsH2}>Workspace</h2>
+              <p className={cn("text-sm", tw.muted)}>Manage your organization settings.</p>
+              <div className={tw.settingsCard}>
+                <label className={cn("gap-1.5", tw.stack)}>
                   <span className="text-sm font-medium">Organization name</span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className={tw.rowForm}>
                     <input
-                      className="input"
+                      className={tw.nativeControl}
                       value={orgName}
                       onChange={(e) => setOrgName(e.target.value)}
                       placeholder="Acme Inc."
-                      style={{ maxWidth: 320 }}
                     />
                     <Button
                       type="button"
@@ -1003,28 +1026,27 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-block">
-              <h2>Profile</h2>
-              <p className="muted text-sm">Your personal information.</p>
-              <div className="settings-card stack gap-4">
+            <section>
+              <h2 className={settingsH2}>Profile</h2>
+              <p className={cn("text-sm", tw.muted)}>Your personal information.</p>
+              <div className={cn(tw.settingsCard, "gap-4", tw.stack)}>
                 <div className="flex items-center gap-3">
-                  <span className="settings-avatar" aria-hidden>
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,#111)] text-[13px] font-bold text-[var(--accent)]" aria-hidden>
                     {(profileName || email || "?").slice(0, 2).toUpperCase()}
                   </span>
                   <div>
                     <p className="text-sm font-medium">Avatar</p>
-                    <p className="muted text-xs">Uses your initials for now. Upload comes later.</p>
+                    <p className={cn("text-xs", tw.muted)}>Uses your initials for now. Upload comes later.</p>
                   </div>
                 </div>
-                <label className="stack gap-1.5">
+                <label className={cn("gap-1.5", tw.stack)}>
                   <span className="text-sm font-medium">Full name</span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className={tw.rowForm}>
                     <input
-                      className="input"
+                      className={tw.nativeControl}
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
                       placeholder="Jane Smith"
-                      style={{ maxWidth: 320 }}
                     />
                     <Button
                       type="button"
@@ -1040,12 +1062,12 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-block">
-              <h2>Account Security</h2>
-              <p className="muted text-sm">Manage how you sign in and protect your account.</p>
-              <div className="settings-card stack gap-3">
+            <section>
+              <h2 className={settingsH2}>Account Security</h2>
+              <p className={cn("text-sm", tw.muted)}>Manage how you sign in and protect your account.</p>
+              <div className={cn(tw.settingsCard, "gap-3", tw.stack)}>
                 <h3 className="text-sm font-semibold">Login email</h3>
-                <p className="muted text-xs">Signed in with Clerk. Use Account → Security in Clerk for 2FA when enabled on your instance.</p>
+                <p className={cn("text-xs", tw.muted)}>Signed in with Clerk. Use Account → Security in Clerk for 2FA when enabled on your instance.</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{email || "—"}</span>
                   <Badge>Primary</Badge>
@@ -1059,13 +1081,13 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-block">
-              <h2>Export data</h2>
-              <p className="muted text-sm">Download a copy of workspace data.</p>
-              <div className="settings-card flex flex-wrap items-center justify-between gap-3">
+            <section>
+              <h2 className={settingsH2}>Export data</h2>
+              <p className={cn("text-sm", tw.muted)}>Download a copy of workspace data.</p>
+              <div className={cn(tw.settingsCard, "flex flex-wrap items-center justify-between gap-3")}>
                 <div>
                   <p className="font-medium">Full account export</p>
-                  <p className="muted text-xs">
+                  <p className={cn("text-xs", tw.muted)}>
                     JSON workspace backup from Privacy, plus per-mailbox .mbox (and planned .eml ZIP) downloads.
                     Keep a copy within 7 days of cancel.
                   </p>
@@ -1076,13 +1098,13 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-block">
-              <h2>Danger Zone</h2>
-              <p className="muted text-sm">Permanently delete your account and associated data.</p>
-              <div className="settings-card settings-card-danger flex flex-wrap items-center justify-between gap-3">
+            <section>
+              <h2 className={settingsH2}>Danger Zone</h2>
+              <p className={cn("text-sm", tw.muted)}>Permanently delete your account and associated data.</p>
+              <div className={cn(tw.settingsCard, "flex flex-wrap items-center justify-between gap-3 border-[color-mix(in_srgb,#ef4444_35%,var(--line))]")}>
                 <div>
                   <p className="font-medium">Delete account</p>
-                  <p className="muted text-xs">Cancels billing access and removes workspace data. Prefer export first.</p>
+                  <p className={cn("text-xs", tw.muted)}>Cancels billing access and removes workspace data. Prefer export first.</p>
                 </div>
                 <Button type="button" variant="secondary" onClick={() => selectTab("privacy")}>
                   Manage deletion
@@ -1093,18 +1115,18 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         ) : null}
 
         {tab === "preferences" ? (
-          <div className="settings-general stack gap-8">
-            <section className="settings-block">
-              <h2>Appearance</h2>
-              <p className="muted text-sm">Theme follows the app shell. Marketing stays paper-light.</p>
-              <div className="settings-card">
+          <div className={cn("gap-8", tw.stack)}>
+            <section>
+              <h2 className={settingsH2}>Appearance</h2>
+              <p className={cn("text-sm", tw.muted)}>Theme follows the app shell. Marketing stays paper-light.</p>
+              <div className={tw.settingsCard}>
                 <ThemeToggle />
               </div>
             </section>
-            <section className="settings-block">
-              <h2>Mail preferences</h2>
-              <p className="muted text-sm">Vacation responder, notifications, and undo-send.</p>
-              <div className="settings-card stack gap-3">
+            <section>
+              <h2 className={settingsH2}>Mail preferences</h2>
+              <p className={cn("text-sm", tw.muted)}>Vacation responder, notifications, and undo-send.</p>
+              <div className={cn(tw.settingsCard, "gap-3", tw.stack)}>
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={Boolean(prefs.vacation_enabled)}
@@ -1113,7 +1135,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   Vacation responder on
                 </label>
                 <textarea
-                  className="input"
+                  className={tw.nativeControl}
                   rows={4}
                   value={prefs.vacation_body}
                   onChange={(e) => setPrefs({ ...prefs, vacation_body: e.target.value })}
@@ -1126,10 +1148,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   />
                   Browser notifications
                 </label>
-                <label className="stack gap-1.5 text-sm">
+                <label className={cn("gap-1.5 text-sm", tw.stack)}>
                   Undo send (seconds)
                   <input
-                    className="input"
+                    className={tw.nativeControl}
                     type="number"
                     min={0}
                     max={30}
@@ -1162,20 +1184,19 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         {tab === "setup" ? (
           <>
             {!emailVerified ? (
-              <div className="notice dns-issues" role="status">
+              <div className={tw.noticeWarn} role="status">
                 <p>
                   Confirm <strong>{email}</strong> with a one-time code. Referral rewards and some activation steps wait on this.
                 </p>
                 {verifyCodeSent ? (
-                  <p style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <p className={cn(tw.rowForm, "mt-2")}>
                     <input
-                      className="input"
+                      className={tw.nativeControl}
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       placeholder="123456"
                       value={verifyCode}
                       onChange={(e) => setVerifyCode(e.target.value)}
-                      style={{ maxWidth: 140 }}
                     />
                     <Button size="sm" type="button" disabled={verifyBusy || verifyCode.trim().length < 4} onClick={() => void submitVerifyCode()}>
                       {verifyBusy ? "Verifying…" : "Verify code"}
@@ -1194,7 +1215,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             ) : null}
             {(onboardingBanner && (hasDomain || domainEntryMode !== "choose")) ? (
-            <div className="domains-progress-line muted" role="status">
+            <div className={cn("mb-3 text-[13px]", tw.muted)} role="status">
               {[
                 hasDomain,
                 Boolean(dnsStatus?.receiving?.identity_verified || dnsStatus?.verified),
@@ -1202,34 +1223,34 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 Boolean(activation?.steps.first_email_received || activation?.steps.first_email_sent),
               ].filter(Boolean).length}
               /4 setup ·{" "}
-              <button type="button" className="text-button" onClick={() => go("/app/get-started")}>
+              <button type="button" className={tw.textButton} onClick={() => go("/app/get-started")}>
                 Open Get started
               </button>
             </div>
             ) : null}
             {setupLoading ? (
-              <div className="skeleton-stack" aria-busy="true" aria-label="Loading setup">
-                <div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" />
+              <div className={tw.skeletonStack} aria-busy="true" aria-label="Loading setup">
+                <div className={tw.skeletonRow} /><div className={tw.skeletonRow} /><div className={tw.skeletonRow} />
               </div>
             ) : null}
-            <div className="settings-panel settings-measure">
-            <section className="settings-card" aria-labelledby="domains-title">
-              <div className="section-heading"><div><h2 id="domains-title">Domains</h2><p>{domains.length === 0 && domainEntryMode === "choose" ? "Connect a domain you own, or buy one elsewhere first." : "Domains you control. Select one to manage DNS and mailboxes."}</p></div></div>
+            <div className="flex w-full max-w-none flex-col gap-3">
+            <section className={tw.settingsCard} aria-labelledby="domains-title">
+              <div className={tw.sectionHeading}><div><h2 id="domains-title">Domains</h2><p>{domains.length === 0 && domainEntryMode === "choose" ? "Connect a domain you own, or buy one elsewhere first." : "Domains you control. Select one to manage DNS and mailboxes."}</p></div></div>
               {!setupLoading && domains.length === 0 && domainEntryMode === "choose" ? (
-                <div className="domain-entry-grid" role="group" aria-label="How do you want to start?">
-                  <button type="button" className="domain-entry-card" onClick={() => setDomainEntryMode("have")}>
+                <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="How do you want to start?">
+                  <button type="button" className={domainEntryCard} onClick={() => setDomainEntryMode("have")}>
                     <strong>I have a domain</strong>
-                    <span className="muted">Connect example.com and publish MX, SPF, and DKIM at your DNS host.</span>
+                    <span className={tw.muted}>Connect example.com and publish MX, SPF, and DKIM at your DNS host.</span>
                   </button>
-                  <button type="button" className="domain-entry-card" onClick={() => setDomainEntryMode("need")}>
+                  <button type="button" className={domainEntryCard} onClick={() => setDomainEntryMode("need")}>
                     <strong>I need a domain</strong>
-                    <span className="muted">Buy one at your registrar, then come back here to connect it. Flap does not sell domains.</span>
+                    <span className={tw.muted}>Buy one at your registrar, then come back here to connect it. Flap does not sell domains.</span>
                   </button>
                 </div>
               ) : null}
               {!setupLoading && domains.length === 0 && domainEntryMode === "need" ? (
-                <div className="domain-need-panel" style={{ marginTop: 12 }}>
-                  <p className="muted" style={{ marginTop: 0 }}>
+                <div className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--surface-hover)] p-4">
+                  <p className={tw.muted} style={{ marginTop: 0 }}>
                     Register a domain at Porkbun, Namecheap, Cloudflare Registrar, or wherever you prefer. When you own it, connect it here — DNS stays at your registrar.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1247,27 +1268,27 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               ) : null}
               {domains.length > 0 || domainEntryMode === "have" ? (
               <>
-              <form className="row-form flex-wrap" onSubmit={addDomain}>
+              <form className={cn(tw.rowForm, "flex-wrap")} onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
-                <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
+                <input className={tw.nativeControl} id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
                 <Button size="sm" type="submit">Add domain</Button>
               </form>
               {domains.length === 0 && domainEntryMode === "have" ? (
-                <p className="muted" style={{ marginTop: 8 }}>
-                  <button type="button" className="text-button" onClick={() => setDomainEntryMode("choose")}>
+                <p className={tw.muted} style={{ marginTop: 8 }}>
+                  <button type="button" className={tw.textButton} onClick={() => setDomainEntryMode("choose")}>
                     ← Back to choices
                   </button>
                 </p>
               ) : null}
               {billing ? (
-                <p className="muted" style={{ marginTop: 8 }}>
+                <p className={tw.muted} style={{ marginTop: 8 }}>
                   {billing.plan.name} · {billing.usage.domains} / {billing.limits.domains} domains
                   {billing.plan_id === "free" && billing.usage.domains >= billing.limits.domains ? (
                     <>
                       {" · "}
                       <button
                         type="button"
-                        className="text-button"
+                        className={tw.textButton}
                         onClick={() => {
                           void import("../../lib/analytics").then(({ track }) => {
                             track("upgrade_prompt_seen");
@@ -1304,21 +1325,21 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                           <div className="flex min-w-0 items-center justify-between gap-2">
                             <button
                               type="button"
-                              className={`text-button${selected ? " selected" : ""} flex min-w-0 items-center gap-1.5 truncate`}
+                              className={cn(tw.textButton, "flex min-w-0 items-center gap-1.5 truncate", selected && "border-[var(--accent)] text-[var(--accent)]")}
                               onClick={(e) => { e.stopPropagation(); selectDomain(d.id); }}
                             >
-                              <span className="domain-swatch shrink-0" style={{ background: d.color || "#737168" }} aria-hidden />
+                              <span className={cn("shrink-0", tw.domainSwatch)} style={{ background: d.color || "#737168" }} aria-hidden />
                               <span className="truncate">{d.name}</span>
                             </button>
-                            <span className={`shrink-0 ${receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}`}>
+                            <span className={cn("shrink-0", receivingReady && sendingReady ? statusPillOk : statusPillWarn)}>
                               {statusLabel}
                             </span>
                           </div>
-                          {muted ? <div className="muted text-xs">Muted</div> : null}
+                          {muted ? <div className={cn("text-xs", tw.muted)}>Muted</div> : null}
                           {legacy ? (
-                            <div className="muted text-xs">
+                            <div className={cn("text-xs", tw.muted)}>
                               Legacy setup ·{" "}
-                              <button type="button" className="text-button" onClick={(e) => { e.stopPropagation(); void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed.")); }}>
+                              <button type="button" className={tw.textButton} onClick={(e) => { e.stopPropagation(); void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed.")); }}>
                                 Switch to current mail path
                               </button>
                             </div>
@@ -1360,8 +1381,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     })}
                   </ul>
                   {/* ── Desktop table (hidden on mobile) ── */}
-                  <div className="table-wrap hidden sm:block">
-                    <table className="table domains-table">
+                  <div className="hidden overflow-x-auto sm:block">
+                    <table className={settingsTable}>
                       <thead>
                         <tr>
                           <th>Domain</th>
@@ -1386,31 +1407,31 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                           return (
                             <tr
                               key={d.id}
-                              className={selected ? "is-selected" : undefined}
+                              className={selected ? "bg-[color-mix(in_srgb,var(--accent)_7%,transparent)]" : undefined}
                               onClick={() => selectDomain(d.id)}
                               style={{ cursor: "pointer" }}
                               aria-selected={selected}
                             >
                               <td>
                                 <button
-                                  className={`text-button${selected ? " selected" : ""}`}
+                                  className={cn(tw.textButton, selected && "border-[var(--accent)] text-[var(--accent)]")}
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     selectDomain(d.id);
                                   }}
                                 >
-                                  <span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />
+                                  <span className={tw.domainSwatch} style={{ background: d.color || "#737168" }} aria-hidden />
                                   {d.name}
                                 </button>
-                                {muted ? <div className="muted" style={{ fontSize: 12 }}>Muted</div> : null}
+                                {muted ? <div className={tw.muted} style={{ fontSize: 12 }}>Muted</div> : null}
                                 {legacy ? (
-                                  <div className="muted" style={{ fontSize: 12 }}>
+                                  <div className={tw.muted} style={{ fontSize: 12 }}>
                                     Legacy setup
                                     {" · "}
                                     <button
                                       type="button"
-                                      className="text-button"
+                                      className={tw.textButton}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed."));
@@ -1422,12 +1443,12 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                 ) : null}
                               </td>
                               <td>
-                                <span className={receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}>
+                                <span className={receivingReady && sendingReady ? statusPillOk : statusPillWarn}>
                                   {statusLabel}
                                 </span>
                               </td>
                               <td onClick={(e) => e.stopPropagation()}>
-                                <select
+                                <select className={tw.nativeControl}
                                   value={d.catch_all_mailbox_id ?? ""}
                                   onChange={(e) => {
                                     const value = e.target.value || null;
@@ -1498,11 +1519,11 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   </div>
                 </>
               ) : setupLoading || domainEntryMode === "choose" || domainEntryMode === "need" ? null : (
-                <p className="empty-state">Enter your domain above to start receiving mail.</p>
+                <p className={tw.emptyState}>Enter your domain above to start receiving mail.</p>
               )}
-              <details className="domains-tips">
+              <details className={domainsTips}>
                 <summary>Tips</summary>
-                <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+                <p className={tw.muted} style={{ marginTop: 8, fontSize: 13 }}>
                   Plus-addressing works automatically: mail to <code>hello+stripe@yourdomain.com</code> lands in <code>hello@</code>.
                   Upgrades add capacity only — never a DNS cutover.
                 </p>
@@ -1512,8 +1533,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </section>
             {hasDomain ? (
             <>
-            <section className="settings-card" aria-labelledby="mailboxes-title">
-              <div className="section-heading">
+            <section className={tw.settingsCard} aria-labelledby="mailboxes-title">
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2 id="mailboxes-title">Mailboxes</h2>
                   <p>Create and manage addresses on the Mailboxes page. Catch-all still uses the domain table above.</p>
@@ -1540,8 +1561,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 )}
               </div>
             </section>
-            <section className="settings-card" aria-labelledby="routing-title">
-              <div className="section-heading">
+            <section className={tw.settingsCard} aria-labelledby="routing-title">
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2 id="routing-title">DNS records</h2>
                   <p>
@@ -1560,10 +1581,11 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </div>
               </div>
               {hasDomain ? (
-                <div className="dns-domain-bar">
+                <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] px-3 py-2.5 [&_label]:text-xs [&_label]:font-semibold [&_label]:tracking-wide [&_label]:text-[var(--foreground-muted)]">
                   <label htmlFor="dns-configure-domain">Domain</label>
                   <select
                     id="dns-configure-domain"
+                    className={cn(tw.nativeControl, "min-h-8 min-w-[min(280px,100%)] max-w-full font-medium")}
                     value={domainId}
                     onChange={(e) => selectDomain(e.target.value)}
                     aria-label="Domain to configure DNS for"
@@ -1576,7 +1598,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   </select>
                 </div>
               ) : null}
-              <details className="domains-tips">
+              <details className={domainsTips}>
                 <summary>Where to find DNS</summary>
                 <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13 }}>
                   {REGISTRAR_DNS_TIPS.map((t) => (
@@ -1592,14 +1614,14 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 ) : null}
               </details>
               {selectedDomain?.receiving_ready_at ? (
-                <div className="notice" role="status" style={{ marginBottom: 12 }}>
+                <div className={tw.notice} role="status" style={{ marginBottom: 12 }}>
                   <p style={{ margin: 0 }}>
                     <strong>Receiving ready</strong>
                     {domainMailboxes.length === 0
                       ? " — create a mailbox, then send a test."
                       : " — send yourself a test to confirm delivery."}
                   </p>
-                  <div className="row-form" style={{ marginTop: 10, flexWrap: "wrap" }}>
+                  <div className={tw.rowForm} style={{ marginTop: 10, flexWrap: "wrap" }}>
                     {domainMailboxes.length === 0 ? (
                       <Button size="sm" type="button" onClick={() => go("/app/mailboxes")}>
                         Create mailbox
@@ -1613,44 +1635,44 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </div>
               ) : null}
               {dnsPolling || dnsPollNote ? (
-                <p className="muted" role="status" style={{ marginBottom: 8 }}>
+                <p className={tw.muted} role="status" style={{ marginBottom: 8 }}>
                   {dnsPolling ? "Auto-checking DNS with backoff…" : null}
                   {dnsPollNote ? ` ${dnsPollNote}` : null}
                 </p>
               ) : null}
               {dnsStatus ? (
-                <div className={`notice ${dnsStatus.verified ? "" : "dns-issues"}`} role="status">
+                <div className={dnsStatus.verified ? tw.notice : tw.noticeWarn} role="status">
                   <p style={{ marginBottom: 4 }}>
                     <strong>{selectedName}</strong>
-                    <span className="muted"> · {setupLifecycleLabel(dnsStatus.lifecycle)}</span>
+                    <span className={tw.muted}> · {setupLifecycleLabel(dnsStatus.lifecycle)}</span>
                   </p>
                   {dnsStatus.receiving ? (
-                    <div className="dns-status-grid" aria-label="Setup checklist">
-                      <div className={`dns-status-pill ${dnsStatus.receiving.identity_verified ? "ok" : "warn"}`}>
+                    <div className="my-2.5 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2" aria-label="Setup checklist">
+                      <div className={dnsStatus.receiving.identity_verified ? dnsStatusPillOk : dnsStatusPillWarn}>
                         <strong>Domain ownership</strong>
                         <span>{dnsStatus.receiving.identity_verified ? "Verified" : "Add verification TXT"}</span>
                       </div>
-                      <div className={`dns-status-pill ${dnsStatus.receiving.mx_configured ? "ok" : "warn"}`}>
+                      <div className={dnsStatus.receiving.mx_configured ? dnsStatusPillOk : dnsStatusPillWarn}>
                         <strong>Incoming mail (MX)</strong>
                         <span>{dnsStatus.receiving.mx_configured ? "Configured" : "Add MX record"}</span>
                       </div>
-                      <div className={`dns-status-pill ${dnsStatus.sending?.sending_ready ? "ok" : "warn"}`}>
+                      <div className={dnsStatus.sending?.sending_ready ? dnsStatusPillOk : dnsStatusPillWarn}>
                         <strong>Outgoing mail (DKIM)</strong>
                         <span>{dnsStatus.sending?.sending_ready ? "Ready" : "Add DKIM CNAMEs"}</span>
                       </div>
-                      <div className={`dns-status-pill ${dnsStatus.spf_ok ? "ok" : "warn"}`}>
+                      <div className={dnsStatus.spf_ok ? dnsStatusPillOk : dnsStatusPillWarn}>
                         <strong>SPF</strong>
                         <span>{dnsStatus.spf_ok ? "OK" : "Add or update SPF"}</span>
                       </div>
                     </div>
                   ) : null}
                   {dnsStatus.verified ? (
-                    <p style={{ marginTop: 10 }} className="muted">
+                    <p style={{ marginTop: 10 }} className={tw.muted}>
                       Receiving looks good. Create an address and send a test if you haven’t yet.
                     </p>
                   ) : dnsStatus.issues.length ? (
                     <>
-                      <p className="dns-step-title" style={{ marginTop: 12 }}>What to fix</p>
+                      <p className={cn(dnsStepTitle, "mt-3")}>What to fix</p>
                       <ul style={{ margin: "0 0 4px", paddingLeft: 18 }}>
                         {dnsStatus.issues.map((issue) => (
                           <li key={issue}>{issue}</li>
@@ -1660,7 +1682,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   ) : null}
                   {dnsStatus.recommendations?.length ? (
                     <>
-                      <p className="dns-step-title" style={{ marginTop: 12 }}>Recommended</p>
+                      <p className={cn(dnsStepTitle, "mt-3")}>Recommended</p>
                       <ul style={{ margin: "0 0 4px", paddingLeft: 18 }}>
                         {dnsStatus.recommendations.map((tip) => (
                           <li key={tip}>{tip}</li>
@@ -1671,11 +1693,11 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </div>
               ) : null}
               {postVerifyShare && dnsStatus?.verified ? (
-                <details className="domains-tips" open={false}>
+                <details className={domainsTips} open={false}>
                   <summary>{postVerifyShare.title}</summary>
-                  <p className="muted" style={{ marginTop: 8 }}>{postVerifyShare.share_text}</p>
+                  <p className={tw.muted} style={{ marginTop: 8 }}>{postVerifyShare.share_text}</p>
                   <p style={{ marginTop: 8 }}><code>{postVerifyShare.share_url}</code></p>
-                  <div className="row-form" style={{ marginTop: 10 }}>
+                  <div className={tw.rowForm} style={{ marginTop: 10 }}>
                     <Button size="sm"
                       type="button"
                       onClick={() => {
@@ -1703,7 +1725,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </details>
               ) : null}
               {dns ? (
-                <div className="dns">
+                <div className="overflow-x-auto rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-3.5 text-[13px]">
                   {(() => {
                     const domain = selectedName || "";
                     const rows = buildDnsTableRows(dns, domain);
@@ -1711,12 +1733,12 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     return (
                       <>
                         {pendingValues ? (
-                          <p className="notice dns-issues" style={{ marginTop: 12 }}>
+                          <p className={cn(tw.noticeWarn, "mt-3")}>
                             Some values are still being prepared. Refresh in a minute — don’t publish placeholder text.
                           </p>
                         ) : null}
-                        <div className="row-form" style={{ marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
-                          <p className="dns-step-title" style={{ margin: 0, flex: 1 }}>Records to add</p>
+                        <div className={tw.rowForm} style={{ marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <p className={cn(dnsStepTitle, "m-0 flex-1")}>Records to add</p>
                           <Button size="sm" variant="ghost"
                             type="button"
                             onClick={() => {
@@ -1727,11 +1749,11 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                             Copy all
                           </Button>
                         </div>
-                        <p className="dns-step-help">
+                        <p className={dnsStepHelp}>
                           Set Type + Host, paste Value, then click Check setup.
                         </p>
                         <div className="overflow-x-auto rounded-lg border border-[var(--line)] [-webkit-overflow-scrolling:touch]">
-                        <table className="dns-table min-w-[540px]">
+                        <table className={settingsTable}>
                           <thead>
                             <tr>
                               <th scope="col">Type</th>
@@ -1746,7 +1768,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                 <td><strong>{r.type}</strong></td>
                                 <td>
                                   <code>{r.host}</code>
-                                  <button type="button" className="text-button" style={{ display: "block", marginTop: 4 }} onClick={() => copyText(r.host)}>
+                                  <button type="button" className={tw.textButton} style={{ display: "block", marginTop: 4 }} onClick={() => copyText(r.host)}>
                                     Copy host
                                   </button>
                                 </td>
@@ -1754,7 +1776,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                   <code>{r.value}</code>
                                   {r.hint ? (
                                     <p
-                                      className={`dns-step-help${r.hint.startsWith("Recommended") ? " dns-hint-recommended" : ""}`}
+                                      className={cn(dnsStepHelp, "mt-1", r.hint.startsWith("Recommended") && "font-semibold text-[var(--foreground)]")}
                                       style={{ marginTop: 4 }}
                                     >
                                       {r.hint}
@@ -1763,11 +1785,11 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                 </td>
                                 <td>
                                   {r.copyable ? (
-                                    <button type="button" className="text-button" onClick={() => copyText(r.value)}>
+                                    <button type="button" className={tw.textButton} onClick={() => copyText(r.value)}>
                                       Copy value
                                     </button>
                                   ) : (
-                                    <span className="muted">Pending</span>
+                                    <span className={tw.muted}>Pending</span>
                                   )}
                                 </td>
                               </tr>
@@ -1775,7 +1797,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                           </tbody>
                         </table>
                         </div>
-                        <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                        <p className={tw.muted} style={{ marginTop: 8, fontSize: 12 }}>
                           Extra addresses never need new DNS — add them under Mailboxes.
                         </p>
                       </>
@@ -1783,9 +1805,9 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   })()}
                 </div>
               ) : hasDomain ? (
-                <p className="empty-state">Select a domain to see DNS rows.</p>
+                <p className={tw.emptyState}>Select a domain to see DNS rows.</p>
               ) : (
-                <p className="empty-state">Add a domain first.</p>
+                <p className={tw.emptyState}>Add a domain first.</p>
               )}
             </section>
             </>
@@ -1795,24 +1817,24 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         ) : null}
 
         {tab === "compose" ? (
-          <div className="settings-panel settings-measure">
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Signatures</h2><p>A default signature is appended to new messages.</p></div></div>
+          <div className="flex w-full max-w-none flex-col gap-3">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Signatures</h2><p>A default signature is appended to new messages.</p></div></div>
               <SignatureForm onSave={async (body) => { await api.createSignature(body); await refresh(); setNotice("Signature saved."); }} />
-              {signatures.length ? <table className="table"><thead><tr><th>Name</th><th>Default</th><th /></tr></thead><tbody>
+              {signatures.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>Default</th><th /></tr></thead><tbody>
                 {signatures.map((s) => (
                   <tr key={s.id}>
                     <td>{s.name}</td>
-                    <td>{s.is_default ? "Yes" : <button type="button" className="text-button" onClick={() => void api.updateSignature(s.id, { name: s.name, html_body: s.html_body, text_body: s.text_body, is_default: true }).then(refresh)}>Make default</button>}</td>
+                    <td>{s.is_default ? "Yes" : <button type="button" className={tw.textButton} onClick={() => void api.updateSignature(s.id, { name: s.name, html_body: s.html_body, text_body: s.text_body, is_default: true }).then(refresh)}>Make default</button>}</td>
                     <td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteSignature(s.id).then(refresh)}>Remove</Button></td>
                   </tr>
                 ))}
-              </tbody></table> : <p className="empty-state">No signatures yet.</p>}
+              </tbody></table></div> : <p className={tw.emptyState}>No signatures yet.</p>}
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Templates</h2><p>Reusable messages you can insert while composing.</p></div></div>
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Templates</h2><p>Reusable messages you can insert while composing.</p></div></div>
               <TemplateForm onSave={async (body) => { await api.createTemplate(body); await refresh(); setNotice("Template saved."); }} />
-              {templates.length ? <table className="table"><thead><tr><th>Name</th><th>Subject</th><th /></tr></thead><tbody>
+              {templates.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>Subject</th><th /></tr></thead><tbody>
                 {templates.map((t) => (
                   <tr key={t.id}>
                     <td>{t.name}</td>
@@ -1820,46 +1842,46 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     <td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteTemplate(t.id).then(refresh)}>Remove</Button></td>
                   </tr>
                 ))}
-              </tbody></table> : <p className="empty-state">Save a reply you send often.</p>}
+              </tbody></table></div> : <p className={tw.emptyState}>Save a reply you send often.</p>}
             </section>
           </div>
         ) : null}
 
         {tab === "contacts" ? (
-          <section className="settings-card settings-measure">
-            <div className="section-heading"><div><h2>Address book</h2><p>Contacts are remembered as you send, and you can add them by hand.</p></div></div>
+          <section className={cn(tw.settingsCard, "w-full max-w-none")}>
+            <div className={tw.sectionHeading}><div><h2>Address book</h2><p>Contacts are remembered as you send, and you can add them by hand.</p></div></div>
             <ContactForm onSave={async (emailValue, name) => { await api.createContact(emailValue, name); await refresh(); }} />
-            {contacts.length ? <table className="table"><thead><tr><th>Name</th><th>Email</th><th /></tr></thead><tbody>
+            {contacts.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>Email</th><th /></tr></thead><tbody>
               {contacts.map((c) => (
                 <tr key={c.id}><td>{c.name || "—"}</td><td>{c.email}</td><td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteContact(c.id).then(refresh)}>Remove</Button></td></tr>
               ))}
-            </tbody></table> : <p className="empty-state">Your address book fills in as you write.</p>}
+            </tbody></table></div> : <p className={tw.emptyState}>Your address book fills in as you write.</p>}
           </section>
         ) : null}
 
         {tab === "filters" ? (
-          <section className="settings-card settings-measure">
-            <div className="section-heading"><div><h2>Email rules</h2><p>Catch-all, auto-label, archive, forward, or keep mail in inbox. Blocked senders still go to spam first.</p></div></div>
+          <section className={cn(tw.settingsCard, "w-full max-w-none")}>
+            <div className={tw.sectionHeading}><div><h2>Email rules</h2><p>Catch-all, auto-label, archive, forward, or keep mail in inbox. Blocked senders still go to spam first.</p></div></div>
             <FilterForm onSave={async (body) => { await api.createFilter(body); await refresh(); setNotice("Filter added."); }} />
-            {filters.length ? <table className="table"><thead><tr><th>Name</th><th>Match</th><th>Action</th><th /></tr></thead><tbody>
+            {filters.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>Match</th><th>Action</th><th /></tr></thead><tbody>
               {filters.map((f) => (
                 <tr key={f.id}>
                   <td>{f.name}{f.is_catch_all ? " · catch-all" : ""}</td>
-                  <td className="muted">{f.is_catch_all ? "All unmatched mail" : [f.match_from && `from ${f.match_from}`, f.match_to && `to ${f.match_to}`, f.match_subject && `subject ${f.match_subject}`].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className={tw.muted}>{f.is_catch_all ? "All unmatched mail" : [f.match_from && `from ${f.match_from}`, f.match_to && `to ${f.match_to}`, f.match_subject && `subject ${f.match_subject}`].filter(Boolean).join(" · ") || "—"}</td>
                   <td>{f.action}{f.label ? `:${f.label}` : ""}{f.forward_to ? ` → ${f.forward_to}` : ""}{f.enabled ? "" : " (off)"}</td>
-                  <td className="row-actions">
-                    <button type="button" className="text-button" onClick={() => void api.toggleFilter(f.id).then(refresh)}>{f.enabled ? "Disable" : "Enable"}</button>
+                  <td className={rowActions}>
+                    <button type="button" className={tw.textButton} onClick={() => void api.toggleFilter(f.id).then(refresh)}>{f.enabled ? "Disable" : "Enable"}</button>
                     <Button size="sm" variant="danger" type="button" onClick={() => void api.deleteFilter(f.id).then(refresh)}>Remove</Button>
                   </td>
                 </tr>
               ))}
-            </tbody></table> : <p className="empty-state">No rules yet. Keep the inbox quiet on your terms.</p>}
+            </tbody></table></div> : <p className={tw.emptyState}>No rules yet. Keep the inbox quiet on your terms.</p>}
           </section>
         ) : null}
 
         {tab === "aliases" ? (
-          <section className="settings-card settings-measure">
-            <div className="section-heading"><div><h2>Aliases & disposable addresses</h2><p>Route extra local-parts to an existing mailbox. Disposable aliases can expire automatically.</p></div></div>
+          <section className={cn(tw.settingsCard, "w-full max-w-none")}>
+            <div className={tw.sectionHeading}><div><h2>Aliases & disposable addresses</h2><p>Route extra local-parts to an existing mailbox. Disposable aliases can expire automatically.</p></div></div>
             <AliasForm
               mailboxes={mailboxes}
               onSave={async (body) => {
@@ -1868,74 +1890,74 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 setNotice("Alias created. Mail for this address is accepted once DNS for the domain points at Flap (or catch-all is enabled).");
               }}
             />
-            {aliases.length ? <table className="table"><thead><tr><th>Address</th><th>Delivers to</th><th>Type</th><th /></tr></thead><tbody>
+            {aliases.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Address</th><th>Delivers to</th><th>Type</th><th /></tr></thead><tbody>
               {aliases.map((a) => (
                 <tr key={a.id}>
                   <td>{a.address}</td>
-                  <td className="muted">{mailboxes.find((m) => m.id === a.mailbox_id)?.address ?? a.mailbox_id}</td>
+                  <td className={tw.muted}>{mailboxes.find((m) => m.id === a.mailbox_id)?.address ?? a.mailbox_id}</td>
                   <td>{a.disposable ? `Disposable${a.expires_at ? ` · ends ${new Date(a.expires_at).toLocaleDateString()}` : ""}` : a.label || "Alias"}</td>
                   <td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteAlias(a.id).then(refresh)}>Remove</Button></td>
                 </tr>
               ))}
-            </tbody></table> : <p className="empty-state">No aliases yet. Handy for newsletters and one-off signups.</p>}
-            {!domainMailboxes.length && hasDomain ? <p className="muted">Select a domain with at least one mailbox to create aliases.</p> : null}
+            </tbody></table></div> : <p className={tw.emptyState}>No aliases yet. Handy for newsletters and one-off signups.</p>}
+            {!domainMailboxes.length && hasDomain ? <p className={tw.muted}>Select a domain with at least one mailbox to create aliases.</p> : null}
           </section>
         ) : null}
 
         {tab === "delivery" ? (
-          <div className="settings-panel settings-measure">
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Deliverability</h2><p>Domain sending readiness, bounces, and client access status.</p></div></div>
+          <div className="flex w-full max-w-none flex-col gap-3">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Deliverability</h2><p>Domain sending readiness, bounces, and client access status.</p></div></div>
               {deliveryInfo ? (
                 <>
-                  <p className="muted">Active suppressions: {deliveryInfo.suppressions_active}
+                  <p className={tw.muted}>Active suppressions: {deliveryInfo.suppressions_active}
                     {Object.keys(deliveryInfo.suppressions_by_reason).length
                       ? ` (${Object.entries(deliveryInfo.suppressions_by_reason).map(([k, v]) => `${k}: ${v}`).join(", ")})`
                       : ""}
                   </p>
-                  <table className="table" style={{ marginTop: 12 }}>
+                  <div className="overflow-x-auto"><table className={settingsTable} style={{ marginTop: 12 }}>
                     <thead><tr><th>Domain</th><th>Identity</th><th>MX</th><th>Receiving</th><th>Sending</th><th>Last error</th></tr></thead>
                     <tbody>
                       {(deliveryInfo.domains || []).map((d) => (
                         <tr key={d.id}>
-                          <td><span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />{d.name}</td>
+                          <td><span className={tw.domainSwatch} style={{ background: d.color || "#737168" }} aria-hidden />{d.name}</td>
                           <td>{d.identity_verified_at ? "✓" : "—"}</td>
                           <td>{d.mx_verified_at ? "✓" : "—"}</td>
                           <td>{d.receiving_ready_at ? "✓" : "—"}</td>
                           <td>{d.sending_ready_at ? "✓" : "—"}</td>
-                          <td className="muted" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
+                          <td className={tw.muted} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </>
-              ) : <p className="muted">Loading…</p>}
+              ) : <p className={tw.muted}>Loading…</p>}
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Labels</h2><p>Organize mail with reusable labels. Apply them from the open message or Rules.</p></div></div>
-              <form className="row-form" onSubmit={(e) => {
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Labels</h2><p>Organize mail with reusable labels. Apply them from the open message or Rules.</p></div></div>
+              <form className={tw.rowForm} onSubmit={(e) => {
                 e.preventDefault();
                 void api.createLabel(labelName).then(() => { setLabelName(""); return api.labels(); }).then((r) => setLabels(r.labels)).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not create label."));
               }}>
-                <input placeholder="Label name" value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
+                <input className={tw.nativeControl} placeholder="Label name" value={labelName} onChange={(e) => setLabelName(e.target.value)} required />
                 <Button size="sm" type="submit">Add label</Button>
               </form>
               {labels.length ? (
                 <ul className="mt-2" style={{ listStyle: "none", padding: 0 }}>
                   {labels.map((l) => (
                     <li key={l.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                      <span className="domain-swatch" style={{ background: l.color }} aria-hidden />
+                      <span className={tw.domainSwatch} style={{ background: l.color }} aria-hidden />
                       <span>{l.name}</span>
                       <Button size="sm" variant="danger" type="button" style={{ marginLeft: "auto" }} onClick={() => void api.deleteLabel(l.id).then(() => api.labels()).then((r) => setLabels(r.labels))}>Remove</Button>
                     </li>
                   ))}
                 </ul>
-              ) : <p className="empty-state">No labels yet.</p>}
+              ) : <p className={tw.emptyState}>No labels yet.</p>}
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Bounce &amp; complaint list</h2><p>Addresses suppressed after SES bounce/complaint events. Remove to allow sending again.</p></div></div>
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Bounce &amp; complaint list</h2><p>Addresses suppressed after SES bounce/complaint events. Remove to allow sending again.</p></div></div>
               {suppressions.length ? (
-                <table className="table">
+                <div className="overflow-x-auto"><table className={settingsTable}>
                   <thead><tr><th>Email</th><th>Reason</th><th>Source</th><th>When</th><th /></tr></thead>
                   <tbody>
                     {suppressions.map((s) => (
@@ -1943,40 +1965,40 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         <td>{s.email}</td>
                         <td>{s.reason}</td>
                         <td>{s.source}</td>
-                        <td className="muted">{new Date(s.created_at).toLocaleString()}</td>
+                        <td className={tw.muted}>{new Date(s.created_at).toLocaleString()}</td>
                         <td><Button size="sm" variant="ghost" type="button" onClick={() => void api.deleteSuppression(s.id).then(() => api.suppressions()).then((r) => setSuppressions(r.suppressions))}>Remove</Button></td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              ) : <p className="empty-state">No suppressions.</p>}
+                </table></div>
+              ) : <p className={tw.emptyState}>No suppressions.</p>}
             </section>
           </div>
         ) : null}
 
         {tab === "developers" ? (
-          <div className="settings-general settings-measure stack gap-8">
-            <section className="settings-block">
-              <h2>Sandbox</h2>
-              <p className="muted text-sm">Test keys simulate <code>POST /api/v1/send</code> — nothing is delivered externally.</p>
-              <div className="grid-2" style={{ gap: 12 }}>
-                <div className="settings-card" style={{ margin: 0 }}>
-                  <p className="muted text-xs uppercase tracking-wide mb-1">Live mode</p>
+          <div className={cn("w-full max-w-none gap-8", tw.stack)}>
+            <section>
+              <h2 className={settingsH2}>Sandbox</h2>
+              <p className={cn("text-sm", tw.muted)}>Test keys simulate <code>POST /api/v1/send</code> — nothing is delivered externally.</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className={tw.settingsCard} style={{ margin: 0 }}>
+                  <p className={cn("text-xs uppercase tracking-wide mb-1", tw.muted)}>Live mode</p>
                   <strong className="text-2xl tabular-nums">{keyCounts.live}</strong>
-                  <p className="muted text-xs mt-1">Active live keys</p>
+                  <p className={cn("text-xs mt-1", tw.muted)}>Active live keys</p>
                 </div>
-                <div className="settings-card" style={{ margin: 0 }}>
-                  <p className="muted text-xs uppercase tracking-wide mb-1">Test mode</p>
+                <div className={tw.settingsCard} style={{ margin: 0 }}>
+                  <p className={cn("text-xs uppercase tracking-wide mb-1", tw.muted)}>Test mode</p>
                   <strong className="text-2xl tabular-nums">{keyCounts.test}</strong>
-                  <p className="muted text-xs mt-1">Sandbox keys (simulated sends)</p>
+                  <p className={cn("text-xs mt-1", tw.muted)}>Sandbox keys (simulated sends)</p>
                 </div>
               </div>
             </section>
-            <section className="settings-block">
-              <h2>API keys</h2>
-              <p className="muted text-sm">Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p>
-              <div className="settings-card">
-              <form className="row-form" onSubmit={(e) => {
+            <section>
+              <h2 className={settingsH2}>API keys</h2>
+              <p className={cn("text-sm", tw.muted)}>Send transactional mail with <code>POST /api/v1/send</code> and a Bearer token. Full docs: <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>API & webhooks</a>.</p>
+              <div className={tw.settingsCard}>
+              <form className={tw.rowForm} onSubmit={(e) => {
                 e.preventDefault();
                 const form = e.currentTarget;
                 const input = form.elements.namedItem("keyname") as HTMLInputElement;
@@ -1986,21 +2008,20 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   return refresh();
                 });
               }}>
-                <input name="keyname" placeholder="Key name" />
+                <input className={tw.nativeControl} name="keyname" placeholder="Key name" />
                 <select
-                  className="input"
+                  className={cn(tw.nativeControl, "max-md:max-w-none sm:max-w-[140px] sm:flex-none")}
                   value={keyMode}
                   onChange={(e) => setKeyMode(e.target.value === "test" ? "test" : "live")}
                   aria-label="Key mode"
-                  style={{ maxWidth: 140 }}
                 >
                   <option value="live">Live</option>
                   <option value="test">Test</option>
                 </select>
                 <Button size="sm" type="submit">Create key</Button>
               </form>
-              {newToken ? <div className="notice">Copy this key now. It will not be shown again: <code>{newToken}</code></div> : null}
-              {keys.length ? <table className="table"><thead><tr><th>Name</th><th>Mode</th><th>Prefix</th><th /></tr></thead><tbody>
+              {newToken ? <div className={tw.notice}>Copy this key now. It will not be shown again: <code>{newToken}</code></div> : null}
+              {keys.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>Mode</th><th>Prefix</th><th /></tr></thead><tbody>
                 {keys.map((k) => (
                   <tr key={k.id}>
                     <td>{k.name}</td>
@@ -2009,14 +2030,14 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     <td><Button size="sm" variant="danger" type="button" onClick={() => void api.deleteKey(k.id).then(refresh)}>Revoke</Button></td>
                   </tr>
                 ))}
-              </tbody></table> : <p className="empty-state">No API keys yet.</p>}
+              </tbody></table></div> : <p className={tw.emptyState}>No API keys yet.</p>}
               </div>
             </section>
-            <section className="settings-block">
-              <h2>Webhooks</h2>
-              <p className="muted text-sm">HTTPS POST on <code>mail.received</code>. Signature: <code>x-flap-signature</code> = SHA-256 hex of <code>secret</code> + <code>.</code> + raw JSON body. See <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>docs</a>.</p>
-              <div className="settings-card">
-              <form className="stack-form" onSubmit={(e) => {
+            <section>
+              <h2 className={settingsH2}>Webhooks</h2>
+              <p className={cn("text-sm", tw.muted)}>HTTPS POST on <code>mail.received</code>. Signature: <code>x-flap-signature</code> = SHA-256 hex of <code>secret</code> + <code>.</code> + raw JSON body. See <a href="/docs/api" onClick={(e) => { e.preventDefault(); go("/docs/api"); }}>docs</a>.</p>
+              <div className={tw.settingsCard}>
+              <form className={stackForm} onSubmit={(e) => {
                 e.preventDefault();
                 const form = e.currentTarget;
                 const name = (form.elements.namedItem("whname") as HTMLInputElement).value;
@@ -2027,28 +2048,28 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   return refresh();
                 }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not create webhook."));
               }}>
-                <div className="row-form">
-                  <input name="whname" placeholder="Hook name" />
-                  <input name="whurl" placeholder="https://example.com/hooks/flap" required />
+                <div className={tw.rowForm}>
+                  <input className={tw.nativeControl} name="whname" placeholder="Hook name" />
+                  <input className={tw.nativeControl} name="whurl" placeholder="https://example.com/hooks/flap" required />
                 </div>
                 <Button size="sm" type="submit">Add webhook</Button>
               </form>
-              {newWebhookSecret ? <div className="notice">Copy this signing secret now: <code>{newWebhookSecret}</code></div> : null}
-              {webhooks.length ? <table className="table"><thead><tr><th>Name</th><th>URL</th><th>Last trigger</th><th>Status</th><th /></tr></thead><tbody>
+              {newWebhookSecret ? <div className={tw.notice}>Copy this signing secret now: <code>{newWebhookSecret}</code></div> : null}
+              {webhooks.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Name</th><th>URL</th><th>Last trigger</th><th>Status</th><th /></tr></thead><tbody>
                 {webhooks.map((w) => (
                   <Fragment key={w.id}>
                     <tr>
                       <td>{w.name}</td>
-                      <td className="muted">{w.url}</td>
-                      <td className="muted">{w.last_triggered_at ? new Date(w.last_triggered_at).toLocaleString() : "Never"}</td>
+                      <td className={tw.muted}>{w.url}</td>
+                      <td className={tw.muted}>{w.last_triggered_at ? new Date(w.last_triggered_at).toLocaleString() : "Never"}</td>
                       <td>{w.enabled ? "On" : "Off"}</td>
-                      <td className="row-actions">
-                        <button type="button" className="text-button" onClick={() => void toggleWebhookDeliveries(w.id)}>
+                      <td className={rowActions}>
+                        <button type="button" className={tw.textButton} onClick={() => void toggleWebhookDeliveries(w.id)}>
                           {webhookExpanded === w.id ? "Hide deliveries" : "Deliveries"}
                         </button>
                         <button
                           type="button"
-                          className="text-button"
+                          className={tw.textButton}
                           disabled={redeliverBusy === w.id}
                           onClick={() => {
                             setRedeliverBusy(w.id);
@@ -2065,7 +2086,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         >
                           {redeliverBusy === w.id ? "Redelivering…" : "Redeliver last"}
                         </button>
-                        <button type="button" className="text-button" onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
+                        <button type="button" className={tw.textButton} onClick={() => void api.toggleWebhook(w.id).then(refresh)}>{w.enabled ? "Disable" : "Enable"}</button>
                         <Button size="sm" variant="danger" type="button" onClick={() => void api.deleteWebhook(w.id).then(refresh)}>Remove</Button>
                       </td>
                     </tr>
@@ -2073,21 +2094,21 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       <tr>
                         <td colSpan={5}>
                           {!(w.id in webhookDeliveries) ? (
-                            <p className="muted" style={{ margin: 0 }}>Loading deliveries…</p>
+                            <p className={tw.muted} style={{ margin: 0 }}>Loading deliveries…</p>
                           ) : webhookDeliveries[w.id].length ? (
-                            <table className="table" style={{ margin: 0 }}>
+                            <div className="overflow-x-auto"><table className={settingsTable} style={{ margin: 0 }}>
                               <thead><tr><th>When</th><th>Event</th><th>Status</th><th>Result</th><th /></tr></thead>
                               <tbody>
                                 {webhookDeliveries[w.id].map((d) => (
                                   <tr key={d.id}>
-                                    <td className="muted">{new Date(d.created_at).toLocaleString()}</td>
+                                    <td className={tw.muted}>{new Date(d.created_at).toLocaleString()}</td>
                                     <td><code>{d.event}</code></td>
                                     <td>{d.status_code ?? "—"}</td>
-                                    <td className="muted">{d.ok ? "OK" : (d.error || "Failed")}</td>
+                                    <td className={tw.muted}>{d.ok ? "OK" : (d.error || "Failed")}</td>
                                     <td>
                                       <button
                                         type="button"
-                                        className="text-button"
+                                        className={tw.textButton}
                                         disabled={redeliverBusy === d.id}
                                         onClick={() => {
                                           setRedeliverBusy(d.id);
@@ -2107,26 +2128,26 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           ) : (
-                            <p className="muted" style={{ margin: 0 }}>No deliveries logged yet. They appear after the next inbound event.</p>
+                            <p className={tw.muted} style={{ margin: 0 }}>No deliveries logged yet. They appear after the next inbound event.</p>
                           )}
                         </td>
                       </tr>
                     ) : null}
                   </Fragment>
                 ))}
-              </tbody></table> : <p className="empty-state">No webhooks yet.</p>}
+              </tbody></table></div> : <p className={tw.emptyState}>No webhooks yet.</p>}
               </div>
             </section>
           </div>
         ) : null}
 
         {tab === "privacy" ? (
-          <div className="settings-panel settings-measure">
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Browser notifications</h2><p>Desktop alerts while Flap is open in a tab. Press ? in the inbox for keyboard shortcuts.</p></div></div>
-              <form className="stack-form" onSubmit={(e) => {
+          <div className="flex w-full max-w-none flex-col gap-3">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Browser notifications</h2><p>Desktop alerts while Flap is open in a tab. Press ? in the inbox for keyboard shortcuts.</p></div></div>
+              <form className={stackForm} onSubmit={(e) => {
                 e.preventDefault();
                 void (async () => {
                   if (prefs.notify_browser && typeof Notification !== "undefined") {
@@ -2159,7 +2180,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 />
                 <label>
                   Undo send window (seconds)
-                  <input
+                  <input className={tw.nativeControl}
                     type="number"
                     min={0}
                     max={60}
@@ -2167,34 +2188,34 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     onChange={(e) => setPrefs((p) => ({ ...p, undo_send_seconds: Number(e.target.value) }))}
                   />
                 </label>
-                <p className="muted" style={{ fontSize: 12 }}>0 disables undo. Default 10 — message sits in Scheduled until the timer fires.</p>
+                <p className={tw.muted} style={{ fontSize: 12 }}>0 disables undo. Default 10 — message sits in Scheduled until the timer fires.</p>
                 <Button size="sm" type="submit">Save notifications</Button>
               </form>
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Automatic replies</h2><p>Send one vacation reply per sender every seven days.</p></div></div>
-              <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void api.savePrefs({ vacation_enabled: Boolean(prefs.vacation_enabled), vacation_body: prefs.vacation_body, notify_browser: Boolean(prefs.notify_browser) }).then(() => setNotice("Automatic replies updated.")); }}>
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Automatic replies</h2><p>Send one vacation reply per sender every seven days.</p></div></div>
+              <form className={stackForm} onSubmit={(e) => { e.preventDefault(); void api.savePrefs({ vacation_enabled: Boolean(prefs.vacation_enabled), vacation_body: prefs.vacation_body, notify_browser: Boolean(prefs.notify_browser) }).then(() => setNotice("Automatic replies updated.")); }}>
                 <Checkbox
                   checked={Boolean(prefs.vacation_enabled)}
                   onChange={(e) => setPrefs((p) => ({ ...p, vacation_enabled: e.target.checked ? 1 : 0 }))}
                   label="Enable automatic replies"
                 />
-                <textarea value={prefs.vacation_body} onChange={(e) => setPrefs((p) => ({ ...p, vacation_body: e.target.value }))} placeholder="Thanks for writing — I’ll get back to you soon." />
+                <textarea className={tw.nativeControl} value={prefs.vacation_body} onChange={(e) => setPrefs((p) => ({ ...p, vacation_body: e.target.value }))} placeholder="Thanks for writing — I’ll get back to you soon." />
                 <Button size="sm" type="submit">Save replies</Button>
               </form>
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Blocked senders</h2><p>Future mail from these addresses is filed to Spam.</p></div></div>
-              <form className="row-form" onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("block") as HTMLInputElement; void api.block(input.value).then(() => { input.value = ""; return refresh(); }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not block sender.")); }}>
-                <input name="block" placeholder="sender@example.com" required />
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Blocked senders</h2><p>Future mail from these addresses is filed to Spam.</p></div></div>
+              <form className={tw.rowForm} onSubmit={(e) => { e.preventDefault(); const form = e.currentTarget; const input = form.elements.namedItem("block") as HTMLInputElement; void api.block(input.value).then(() => { input.value = ""; return refresh(); }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not block sender.")); }}>
+                <input className={tw.nativeControl} name="block" placeholder="sender@example.com" required />
                 <Button size="sm" type="submit">Block</Button>
               </form>
-              {blocked.length ? <table className="table"><thead><tr><th>Address</th><th /></tr></thead><tbody>
+              {blocked.length ? <div className="overflow-x-auto"><table className={settingsTable}><thead><tr><th>Address</th><th /></tr></thead><tbody>
                 {blocked.map((b) => <tr key={b.id}><td>{b.address}</td><td><Button size="sm" variant="danger" type="button" onClick={() => void api.unblock(b.id).then(refresh)}>Unblock</Button></td></tr>)}
-              </tbody></table> : <p className="empty-state">Nobody is blocked.</p>}
+              </tbody></table></div> : <p className={tw.emptyState}>Nobody is blocked.</p>}
             </section>
-            <section className="settings-card">
-              <div className="section-heading"><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON, or download a classic per-mailbox .mbox file (ZIP of .eml files is the target format — .mbox ships today). Downloads stay available during your plan period and for about 7 days after cancel. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Backup & restore</h2><p>Export messages and workspace data as JSON, or download a classic per-mailbox .mbox file (ZIP of .eml files is the target format — .mbox ships today). Downloads stay available during your plan period and for about 7 days after cancel. Restore merges contacts, templates, signatures, and rules (messages are export-only).</p></div></div>
               <div className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-3">
                 <Button size="sm"
                   type="button"
@@ -2268,8 +2289,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-card">
-              <div className="section-heading">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2>Appearance</h2>
                   <p>Theme follows your preference. Dark mode keeps Flap orange accents.</p>
@@ -2278,8 +2299,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               <ThemeToggle />
             </section>
 
-            <section className="settings-card">
-              <div className="section-heading">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2>AI assist (confirm only)</h2>
                   <p>Optional summaries and draft replies from the reader. Never auto-send. {aiOptIn ? "Currently on." : "Currently off."}</p>
@@ -2319,8 +2340,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
             </section>
 
-            <section className="settings-card">
-              <div className="section-heading">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2>Rule packs</h2>
                   <p>Install a starter filter pack (newsletters, receipts, and similar).</p>
@@ -2343,8 +2364,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </Button>
             </section>
 
-            <section className="settings-card">
-              <div className="section-heading">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2>Compose starters</h2>
                   <p>Add Thanks, Pricing, Bug ack, and Waitlist templates to Compose.</p>
@@ -2364,8 +2385,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </Button>
             </section>
 
-            <section className="settings-card">
-              <div className="section-heading">
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}>
                 <div>
                   <h2>Cancel / export policy</h2>
                   <p>30-day export window on cancel. Download .mbox anytime from Backup &amp; restore above.</p>
@@ -2397,7 +2418,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 {privacyBusy === "policy" ? "Loading…" : "View policy"}
               </Button>
               {exportPolicy ? (
-                <p className="notice mt-3" role="status" style={{ marginBottom: 0 }}>
+                <p className={cn("mt-3", tw.notice)} role="status" style={{ marginBottom: 0 }}>
                   {exportPolicy}
                 </p>
               ) : null}
@@ -2408,19 +2429,19 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         
 
         {tab === "billing" ? (
-          <div className="settings-general settings-measure stack gap-8">
-          <section className="settings-block">
-            <h2>Plan &amp; usage</h2>
-            <p className="muted text-sm">Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
-            <div className="settings-card">
+          <div className={cn("w-full max-w-none gap-8", tw.stack)}>
+          <section>
+            <h2 className={settingsH2}>Plan &amp; usage</h2>
+            <p className={cn("text-sm", tw.muted)}>Flap billing runs through Dodo Payments. Limits apply after webhook confirmation.</p>
+            <div className={tw.settingsCard}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : <span className="muted text-sm">Loading…</span>}
-              <div className="inline-flex rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] p-1">
+              {billing ? <Badge>{billing.plan.name} · {billing.status}</Badge> : <span className={cn("text-sm", tw.muted)}>Loading…</span>}
+              <div className="flex w-full rounded-lg border border-[var(--line-strong)] bg-[var(--surface-2)] p-1 sm:inline-flex sm:w-auto">
               <Button
                 type="button"
                 size="sm"
                 variant={billingInterval === "month" ? "default" : "ghost"}
-                className="min-w-[7rem]"
+                className="min-w-0 flex-1 sm:min-w-[7rem]"
                 onClick={() => setBillingInterval("month")}
               >
                 Monthly
@@ -2429,7 +2450,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 type="button"
                 size="sm"
                 variant={billingInterval === "year" ? "default" : "ghost"}
-                className="min-w-[7rem]"
+                className="min-w-0 flex-1 sm:min-w-[7rem]"
                 onClick={() => setBillingInterval("year")}
               >
                 Annual (2 mo free)
@@ -2437,7 +2458,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </div>
             </div>
             {!checkoutConfigured ? (
-              <div className="deferred-banner" style={{ marginBottom: 16 }}>
+              <div className={deferredBanner} style={{ marginBottom: 16 }}>
                 Self-serve checkout is not configured
                 {dodoEnvironment ? ` (${dodoEnvironment})` : ""}.
                 {checkoutMissing.length > 0 ? (
@@ -2450,73 +2471,73 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 <a href={`mailto:${supportEmail}`}>{supportEmail}</a> to upgrade.
               </div>
             ) : dodoEnvironment === "test_mode" ? (
-              <div className="deferred-banner" style={{ marginBottom: 16 }}>
+              <div className={deferredBanner} style={{ marginBottom: 16 }}>
                 Dodo is in <code>test_mode</code> — checkouts use test keys and{" "}
                 <code>test.dodopayments.com</code> (no real charges).
               </div>
             ) : null}
             {billing ? (
-              <div className="grid-2" style={{ marginBottom: 20 }}>
+              <div className={cn(grid2, "mb-5")}>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Domains</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Domains</p>
                   <strong>{billing.usage.domains} / {billing.limits.domains}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Mailboxes</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Mailboxes</p>
                   <strong>{billing.usage.mailboxes} / {billing.limits.mailboxes}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Aliases</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Aliases</p>
                   <strong>{billing.usage.aliases} / {billing.limits.aliases}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Storage</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Storage</p>
                   <strong>{formatBytes(billing.usage.storage_bytes)} / {formatBytes(billing.limits.storage_bytes)}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Sends this month</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Sends this month</p>
                   <strong>{billing.usage.send_per_month ?? 0} / {billing.limits.send_per_month ?? "—"}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>API keys</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>API keys</p>
                   <strong>{billing.usage.api_keys} / {billing.limits.api_keys}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Webhooks</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Webhooks</p>
                   <strong>{billing.usage.webhooks} / {billing.limits.webhooks}</strong>
                 </div>
                 <div>
-                  <p className="muted" style={{ margin: 0 }}>Team seats</p>
+                  <p className={tw.muted} style={{ margin: 0 }}>Team seats</p>
                   <strong>{billing.usage.team_seats ?? 1} / {billing.limits.team_seats}</strong>
                 </div>
               </div>
             ) : (
-              <p className="empty-state">Billing data unavailable. Apply migration 0005_billing and reload.</p>
+              <p className={tw.emptyState}>Billing data unavailable. Apply migration 0005_billing and reload.</p>
             )}
             {billing ? (
-              <p className="muted" style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}>
+              <p className={tw.muted} style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}>
                 Storage counts message bodies and attachments. Outbound sends reset each UTC calendar month.
               </p>
             ) : null}
-            <div className="row-form" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+            <div className={tw.rowForm} style={{ marginBottom: 16, flexWrap: "wrap" }}>
               {billing?.portal_available ? (
                 <Button size="sm" variant="outline" disabled={portalBusy} onClick={() => void openPortal()}>
                   {portalBusy ? "Opening…" : "Manage subscription"}
                 </Button>
               ) : billing && billing.plan_id !== "free" ? (
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>
                   To cancel or change payment methods, email{" "}
                   <a href={`mailto:${supportEmail}?subject=Flap%20subscription`}>{supportEmail}</a>
                   {" "}or complete a portal-linked checkout first.
                 </p>
               ) : (
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>
                   Cancel anytime after upgrading via the customer portal, or contact{" "}
                   <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
                 </p>
               )}
             </div>
-            <div className="notice" style={{ marginBottom: 0 }} role="note">
+            <div className={tw.notice} style={{ marginBottom: 0 }} role="note">
               <strong>Cancel &amp; export</strong>
               <p style={{ margin: "6px 0 0" }}>
                 You can export anytime. After cancel, keep access through the paid period; download your mailbox before it ends.
@@ -2524,10 +2545,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </div>
             </div>
           </section>
-          <section className="settings-block">
-            <h2>Upgrade</h2>
-            <p className="muted text-sm">Same product on every paid plan. Capacity changes with Solo, Pro, Team, and Scale.</p>
-            <div className="grid-2 mt-3">
+          <section>
+            <h2 className={settingsH2}>Upgrade</h2>
+            <p className={cn("text-sm", tw.muted)}>Same product on every paid plan. Capacity changes with Solo, Pro, Team, and Scale.</p>
+            <div className={cn(grid2, "mt-3")}>
               {plans.filter((p) => p.id !== "free" && p.id !== "scale").map((plan) => {
                 const available = plan.checkout_available !== false && checkoutConfigured;
                 const isCurrent = billing?.plan_id === plan.id;
@@ -2543,19 +2564,20 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       ? `or $${yearly}/yr (2 months free)`
                       : null;
                 return (
-                  <div key={plan.id} className="settings-card" style={{ margin: 0, padding: 16 }}>
+                  <div key={plan.id} className={tw.settingsCard} style={{ margin: 0, padding: 16 }}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <strong>{plan.name}</strong>
                       <div className="text-right">
                         <span className="font-semibold tabular-nums">{priceLabel}</span>
-                        {priceHint ? <div className="muted mt-0.5 text-[11px]">{priceHint}</div> : null}
+                        {priceHint ? <div className={cn("mt-0.5 text-[11px]", tw.muted)}>{priceHint}</div> : null}
                       </div>
                     </div>
-                    <p className="muted" style={{ marginTop: 0 }}>{plan.blurb}</p>
-                    <ul className="muted" style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 13 }}>
+                    <p className={tw.muted} style={{ marginTop: 0 }}>{plan.blurb}</p>
+                    <ul className={tw.muted} style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 13 }}>
                       {plan.features.slice(0, 4).map((f) => <li key={f}>{f}</li>)}
                     </ul>
                     <Button size="sm"
+                      className="w-full sm:w-auto"
                       disabled={isCurrent || checkoutBusy === plan.id || !available}
                       onClick={() => void startCheckout(plan.id)}
                     >
@@ -2568,7 +2590,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                             : `Upgrade to ${plan.name}`}
                     </Button>
                     {!available && !isCurrent ? (
-                      <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                      <p className={tw.muted} style={{ marginTop: 8, fontSize: 12 }}>
                         <a href={`mailto:${supportEmail}?subject=Upgrade%20to%20${plan.name}`}>{supportEmail}</a>
                       </p>
                     ) : null}
@@ -2590,21 +2612,21 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               const isCurrent = billing?.plan_id === "scale";
               const yearly = scale.price_yearly ?? 25;
               return (
-                <div className="settings-card mt-3" style={{ padding: 16 }}>
+                <div className={cn(tw.settingsCard, "mt-3")} style={{ padding: 16 }}>
                   <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <strong>Scale</strong>
                       <Badge className="ml-2" variant="secondary">High volume</Badge>
-                      <p className="muted mt-1" style={{ marginBottom: 0 }}>{scale.blurb}</p>
+                      <p className={cn("mt-1", tw.muted)} style={{ marginBottom: 0 }}>{scale.blurb}</p>
                     </div>
                     <div className="text-right">
                       <span className="font-semibold tabular-nums">
                         {billingInterval === "year" ? `$${yearly}/mailbox/yr` : `$${scale.price_monthly}/mailbox/mo`}
                       </span>
-                      <div className="muted mt-0.5 text-[11px]">From 13 mailboxes · see /pricing</div>
+                      <div className={cn("mt-0.5 text-[11px]", tw.muted)}>From 13 mailboxes · see /pricing</div>
                     </div>
                   </div>
-                  <div className="row-form" style={{ flexWrap: "wrap", gap: 8 }}>
+                  <div className={tw.rowForm} style={{ flexWrap: "wrap", gap: 8 }}>
                     <Button
                       size="sm"
                       disabled={isCurrent || checkoutBusy === "scale" || !available}
@@ -2623,14 +2645,14 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         Open pricing calculator
                       </Button>
                     ) : null}
-                    <a className="muted text-sm" href={`mailto:${supportEmail}?subject=Flap%20Scale%20plan`}>
+                    <a className={cn("text-sm", tw.muted)} href={`mailto:${supportEmail}?subject=Flap%20Scale%20plan`}>
                       Email {supportEmail}
                     </a>
                   </div>
                 </div>
               );
             })()}
-            <p className="muted" style={{ marginTop: 16, fontSize: 12 }}>
+            <p className={tw.muted} style={{ marginTop: 16, fontSize: 12 }}>
               See <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a> for renewals and cancellation.
             </p>
           </section>
@@ -2638,15 +2660,15 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         ) : null}
 
         {tab === "team" ? (
-          <div className="settings-general settings-measure stack gap-8">
-            <section className="settings-block">
-              <h2>Team &amp; shared mailboxes</h2>
-              <p className="muted text-sm">
+          <div className={cn("w-full max-w-none gap-8", tw.stack)}>
+            <section>
+              <h2 className={settingsH2}>Team &amp; shared mailboxes</h2>
+              <p className={cn("text-sm", tw.muted)}>
                   {teamInfo?.teams_unlocked
                     ? `Invite teammates, assign roles, and share inboxes like support@ or hello@. ${members.length} / ${teamInfo.limits.team_seats} seats used.`
                     : "Upgrade to Pro or Team to invite members and share mailboxes. Free and Solo stay solo-friendly."}
               </p>
-              <div className="settings-card">
+              <div className={tw.settingsCard}>
               <div className="mb-3 flex justify-end">
               <Badge variant={teamInfo?.teams_unlocked ? "default" : "secondary"}>
                 {teamInfo?.teams_unlocked ? "Team unlocked" : "Solo"}
@@ -2654,7 +2676,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               </div>
 
             {!teamInfo?.teams_unlocked ? (
-              <div className="deferred-banner">
+              <div className={deferredBanner}>
                 Team seats unlock on Pro (up to 5) and Team (unlimited). You can still manage your own mailboxes on Free or Solo.
                 <div style={{ marginTop: 12 }}>
                   <Button size="sm" onClick={() => go("/app/billing")}>View Team plan</Button>
@@ -2664,7 +2686,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
 
             {teamInfo?.workspace?.can_manage_team ? (
               <form
-                className="stack-form"
+                className={stackForm}
                 onSubmit={(e) => {
                   e.preventDefault();
                   const form = e.currentTarget;
@@ -2682,17 +2704,17 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not send invite."));
                 }}
               >
-                <div className="row-form">
-                  <input name="invite" type="email" placeholder="teammate@example.com" required disabled={!teamInfo?.teams_unlocked} />
-                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} disabled={!teamInfo?.teams_unlocked}>
+                <div className={tw.rowForm}>
+                  <input className={tw.nativeControl} name="invite" type="email" placeholder="teammate@example.com" required disabled={!teamInfo?.teams_unlocked} />
+                  <select className={tw.nativeControl} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} disabled={!teamInfo?.teams_unlocked}>
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                   </select>
                   <Button size="sm" type="submit" disabled={!teamInfo?.teams_unlocked}>Invite</Button>
                 </div>
                 {mailboxes.length ? (
-                  <div className="mailbox-grant-list">
-                    <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Grant mailbox access (optional — defaults to shared inboxes):</p>
+                  <div className="flex flex-col gap-2.5 rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] p-3">
+                    <p className={tw.muted} style={{ fontSize: 13, marginBottom: 8 }}>Grant mailbox access (optional — defaults to shared inboxes):</p>
                     {mailboxes.map((mb) => (
                       <Checkbox
                         key={mb.id}
@@ -2710,12 +2732,12 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 ) : null}
               </form>
             ) : (
-              <p className="muted">You are a {teamInfo?.workspace?.role || "member"} in this workspace.</p>
+              <p className={tw.muted}>You are a {teamInfo?.workspace?.role || "member"} in this workspace.</p>
             )}
 
             <h3 style={{ marginTop: 28, marginBottom: 12 }}>Members</h3>
             {members.length ? (
-              <table className="table">
+              <div className="overflow-x-auto"><table className={settingsTable}>
                 <thead><tr><th>Email</th><th>Role</th><th></th></tr></thead>
                 <tbody>
                   {members.map((m) => (
@@ -2725,7 +2747,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       <td>
                         {teamInfo?.workspace?.can_manage_team && m.role !== "owner" ? (
                           <Button size="sm"
-                            className="ghost"
+                            variant="ghost"
                             type="button"
                             onClick={() => {
                               void api.removeMember(m.user_id).then(refresh).catch((ex) =>
@@ -2740,14 +2762,14 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : (
-              <p className="empty-state">No members yet.</p>
+              <p className={tw.emptyState}>No members yet.</p>
             )}
 
             <h3 style={{ marginTop: 28, marginBottom: 12 }}>Pending invites</h3>
             {invites.filter((i) => i.status === "pending").length ? (
-              <table className="table">
+              <div className="overflow-x-auto"><table className={settingsTable}>
                 <thead><tr><th>Email</th><th>Role</th><th>Link</th><th></th></tr></thead>
                 <tbody>
                   {invites.filter((i) => i.status === "pending").map((i) => (
@@ -2758,7 +2780,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         {i.accept_path ? (
                           <Button size="sm"
                             type="button"
-                            className="ghost"
+                            variant="ghost"
                             onClick={() => {
                               void navigator.clipboard.writeText(`${window.location.origin}${i.accept_path}`);
                               setNotice("Invite link copied.");
@@ -2771,7 +2793,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       <td>
                         {teamInfo?.workspace?.can_manage_team ? (
                           <Button size="sm"
-                            className="ghost"
+                            variant="ghost"
                             type="button"
                             onClick={() => {
                               void api.revokeInvite(i.id).then(refresh).catch((ex) =>
@@ -2786,17 +2808,17 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : (
-              <p className="empty-state">No pending invites.</p>
+              <p className={tw.emptyState}>No pending invites.</p>
             )}
 
             <h3 style={{ marginTop: 28, marginBottom: 12 }}>Shared mailboxes</h3>
-            <p className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
+            <p className={tw.muted} style={{ marginBottom: 12, fontSize: 13 }}>
               Mark support@ or hello@ as shared so invitees can access them. Requires Team plan.
             </p>
             {mailboxes.length ? (
-              <table className="table">
+              <div className="overflow-x-auto"><table className={settingsTable}>
                 <thead><tr><th>Address</th><th>Shared</th><th></th></tr></thead>
                 <tbody>
                   {mailboxes.map((mb) => (
@@ -2806,7 +2828,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       <td>
                         {teamInfo?.workspace?.can_manage_team ? (
                           <Button size="sm"
-                            className="ghost"
+                            variant="ghost"
                             type="button"
                             disabled={!teamInfo.teams_unlocked && !mb.is_shared}
                             onClick={() => {
@@ -2823,9 +2845,9 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : (
-              <p className="empty-state">Create a mailbox under Domains first.</p>
+              <p className={tw.emptyState}>Create a mailbox under Domains first.</p>
             )}
               </div>
             </section>
@@ -2833,8 +2855,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
         ) : null}
 
         {tab === "referrals" ? (
-          <section className="settings-card settings-measure">
-            <div className="section-heading">
+          <section className={cn(tw.settingsCard, "w-full max-w-none")}>
+            <div className={tw.sectionHeading}>
               <div>
                 <h2>Referrals</h2>
                 <p>{referralInfo?.reward_rule || "Invite a founder → both accounts get +1 domain permanently after they connect a domain."}</p>
@@ -2842,10 +2864,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             </div>
             {referralInfo ? (
               <>
-                <label className="stack gap-1.5">
-                  <span className="muted text-sm">Your referral link</span>
-                  <div className="row-form">
-                    <input readOnly value={referralInfo.link} aria-label="Referral link" />
+                <label className={cn("gap-1.5", tw.stack)}>
+                  <span className={cn("text-sm", tw.muted)}>Your referral link</span>
+                  <div className={tw.rowForm}>
+                    <input className={tw.nativeControl} readOnly value={referralInfo.link} aria-label="Referral link" />
                     <Button size="sm"
                       type="button"
                       onClick={() => {
@@ -2859,22 +2881,22 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     </Button>
                   </div>
                 </label>
-                <div className="row-form" style={{ marginTop: 16, gap: 24 }}>
+                <div className={tw.rowForm} style={{ marginTop: 16, gap: 24 }}>
                   <div>
                     <strong>{referralInfo.successful_referrals}</strong>
-                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Successful</p>
+                    <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>Successful</p>
                   </div>
                   <div>
                     <strong>{referralInfo.pending_referrals}</strong>
-                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Pending</p>
+                    <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>Pending</p>
                   </div>
                   <div>
                     <strong>{referralInfo.domains_earned}</strong>
-                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>Domains earned</p>
+                    <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>Domains earned</p>
                   </div>
                 </div>
                 {referralInfo.history.length ? (
-                  <table className="table" style={{ marginTop: 20 }}>
+                  <div className="overflow-x-auto"><table className={settingsTable} style={{ marginTop: 20 }}>
                     <thead>
                       <tr>
                         <th>Invitee</th>
@@ -2891,13 +2913,13 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 ) : (
-                  <p className="empty-state">No referrals yet. Share your link with another founder.</p>
+                  <p className={tw.emptyState}>No referrals yet. Share your link with another founder.</p>
                 )}
               </>
             ) : (
-              <p className="muted">Loading referral details…</p>
+              <p className={tw.muted}>Loading referral details…</p>
             )}
           </section>
         ) : null}
@@ -2905,12 +2927,12 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
       </main>
       {toast
         ? createPortal(
-            <div className="mail-toast" role="status" aria-live="polite" style={{ zIndex: 9999 }}>
+            <div className={tw.mailToast} role="status" aria-live="polite" style={{ zIndex: 9999 }}>
               <div>
                 <strong>{toast.title}</strong>
                 <span>{toast.body}</span>
               </div>
-              <button type="button" className="mail-toast-close" aria-label="Dismiss" onClick={() => setToast(null)}>
+              <button type="button" className={tw.mailToastClose} aria-label="Dismiss" onClick={() => setToast(null)}>
                 ×
               </button>
             </div>,
@@ -2926,9 +2948,9 @@ function SignatureForm({ onSave }: { onSave: (body: { name: string; html_body: s
   const [body, setBody] = useState("");
   const [isDefault, setIsDefault] = useState(true);
   return (
-    <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void onSave({ name, html_body: `<p>${body.replace(/\n/g, "<br/>")}</p>`, text_body: body, is_default: isDefault }).then(() => { setName(""); setBody(""); }); }}>
-      <input placeholder="Signature name" value={name} onChange={(e) => setName(e.target.value)} required />
-      <textarea placeholder="Best,\nAda" value={body} onChange={(e) => setBody(e.target.value)} required />
+    <form className={stackForm} onSubmit={(e) => { e.preventDefault(); void onSave({ name, html_body: `<p>${body.replace(/\n/g, "<br/>")}</p>`, text_body: body, is_default: isDefault }).then(() => { setName(""); setBody(""); }); }}>
+      <input className={tw.nativeControl} placeholder="Signature name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <textarea className={tw.nativeControl} placeholder="Best,\nAda" value={body} onChange={(e) => setBody(e.target.value)} required />
       <Checkbox checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} label="Default signature" />
       <Button size="sm" type="submit">Add signature</Button>
     </form>
@@ -2940,12 +2962,12 @@ function TemplateForm({ onSave }: { onSave: (body: { name: string; subject: stri
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   return (
-    <form className="stack-form" onSubmit={(e) => { e.preventDefault(); void onSave({ name, subject, html_body: `<p>${body.replace(/\n/g, "<br/>")}</p>`, text_body: body }).then(() => { setName(""); setSubject(""); setBody(""); }); }}>
-      <div className="row-form">
-        <input placeholder="Template name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input placeholder="Subject (optional)" value={subject} onChange={(e) => setSubject(e.target.value)} />
+    <form className={stackForm} onSubmit={(e) => { e.preventDefault(); void onSave({ name, subject, html_body: `<p>${body.replace(/\n/g, "<br/>")}</p>`, text_body: body }).then(() => { setName(""); setSubject(""); setBody(""); }); }}>
+      <div className={tw.rowForm}>
+        <input className={tw.nativeControl} placeholder="Template name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <input className={tw.nativeControl} placeholder="Subject (optional)" value={subject} onChange={(e) => setSubject(e.target.value)} />
       </div>
-      <textarea placeholder="Message body" value={body} onChange={(e) => setBody(e.target.value)} required />
+      <textarea className={tw.nativeControl} placeholder="Message body" value={body} onChange={(e) => setBody(e.target.value)} required />
       <Button size="sm" type="submit">Add template</Button>
     </form>
   );
@@ -2955,9 +2977,9 @@ function ContactForm({ onSave }: { onSave: (email: string, name: string) => Prom
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   return (
-    <form className="row-form" onSubmit={(e) => { e.preventDefault(); void onSave(email, name).then(() => { setEmail(""); setName(""); }); }}>
-      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input type="email" placeholder="email@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+    <form className={tw.rowForm} onSubmit={(e) => { e.preventDefault(); void onSave(email, name).then(() => { setEmail(""); setName(""); }); }}>
+      <input className={tw.nativeControl} placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <input className={tw.nativeControl} type="email" placeholder="email@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
       <Button size="sm" type="submit">Add contact</Button>
     </form>
   );
@@ -3010,7 +3032,7 @@ function FilterForm({ onSave }: { onSave: (body: {
   }
 
   return (
-    <form className="stack-form" onSubmit={(e) => {
+    <form className={stackForm} onSubmit={(e) => {
       e.preventDefault();
       void onSave({
         name,
@@ -3032,9 +3054,9 @@ function FilterForm({ onSave }: { onSave: (body: {
         setTestResult("");
       });
     }}>
-      <div className="row-form">
-        <input placeholder="Rule name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <select value={action} onChange={(e) => setAction(e.target.value)}>
+      <div className={tw.rowForm}>
+        <input className={tw.nativeControl} placeholder="Rule name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <select className={tw.nativeControl} value={action} onChange={(e) => setAction(e.target.value)}>
           <option value="archive">Archive</option>
           <option value="spam">Spam</option>
           <option value="trash">Trash</option>
@@ -3044,30 +3066,30 @@ function FilterForm({ onSave }: { onSave: (body: {
           <option value="inbox">Keep in inbox</option>
         </select>
       </div>
-      <div className="row-form">
-        <input placeholder="From contains" value={from} onChange={(e) => setFrom(e.target.value)} disabled={catchAll} />
-        <input placeholder="To contains" value={to} onChange={(e) => setTo(e.target.value)} disabled={catchAll} />
-        <input placeholder="Subject contains" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={catchAll} />
+      <div className={tw.rowForm}>
+        <input className={tw.nativeControl} placeholder="From contains" value={from} onChange={(e) => setFrom(e.target.value)} disabled={catchAll} />
+        <input className={tw.nativeControl} placeholder="To contains" value={to} onChange={(e) => setTo(e.target.value)} disabled={catchAll} />
+        <input className={tw.nativeControl} placeholder="Subject contains" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={catchAll} />
       </div>
-      {action === "forward" ? <input placeholder="Forward to email" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} required /> : null}
-      {action === "label" ? <input placeholder="Label name" value={label} onChange={(e) => setLabel(e.target.value)} required /> : null}
+      {action === "forward" ? <input className={tw.nativeControl} placeholder="Forward to email" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} required /> : null}
+      {action === "label" ? <input className={tw.nativeControl} placeholder="Label name" value={label} onChange={(e) => setLabel(e.target.value)} required /> : null}
       <Checkbox
         checked={catchAll}
         onChange={(e) => setCatchAll(e.target.checked)}
         label="Catch-all (apply when no other rule matches)"
       />
-      <div className="notice" style={{ marginTop: 4 }}>
-        <p className="muted" style={{ margin: "0 0 8px", fontSize: 13 }}>
+      <div className={tw.notice} style={{ marginTop: 4 }}>
+        <p className={tw.muted} style={{ margin: "0 0 8px", fontSize: 13 }}>
           Test rule — preview against sample headers (client-side; same contains matching as inbound).
         </p>
-        <div className="row-form">
-          <input aria-label="Sample from" placeholder="Sample from" value={sampleFrom} onChange={(e) => setSampleFrom(e.target.value)} />
-          <input aria-label="Sample to" placeholder="Sample to" value={sampleTo} onChange={(e) => setSampleTo(e.target.value)} />
-          <input aria-label="Sample subject" placeholder="Sample subject" value={sampleSubject} onChange={(e) => setSampleSubject(e.target.value)} />
+        <div className={tw.rowForm}>
+          <input className={tw.nativeControl} aria-label="Sample from" placeholder="Sample from" value={sampleFrom} onChange={(e) => setSampleFrom(e.target.value)} />
+          <input className={tw.nativeControl} aria-label="Sample to" placeholder="Sample to" value={sampleTo} onChange={(e) => setSampleTo(e.target.value)} />
+          <input className={tw.nativeControl} aria-label="Sample subject" placeholder="Sample subject" value={sampleSubject} onChange={(e) => setSampleSubject(e.target.value)} />
         </div>
-        <div className="row-form" style={{ marginTop: 8 }}>
+        <div className={tw.rowForm} style={{ marginTop: 8 }}>
           <Button size="sm" variant="ghost" type="button" onClick={() => previewMatch()}>Test rule</Button>
-          {testResult ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>{testResult}</p> : null}
+          {testResult ? <p className={tw.muted} style={{ margin: 0, fontSize: 13 }}>{testResult}</p> : null}
         </div>
       </div>
       <Button size="sm" type="submit">Add rule</Button>
@@ -3090,7 +3112,7 @@ function AliasForm({
     if (!mailboxId && mailboxes[0]) setMailboxId(mailboxes[0].id);
   }, [mailboxId, mailboxes]);
   return (
-    <form className="stack-form" onSubmit={(e) => {
+    <form className={stackForm} onSubmit={(e) => {
       e.preventDefault();
       void onSave({
         mailbox_id: mailboxId,
@@ -3104,14 +3126,14 @@ function AliasForm({
         setDisposable(false);
       });
     }}>
-      <div className="row-form">
-        <input placeholder="local-part" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
-        <select value={mailboxId} onChange={(e) => setMailboxId(e.target.value)} required>
+      <div className={tw.rowForm}>
+        <input className={tw.nativeControl} placeholder="local-part" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
+        <select className={tw.nativeControl} value={mailboxId} onChange={(e) => setMailboxId(e.target.value)} required>
           {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}</option>)}
         </select>
       </div>
-      <div className="row-form">
-        <input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
+      <div className={tw.rowForm}>
+        <input className={tw.nativeControl} placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <Checkbox checked={disposable} onChange={(e) => setDisposable(e.target.checked)} label="Disposable (7 days)" />
       </div>
       <Button size="sm" type="submit" disabled={!mailboxId}>Add alias</Button>

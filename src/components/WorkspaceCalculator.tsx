@@ -55,11 +55,12 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
   }
 
   return (
-    <div className={cn("calc-root", compact && "calc-compact", className)}>
-      <div className="calc-inputs">
-        <label className="calc-field">
+    <div className={cn("rounded-xl border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_80%,transparent)] p-5", compact && "p-4", className)}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-sm text-[var(--foreground-muted)]">
           <span>Domains / projects</span>
           <input
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-base text-[var(--foreground)]"
             type="number"
             min={1}
             max={100}
@@ -68,9 +69,10 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
             onChange={(e) => onChangeDomains(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
           />
         </label>
-        <label className="calc-field">
+        <label className="flex flex-col gap-1.5 text-sm text-[var(--foreground-muted)]">
           <span>Users per domain</span>
           <input
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-base text-[var(--foreground)]"
             type="number"
             min={1}
             max={50}
@@ -81,7 +83,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
         </label>
       </div>
 
-      <div className="calc-results" aria-live="polite">
+      <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-[1fr_1fr_1.2fr] [&_small]:mb-0.5 [&_small]:block [&_small]:text-xs [&_small]:text-[var(--foreground-muted)] [&_strong]:text-[1.15rem]" aria-live="polite">
         <div>
           <small>Google Workspace</small>
           <strong>${result.google_monthly}/mo</strong>
@@ -90,7 +92,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
           <small>Flap ({result.flap_plan_name})</small>
           <strong>${result.flap_monthly}/mo</strong>
         </div>
-        <div className="calc-save">
+        <div className="[&_strong]:text-[var(--accent)]">
           <small>You save</small>
           <strong>${result.savings_monthly}/mo · ${result.savings_annual}/yr</strong>
         </div>
@@ -123,7 +125,7 @@ export default function WorkspaceCalculator({ compact, className, ctaHref = "/si
         </div>
       ) : null}
 
-      <p className="calc-disclaimer">
+      <p className="mt-4 mb-0 text-xs leading-[1.45] text-[var(--foreground-muted)]">
         Assumes Google Workspace at ${GOOGLE_WORKSPACE_USD_PER_USER}/user/domain/month. Estimates are illustrative and may
         vary by provider, region, taxes, billing cycle, and plan.
       </p>

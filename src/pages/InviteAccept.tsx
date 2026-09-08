@@ -5,6 +5,8 @@ import { Button } from "../components/ui/button";
 import { api } from "../lib/api";
 import { ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 function InviteAcceptInner() {
   const token = window.location.pathname.split("/invite/")[1] || "";
@@ -42,28 +44,28 @@ function InviteAcceptInner() {
   }
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
+    <div className={tw.authShell}>
+      <div className={tw.authCard}>
+        <a className={tw.brand} href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
           <BrandMark /> Flap
         </a>
         <h1>Join workspace</h1>
         {invite ? (
-          <p className="muted">
+          <p className={tw.muted}>
             {invite.inviter_email || "A teammate"} invited <strong>{invite.email}</strong> as{" "}
             <strong>{invite.role}</strong>.
           </p>
         ) : (
-          <p className="muted">Loading invite…</p>
+          <p className={tw.muted}>Loading invite…</p>
         )}
-        {err ? <p className="error" role="alert">{err}</p> : null}
+        {err ? <p className={tw.error} role="alert">{err}</p> : null}
         {invite && invite.status === "pending" ? (
           isLoaded && isSignedIn ? (
             <Button className="w-full mt-4" disabled={busy} onClick={() => void accept()}>
               {busy ? "Joining…" : "Accept invite"}
             </Button>
           ) : (
-            <div className="stack gap-2 mt-4">
+            <div className={cn("gap-2 mt-4", tw.stack)}>
               <Button asChild className="w-full">
                 <a href={`/login?invite=${encodeURIComponent(token)}`}>Sign in with email code</a>
               </Button>

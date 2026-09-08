@@ -13,6 +13,8 @@ import {
 } from "../components/ui/select";
 import { api, type Domain, type Mailbox } from "../lib/api";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 export default function MailboxesAppPage() {
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -116,17 +118,17 @@ export default function MailboxesAppPage() {
       }
     >
       {err ? (
-        <p className="error mb-4" role="alert">
+        <p className={cn("mb-4", tw.error)} role="alert">
           {err}
         </p>
       ) : null}
       {notice ? (
-        <p className="notice mb-4" role="status">
+        <p className={cn("mb-4", tw.notice)} role="status">
           {notice}
         </p>
       ) : null}
 
-      {loading ? <p className="muted mb-4 text-sm">Loading mailboxes…</p> : null}
+      {loading ? <p className={cn("mb-4 text-sm", tw.muted)}>Loading mailboxes…</p> : null}
 
       {!loading && domains.length === 0 ? (
         <FeatureEmpty
@@ -135,16 +137,16 @@ export default function MailboxesAppPage() {
           cta="Connect a domain"
           onCta={() => go("/app/domains")}
           mockup={
-            <div className="feature-empty-mock" aria-hidden>
-              <div className="feature-empty-mock-row">
-                <span className="feature-empty-mock-swatch" />
-                <span className="feature-empty-mock-line grow" />
-                <span className="feature-empty-mock-chip">Shared</span>
+            <div className={tw.featureEmptyMock} aria-hidden>
+              <div className={tw.featureEmptyRow}>
+                <span className={tw.featureEmptySwatch} />
+                <span className={tw.featureEmptyLine} />
+                <span className={tw.featureEmptyChip}>Shared</span>
               </div>
-              <div className="feature-empty-mock-row">
-                <span className="feature-empty-mock-swatch" />
-                <span className="feature-empty-mock-line grow" />
-                <span className="feature-empty-mock-chip muted">Private</span>
+              <div className={tw.featureEmptyRow}>
+                <span className={tw.featureEmptySwatch} />
+                <span className={tw.featureEmptyLine} />
+                <span className={cn(tw.featureEmptyChip, "bg-[var(--surface-hover)] text-[var(--foreground-muted)]")}>Private</span>
               </div>
             </div>
           }
@@ -214,7 +216,7 @@ export default function MailboxesAppPage() {
       ) : null}
 
       {!loading && domains.length > 0 && mailboxes.length === 0 ? (
-        <p className="muted text-sm">No mailboxes yet — create your first address above.</p>
+        <p className={cn("text-sm", tw.muted)}>No mailboxes yet — create your first address above.</p>
       ) : null}
 
       {!loading && mailboxes.length > 0 ? (

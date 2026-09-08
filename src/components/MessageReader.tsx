@@ -44,6 +44,7 @@ import {
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { tw } from "../lib/tw";
 
 type TeamMember = { user_id: string; email: string };
 
@@ -150,7 +151,7 @@ function ToolBtn({
           size="icon"
           variant="ghost"
           className={cn(
-            "message-tool-btn h-9 w-9 rounded-xl text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+            "h-9 w-9 rounded-xl text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
             active && "text-[var(--warning-text)] hover:text-[var(--warning-text)]",
           )}
           onClick={onClick}
@@ -232,17 +233,20 @@ export default function MessageReader({
   return (
     <TooltipProvider delayDuration={250}>
       <article
-        className="message-reader"
+        className="relative flex min-h-full w-full flex-col bg-[var(--surface-overlay)] text-[var(--foreground)]"
         style={
           {
             ["--domain-color"]: accent,
           } as CSSProperties
         }
       >
-        <div className="message-accent" aria-hidden />
+        <div
+          className="h-[3px] w-full shrink-0 bg-[linear-gradient(90deg,var(--domain-color,var(--accent))_0%,color-mix(in_srgb,var(--domain-color,var(--accent))_35%,transparent)_55%,transparent_100%)]"
+          aria-hidden
+        />
 
-        <div className="message-toolbar max-[480px]:flex-wrap max-[480px]:gap-1.5 max-[480px]:px-2.5 max-[480px]:py-2">
-          <div className="message-toolbar-primary max-[480px]:gap-0.5">
+        <div className="sticky top-0 z-[5] flex items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-2.5 backdrop-blur-[10px] max-[480px]:flex-wrap max-[480px]:gap-1.5 max-[480px]:px-2.5 max-[480px]:py-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 max-[480px]:gap-0.5">
             <Button type="button" size="sm" className="h-9 gap-1.5 px-3.5" onClick={() => onReply(false)}>
               <Reply className="h-4 w-4" />
               Reply
@@ -253,7 +257,7 @@ export default function MessageReader({
             <ToolBtn label="Forward" onClick={onForward}>
               <Forward className="h-4 w-4" />
             </ToolBtn>
-            <span className="message-toolbar-sep max-[480px]:hidden" aria-hidden />
+            <span className="mx-1 h-5 w-px bg-[var(--line-strong)] max-[480px]:hidden" aria-hidden />
             <ToolBtn label="Archive" onClick={onArchive}>
               <Archive className="h-4 w-4" />
             </ToolBtn>
@@ -324,15 +328,22 @@ export default function MessageReader({
           </DropdownMenu>
         </div>
 
-        <header className="message-head">
-          <div className="message-subject-row">
-            <h2>{message.subject || "(no subject)"}</h2>
-            <time dateTime={new Date(message.date_ms).toISOString()}>{fmtDate(message.date_ms)}</time>
+        <header className="border-b border-[var(--line)] bg-[var(--surface-overlay)] px-6 pb-[18px] pt-[22px]">
+          <div className="mb-[18px] flex items-start justify-between gap-4">
+            <h2 className="m-0 font-[family-name:var(--font-display)] text-[clamp(1.25rem,2.2vw,1.65rem)] font-[550] leading-[1.25] tracking-tight text-[var(--foreground)]">
+              {message.subject || "(no subject)"}
+            </h2>
+            <time
+              className="shrink-0 pt-1.5 font-mono text-[11.5px] text-[var(--foreground-muted)]"
+              dateTime={new Date(message.date_ms).toISOString()}
+            >
+              {fmtDate(message.date_ms)}
+            </time>
           </div>
 
-          <div className="message-sender">
+          <div className="flex items-start gap-3">
             <Avatar
-              className="message-avatar"
+              className="h-[42px] w-[42px] shrink-0 border border-[var(--line)]"
               style={{ background: `color-mix(in srgb, ${accent} 18%, var(--surface-hover))` }}
             >
               <AvatarFallback
@@ -343,9 +354,9 @@ export default function MessageReader({
               </AvatarFallback>
             </Avatar>
 
-            <div className="message-sender-meta">
-              <div className="message-sender-line">
-                <strong>{fromDisplay}</strong>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <strong className="text-[15px] font-semibold text-[var(--foreground)]">{fromDisplay}</strong>
                 {message.starred ? (
                   <Badge variant="warn" className="gap-1">
                     <Star className="h-3 w-3 fill-current" />
@@ -355,30 +366,34 @@ export default function MessageReader({
                 {message.label ? <Badge variant="default">{message.label}</Badge> : null}
               </div>
 
-              <p className="message-addrs">
-                <span className="message-from-email">{fromEmail}</span>
-                <span className="message-addr-arrow" aria-hidden>
+              <p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs leading-[1.45] text-[var(--foreground-muted)]">
+                <span className="text-[color-mix(in_srgb,var(--foreground)_78%,var(--foreground-muted))]">{fromEmail}</span>
+                <span className="mx-1.5 opacity-40" aria-hidden>
                   →
                 </span>
                 <span>{message.to_addr || "(unknown)"}</span>
               </p>
 
-              {message.cc_addr ? <p className="message-cc">Cc {message.cc_addr}</p> : null}
+              {message.cc_addr ? (
+                <p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs leading-[1.45] text-[var(--foreground-muted)]">
+                  Cc {message.cc_addr}
+                </p>
+              ) : null}
 
               {viaLabel ? (
-                <div className="message-via">
-                  <span className="message-via-dot" style={{ background: accent }} aria-hidden />
+                <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--foreground-muted)]">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} aria-hidden />
                   via {viaLabel}
                 </div>
               ) : null}
             </div>
           </div>
 
-          <div className="message-collab-bar" role="toolbar" aria-label="Collaboration">
+          <div className="mt-3.5 flex flex-wrap items-center gap-1 border-t border-[var(--line)] pt-3" role="toolbar" aria-label="Collaboration">
             {teamsUnlocked ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" className="message-collab-btn">
+                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 rounded-[10px] text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]">
                     {assigneeLabel}
                     <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                   </Button>
@@ -398,7 +413,7 @@ export default function MessageReader({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="message-collab-btn"
+                className="h-8 gap-1.5 rounded-[10px] text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
                 onClick={onOpenBilling}
               >
                 Assigned to
@@ -410,8 +425,9 @@ export default function MessageReader({
               variant="ghost"
               size="sm"
               className={cn(
-                "message-collab-btn",
-                message.workflow_status === "done" && "message-collab-btn-active",
+                "h-8 gap-1.5 rounded-[10px] text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                message.workflow_status === "done" &&
+                  "bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-hover))] text-[var(--foreground)]",
               )}
               aria-pressed={message.workflow_status === "done"}
               onClick={() => onWorkflow?.(message.workflow_status === "done" ? "" : "done")}
@@ -424,8 +440,9 @@ export default function MessageReader({
               variant="ghost"
               size="sm"
               className={cn(
-                "message-collab-btn",
-                message.workflow_status === "follow_up" && "message-collab-btn-active",
+                "h-8 gap-1.5 rounded-[10px] text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]",
+                message.workflow_status === "follow_up" &&
+                  "bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-hover))] text-[var(--foreground)]",
               )}
               aria-pressed={message.workflow_status === "follow_up"}
               onClick={() => onWorkflow?.(message.workflow_status === "follow_up" ? "" : "follow_up")}
@@ -437,7 +454,7 @@ export default function MessageReader({
               type="button"
               variant="ghost"
               size="sm"
-              className="message-collab-btn"
+              className="h-8 gap-1.5 rounded-[10px] text-[13px] font-medium text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
               onClick={() => {
                 const el = document.getElementById("message-note-draft");
                 el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -451,114 +468,120 @@ export default function MessageReader({
         </header>
 
         {thread.length > 1 ? (
-          <div className="message-thread">
-            <div className="message-thread-label">
+          <div className="border-b border-[var(--line)] bg-[var(--surface-hover)] px-4 py-3">
+            <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
               <Users className="h-3.5 w-3.5" />
               Thread · {thread.length}
             </div>
-            <div className="message-thread-list">
+            <div className="flex flex-col gap-0.5">
               {thread.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => onSelectThread(item.id)}
-                  className={cn("message-thread-item", item.id === message.id && "active")}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[13px] text-[var(--foreground-muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
+                    item.id === message.id &&
+                      "bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-[var(--foreground)] shadow-[inset_2px_0_var(--accent)]",
+                  )}
                 >
                   <span className="min-w-0 truncate">
-                    <strong>{item.subject || "(no subject)"}</strong>
+                    <strong className="mr-2 inline font-semibold text-[var(--foreground)]">{item.subject || "(no subject)"}</strong>
                     <span>{senderName(item.from_addr)}</span>
                   </span>
-                  <time>{fmtDate(item.date_ms)}</time>
+                  <time className="shrink-0 font-mono text-[11px]">{fmtDate(item.date_ms)}</time>
                 </button>
               ))}
             </div>
           </div>
         ) : null}
 
-        <div className="message-body">
+        <div className="min-h-[280px] flex-1 border-b border-[var(--line)] bg-[var(--email-canvas,#f6f3ee)]">
           {message.html_body ? (
             <iframe
               title="Message body"
               sandbox=""
               srcDoc={emailSrcDoc(message.html_body)}
-              className="message-frame"
+              className="block min-h-[360px] w-full border-0 bg-[var(--email-canvas,#f6f3ee)]"
             />
           ) : (
-            <div className="body-text">{message.text_body || ""}</div>
+            <div className="max-w-[68ch] whitespace-pre-wrap px-6 py-5 text-[15px] leading-[1.6] text-[var(--foreground)]">
+              {message.text_body || ""}
+            </div>
           )}
         </div>
 
         {attachments.length > 0 ? (
-          <div className="message-attachments">
-            <div className="message-attachments-label">
+          <div className="border-b border-[var(--line)] bg-[var(--surface-overlay)] px-5 py-3.5">
+            <div className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
               <Paperclip className="h-3.5 w-3.5" />
               {attachments.length} attachment{attachments.length === 1 ? "" : "s"}
             </div>
-            <div className="message-attachment-list">
+            <div className="flex flex-wrap gap-2">
               {attachments.map((a) => (
                 <a
                   key={a.id}
                   href={`/api/mail/${message.id}/attachments/${a.id}`}
-                  className="message-attachment"
+                  className="inline-flex max-w-[280px] items-center gap-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-hover)] px-3 py-2 text-[12.5px] font-medium text-[var(--foreground)] no-underline hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--line-strong))]"
                 >
                   <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <span className="truncate">{a.filename}</span>
-                  <span className="message-attachment-size">{Math.ceil(a.size / 1024)} KB</span>
+                  <span className="font-mono text-[11px] text-[var(--foreground-muted)]">{Math.ceil(a.size / 1024)} KB</span>
                 </a>
               ))}
             </div>
           </div>
         ) : message.has_attachments ? (
-          <p className="message-attachments-missing">
+          <p className="m-0 border-b border-[var(--line)] bg-[var(--surface-overlay)] px-5 py-3.5 text-[12.5px] text-[var(--foreground-muted)]">
             This message had attachments, but R2 is not bound so files were not stored.
           </p>
         ) : null}
 
         {calendarInvite ? (
-          <div className="message-invite-rsvp" role="group" aria-label="Calendar invitation">
-            <p className="message-invite-lede">
+          <div className="mb-3.5 rounded-lg border border-[var(--line)] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] p-4" role="group" aria-label="Calendar invitation">
+            <p className="mb-2.5 text-[13px] text-[var(--foreground-muted)]">
               Calendar invite · {calendarInvite.filename}
             </p>
-            <div className="message-quick-reply">
-              <Button type="button" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("accept")}>
+            <div className="flex flex-wrap gap-2 border-b border-[var(--line)] px-5 py-4">
+              <Button type="button" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" disabled={rsvpBusy} onClick={() => void sendRsvp("accept")}>
                 Accept
               </Button>
-              <Button type="button" variant="outline" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("maybe")}>
+              <Button type="button" variant="outline" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" disabled={rsvpBusy} onClick={() => void sendRsvp("maybe")}>
                 Maybe
               </Button>
-              <Button type="button" variant="outline" className="message-quick-reply-btn" disabled={rsvpBusy} onClick={() => void sendRsvp("decline")}>
+              <Button type="button" variant="outline" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" disabled={rsvpBusy} onClick={() => void sendRsvp("decline")}>
                 Decline
               </Button>
             </div>
             {rsvpNotice ? (
-              <p className="notice" role="status">
+              <p className={tw.notice} role="status">
                 {rsvpNotice}
               </p>
             ) : null}
             {rsvpError ? (
-              <p className="error" role="alert">
+              <p className={tw.error} role="alert">
                 {rsvpError}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        <div className="message-quick-reply">
-          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(false)}>
+        <div className="flex flex-wrap gap-2 border-b border-[var(--line)] px-5 py-4">
+          <Button type="button" variant="outline" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" onClick={() => onReply(false)}>
             <Reply className="h-4 w-4" />
             Reply
           </Button>
-          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(true)}>
+          <Button type="button" variant="outline" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" onClick={() => onReply(true)}>
             <ReplyAll className="h-4 w-4" />
             Reply all
           </Button>
-          <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={onForward}>
+          <Button type="button" variant="outline" className="min-h-[38px] gap-2 rounded-full bg-[var(--surface)]" onClick={onForward}>
             <Forward className="h-4 w-4" />
             Forward
           </Button>
         </div>
 
-        <div className="message-meta-panels">
+        <div className="bg-[var(--surface-overlay)] px-5 pb-7 pt-1">
           <Accordion
             type="multiple"
             className="w-full"
@@ -568,7 +591,7 @@ export default function MessageReader({
             ]}
           >
             <AccordionItem value="organize" className="border-[var(--line)]">
-              <AccordionTrigger className="message-panel-trigger">
+              <AccordionTrigger className="py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
                 <span className="inline-flex items-center gap-2">
                   <Tag className="h-3.5 w-3.5" />
                   Organize
@@ -679,7 +702,7 @@ export default function MessageReader({
             </AccordionItem>
 
             <AccordionItem value="notes" className="border-b-0 border-[var(--line)]">
-              <AccordionTrigger className="message-panel-trigger">
+              <AccordionTrigger className="py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
                 <span className="inline-flex items-center gap-2">
                   <StickyNote className="h-3.5 w-3.5" />
                   Notes
@@ -696,7 +719,7 @@ export default function MessageReader({
                 {notes.length > 0 ? (
                   <ul className="space-y-2">
                     {notes.map((n) => (
-                      <li key={n.id} className="message-note">
+                      <li key={n.id} className="rounded-lg border border-[var(--line)] bg-[var(--surface-hover)] px-3 py-2.5">
                         <div className="text-sm leading-relaxed">{n.body}</div>
                         <div className="mt-1 text-[11px] text-[var(--muted)]">
                           {n.author_email || "you"} · {new Date(n.created_at).toLocaleString()}

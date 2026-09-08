@@ -13,6 +13,8 @@ import { StatCard } from "../components/ui/stat-card";
 import { Switch } from "../components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Toast } from "../components/ui/toast";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 /** Dev gallery for visual-system primitives (both themes via ThemeToggle). */
 export default function PrimitivesGalleryPage() {
@@ -25,8 +27,8 @@ export default function PrimitivesGalleryPage() {
       title="Primitives"
       subtitle="Visual system gallery — switch theme from the sidebar to verify both modes."
     >
-      <div className="stack gap-8">
-        <section className="stack gap-3">
+      <div className={cn("gap-8", tw.stack)}>
+        <section className={cn("gap-3", tw.stack)}>
           <h2 className="text-[15px] font-semibold">Buttons</h2>
           <div className="flex flex-wrap gap-2">
             <Button>Primary</Button>
@@ -38,7 +40,7 @@ export default function PrimitivesGalleryPage() {
           </div>
         </section>
 
-        <section className="stack gap-3">
+        <section className={cn("gap-3", tw.stack)}>
           <h2 className="text-[15px] font-semibold">Inputs & switch</h2>
           <Input placeholder="Search messages…" className="max-w-sm" />
           <div className="flex items-center gap-2">
@@ -49,7 +51,7 @@ export default function PrimitivesGalleryPage() {
           </div>
         </section>
 
-        <section className="stack gap-3">
+        <section className={cn("gap-3", tw.stack)}>
           <h2 className="text-[15px] font-semibold">Badges</h2>
           <div className="flex flex-wrap gap-2">
             <Badge>Accent</Badge>
@@ -60,7 +62,7 @@ export default function PrimitivesGalleryPage() {
           </div>
         </section>
 
-        <section className="stack gap-3">
+        <section className={cn("gap-3", tw.stack)}>
           <h2 className="text-[15px] font-semibold">Tabs & segmented</h2>
           <Tabs defaultValue="a">
             <TabsList>
@@ -84,7 +86,7 @@ export default function PrimitivesGalleryPage() {
           />
         </section>
 
-        <section className="stack gap-3">
+        <section className={cn("gap-3", tw.stack)}>
           <h2 className="text-[15px] font-semibold">Cards & stats</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Sent" value="1,284" comparison="+12% vs prior" comparisonTone="up" />

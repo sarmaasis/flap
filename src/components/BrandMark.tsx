@@ -1,5 +1,5 @@
 /** Shared Flap mark — charcoal square, paper envelope, orange flap (matches favicon). */
-export default function BrandMark({ className = "brand-mark" }: { className?: string }) {
+export default function BrandMark({ className = "inline-flex h-4 w-4 items-center justify-center" }: { className?: string }) {
   return (
     <span className={className} aria-hidden>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

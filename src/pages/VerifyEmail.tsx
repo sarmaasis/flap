@@ -6,6 +6,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { authErrorMessage, ClerkMissingCard, useClerkReady } from "../lib/clerk";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 import {
   readPendingVerifyEmail,
   storePendingVerifyEmail,
@@ -93,10 +95,10 @@ function VerifyEmailInner() {
       : "Enter the one-time code from your email to finish verification.";
 
   return (
-    <div className="auth-shell">
-      <form className="auth-card" onSubmit={(e) => void (awaitingCode ? verifyCode(e) : (e.preventDefault(), sendCode()))}>
+    <div className={tw.authShell}>
+      <form className={tw.authCard} onSubmit={(e) => void (awaitingCode ? verifyCode(e) : (e.preventDefault(), sendCode()))}>
         <a
-          className="brand"
+          className={tw.brand}
           href="/"
           onClick={(e) => {
             e.preventDefault();
@@ -106,11 +108,11 @@ function VerifyEmailInner() {
           <BrandMark /> Flap
         </a>
         <h1>{headline}</h1>
-        <p className="muted">{blurb}</p>
-        {err ? <p className="error" role="alert">{err}</p> : null}
-        {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <div className="stack gap-3" style={{ marginTop: 16 }}>
-          <div className="stack gap-1.5">
+        <p className={tw.muted}>{blurb}</p>
+        {err ? <p className={tw.error} role="alert">{err}</p> : null}
+        {notice ? <p className={tw.muted} role="status">{notice}</p> : null}
+        <div className={cn("gap-3", tw.stack)} style={{ marginTop: 16 }}>
+          <div className={cn("gap-1.5", tw.stack)}>
             <Label htmlFor="verify-email">Email</Label>
             <Input
               id="verify-email"
@@ -123,7 +125,7 @@ function VerifyEmailInner() {
             />
           </div>
           {awaitingCode ? (
-            <div className="stack gap-1.5">
+            <div className={cn("gap-1.5", tw.stack)}>
               <Label htmlFor="verify-code">Verification code</Label>
               <Input
                 id="verify-code"
@@ -147,7 +149,7 @@ function VerifyEmailInner() {
                 ? "Verify code"
                 : "Send verification code"}
           </Button>
-          <button type="button" className="auth-password-toggle" onClick={() => go("/login")}>
+          <button type="button" className={tw.authPasswordToggle} onClick={() => go("/login")}>
             Back to sign in
           </button>
         </div>

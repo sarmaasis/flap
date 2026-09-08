@@ -135,7 +135,7 @@ function SideNav({
           href={brandHref}
           className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]"
         >
-          <BrandMark className="brand-mark !h-7 !w-7" />
+          <BrandMark className="inline-flex h-7 w-7 items-center justify-center" />
           {brandLabel}
         </DocsLink>
         <button
@@ -164,7 +164,7 @@ function SideNav({
                 className="inline-flex items-center gap-2 text-sm font-semibold"
                 onNavigate={() => setOpen(false)}
               >
-                <BrandMark className="brand-mark !h-7 !w-7" />
+                <BrandMark className="inline-flex h-7 w-7 items-center justify-center" />
                 {brandLabel}
               </DocsLink>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close menu">
@@ -185,7 +185,7 @@ function SideNav({
               href={brandHref}
               className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]"
             >
-              <BrandMark className="brand-mark !h-7 !w-7" />
+              <BrandMark className="inline-flex h-7 w-7 items-center justify-center" />
               {brandLabel}
             </DocsLink>
           </div>
@@ -349,7 +349,7 @@ export function DocsPage({
           </div>
         ) : null}
 
-        <div className="docs-prose space-y-4 text-sm leading-relaxed text-[var(--foreground-muted)] [&_a]:text-[var(--accent-text)] [&_a]:underline-offset-4 hover:[&_a]:underline [&_code]:rounded [&_code]:bg-[var(--surface-hover)] [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px] [&_code]:text-[var(--foreground)] [&_h2]:mt-10 [&_h2]:scroll-mt-28 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-[var(--foreground)] [&_h3]:mt-6 [&_h3]:scroll-mt-28 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-[var(--foreground)] [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_p]:max-w-2xl [&_strong]:text-[var(--foreground)] [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">
+        <div className="space-y-4 text-sm leading-relaxed text-[var(--foreground-muted)] [&_a]:text-[var(--accent-text)] [&_a]:underline-offset-4 hover:[&_a]:underline [&_code]:rounded [&_code]:bg-[var(--surface-hover)] [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px] [&_code]:text-[var(--foreground)] [&_h2]:mt-10 [&_h2]:scroll-mt-28 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-[var(--foreground)] [&_h3]:mt-6 [&_h3]:scroll-mt-28 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-[var(--foreground)] [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_p]:max-w-2xl [&_strong]:text-[var(--foreground)] [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">
           {children}
         </div>
 

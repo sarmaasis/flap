@@ -13,6 +13,8 @@ import {
 } from "../lib/clerk";
 import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 function LoginInner() {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
@@ -113,22 +115,22 @@ function LoginInner() {
   }
 
   return (
-    <div className="auth-shell">
-      <form className="auth-card" onSubmit={step === "email" ? sendCode : verifyCode}>
-        <a className="brand" href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
+    <div className={tw.authShell}>
+      <form className={tw.authCard} onSubmit={step === "email" ? sendCode : verifyCode}>
+        <a className={tw.brand} href="/" onClick={(e) => { e.preventDefault(); go("/"); }}>
           <BrandMark /> Flap
         </a>
         <h1>Sign in</h1>
-        <p className="muted">
+        <p className={tw.muted}>
           {step === "email"
             ? "Enter your email and we’ll send a one-time code — no password."
             : `Enter the code we sent to ${email}.`}
         </p>
-        {err ? <p className="error" role="alert">{err}</p> : null}
-        {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <div className="stack gap-3">
+        {err ? <p className={tw.error} role="alert">{err}</p> : null}
+        {notice ? <p className={tw.muted} role="status">{notice}</p> : null}
+        <div className={cn("gap-3", tw.stack)}>
           {step === "email" ? (
-            <div className="stack gap-1.5">
+            <div className={cn("gap-1.5", tw.stack)}>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -140,7 +142,7 @@ function LoginInner() {
               />
             </div>
           ) : (
-            <div className="stack gap-1.5">
+            <div className={cn("gap-1.5", tw.stack)}>
               <Label htmlFor="code">Verification code</Label>
               <Input
                 id="code"
@@ -167,7 +169,7 @@ function LoginInner() {
           {step === "code" ? (
             <button
               type="button"
-              className="auth-password-toggle"
+              className={tw.authPasswordToggle}
               disabled={busy}
               onClick={() => {
                 setStep("email");
@@ -180,7 +182,7 @@ function LoginInner() {
             </button>
           ) : null}
         </div>
-        <p className="muted mt-4 text-sm">
+        <p className={cn("mt-4 text-sm", tw.muted)}>
           New here?{" "}
           <a href="/signup" onClick={(e) => { e.preventDefault(); go("/signup"); }}>Create a free workspace</a>
         </p>

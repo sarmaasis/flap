@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -25,7 +27,7 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
   if (!ready || dismissed || !deferred) return null;
 
   return (
-    <div className="mail-toast" role="status" aria-live="polite">
+    <div className={tw.mailToast} role="status" aria-live="polite">
       <div>
         <strong>Install Flap</strong>
         <span>Faster triage on your phone.</span>
@@ -44,7 +46,7 @@ export default function PwaInstallPrompt({ ready }: { ready: boolean }) {
         type="button"
         size="icon"
         variant="ghost"
-        className="mail-toast-close h-8 w-8"
+        className={cn(tw.mailToastClose, "h-8 w-8")}
         aria-label="Dismiss"
         onClick={() => {
           localStorage.setItem("flap-pwa-dismiss", "1");

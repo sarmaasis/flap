@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
 import { storePendingVerifyEmail, verifyEmailPath } from "../lib/verify-email";
+import { tw } from "../lib/tw";
 
 /**
  * Blocks /app until Clerk reports a verified email (via /api/me).
@@ -50,8 +51,8 @@ export default function RequireVerified({ children }: { children: ReactNode }) {
 
   if (!isLoaded || !ready) {
     return (
-      <div className="auth-shell">
-        <p className="muted">Loading Flap…</p>
+      <div className={tw.authShell}>
+        <p className={tw.muted}>Loading Flap…</p>
       </div>
     );
   }

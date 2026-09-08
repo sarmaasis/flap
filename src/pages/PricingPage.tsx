@@ -76,7 +76,7 @@ export default function PricingPage() {
 
   return (
     <MarketingShell>
-      <article className="flap-pricing mx-auto max-w-6xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
+      <article className="mx-auto max-w-6xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Pricing</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
           Transparent email hosting pricing.
@@ -141,14 +141,14 @@ export default function PricingPage() {
               <section
                 key={id}
                 className={cn(
-                  "landing-plan rounded-[18px] border p-5",
+                  "flex flex-col rounded-[18px] border p-5",
                   plan.highlighted
-                    ? "landing-plan-featured"
+                    ? "border-transparent bg-[var(--landing-dark)] text-[var(--landing-dark-fg)] shadow-[inset_0_3px_0_var(--accent),0_18px_40px_rgba(20,18,17,0.18)]"
                     : "border-[var(--line)] bg-[var(--surface)]",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-xl font-semibold">{plan.name}</h2>
+                  <h2 className={cn("text-xl font-semibold", plan.highlighted && "text-[var(--landing-dark-fg)]")}>{plan.name}</h2>
                   {plan.highlighted ? (
                     <span className="rounded-full bg-[var(--cta)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--cta-fg)]">
                       Popular
@@ -156,7 +156,7 @@ export default function PricingPage() {
                   ) : null}
                 </div>
                 <p className={cn("mt-1 text-sm", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>{plan.blurb}</p>
-                <p className="mt-4 text-3xl font-semibold tracking-tight">
+                <p className={cn("mt-4 text-3xl font-semibold tracking-tight", plan.highlighted && "text-[var(--landing-dark-fg)]")}>
                   {plan.price_monthly === 0 ? "$0" : `$${price}`}
                   {suffix ? (
                     <span className={cn("text-base font-normal", plan.highlighted ? "text-[#a8a29e]" : "text-[var(--muted)]")}>

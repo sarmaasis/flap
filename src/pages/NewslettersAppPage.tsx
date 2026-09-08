@@ -5,6 +5,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import RichTextEditor, { type EditorHandle } from "../components/RichTextEditor";
 import { api } from "../lib/api";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type Blast = { id: string; subject: string; status: string; capped_count: number; created_at: number };
 type Subscriber = { id: string; email: string; name: string; status: string; created_at: number };
@@ -95,25 +97,25 @@ export default function NewslettersAppPage() {
           : "Write and send from your own domain. Delivery caps follow your plan."
       }
     >
-      <p className="notice mb-4" role="note">
+      <p className={cn("mb-4", tw.notice)} role="note">
         Partial stack: audiences and a cron queue consumer ship; dedicated sending subdomain, CAN-SPAM footer, and CSV
         import are still ahead.
       </p>
       {notice && (
-        <p className="notice mb-4" role="status">
+        <p className={cn("mb-4", tw.notice)} role="status">
           {notice}
         </p>
       )}
       {err ? (
-        <p className="error" role="alert">
+        <p className={tw.error} role="alert">
           {err}
         </p>
       ) : null}
 
-      <section className="app-feature-card stack gap-3 mb-6">
+      <section className={cn(tw.appFeatureCard, "gap-3 mb-6", tw.stack)}>
         <h2>Audiences</h2>
-        <p className="muted text-sm">Manual add for now. Double opt-in and CSV import are not finished.</p>
-        <form className="row-form" onSubmit={(e) => void addSubscriber(e)}>
+        <p className={cn("text-sm", tw.muted)}>Manual add for now. Double opt-in and CSV import are not finished.</p>
+        <form className={tw.rowForm} onSubmit={(e) => void addSubscriber(e)}>
           <Input
             placeholder="subscriber@example.com"
             value={subEmail}
@@ -127,12 +129,12 @@ export default function NewslettersAppPage() {
           </Button>
         </form>
         {subscribers.length ? (
-          <ul className="app-feature-list">
+          <ul className={tw.appFeatureList}>
             {subscribers.slice(0, 20).map((s) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   <strong>{s.email}</strong>
-                  <span className="muted">
+                  <span className={tw.muted}>
                     {" "}
                     · {s.status}
                     {s.name ? ` · ${s.name}` : ""}
@@ -155,29 +157,29 @@ export default function NewslettersAppPage() {
           </ul>
         ) : (
           <FeatureEmpty title="No subscribers yet" body="Add emails to build an audience before queuing a blast." mockup={
-            <div className="feature-empty-mock" aria-hidden>
-              <div className="feature-empty-mock-row">
-                <span className="feature-empty-mock-avatar">@</span>
-                <span className="feature-empty-mock-line grow" />
-                <span className="feature-empty-mock-chip">Active</span>
+            <div className={tw.featureEmptyMock} aria-hidden>
+              <div className={tw.featureEmptyRow}>
+                <span className={tw.featureEmptyAvatar}>@</span>
+                <span className={tw.featureEmptyLine} />
+                <span className={tw.featureEmptyChip}>Active</span>
               </div>
-              <div className="feature-empty-mock-row dim">
-                <span className="feature-empty-mock-avatar">@</span>
-                <span className="feature-empty-mock-line grow" />
-                <span className="feature-empty-mock-chip muted">Pending</span>
+              <div className={cn(tw.featureEmptyRow, "opacity-55")}>
+                <span className={tw.featureEmptyAvatar}>@</span>
+                <span className={tw.featureEmptyLine} />
+                <span className={cn(tw.featureEmptyChip, "bg-[var(--surface-hover)] text-[var(--foreground-muted)]")}>Pending</span>
               </div>
             </div>
           } />
         )}
       </section>
 
-      <form className="app-feature-card stack gap-3" onSubmit={(e) => void createDraft(e)}>
+      <form className={cn(tw.appFeatureCard, "gap-3", tw.stack)} onSubmit={(e) => void createDraft(e)}>
         <h2>New draft</h2>
-        <div className="stack gap-1.5">
+        <div className={cn("gap-1.5", tw.stack)}>
           <Label htmlFor="nl-subject">Subject</Label>
           <Input id="nl-subject" value={subject} onChange={(e) => setSubject(e.target.value)} required />
         </div>
-        <div className="stack gap-1.5">
+        <div className={cn("gap-1.5", tw.stack)}>
           <span className="text-sm font-medium">Message</span>
           <RichTextEditor key={editorKey} ref={editor} />
         </div>
@@ -189,7 +191,7 @@ export default function NewslettersAppPage() {
       <div className="mt-6">
         <h2 className="text-lg font-semibold mb-3">Recent</h2>
         {loading ? (
-          <p className="muted" role="status">
+          <p className={tw.muted} role="status">
             Loading newsletters…
           </p>
         ) : items.length === 0 ? (
@@ -197,25 +199,25 @@ export default function NewslettersAppPage() {
             title="No newsletters yet"
             body="Drafts and sends appear here. Queue a draft to let cron deliver to your audience."
             mockup={
-              <div className="feature-empty-mock" aria-hidden>
-                <div className="feature-empty-mock-row">
-                  <span className="feature-empty-mock-line long" />
-                  <span className="feature-empty-mock-chip muted">Draft</span>
+              <div className={tw.featureEmptyMock} aria-hidden>
+                <div className={tw.featureEmptyRow}>
+                  <span className={cn(tw.featureEmptyLine, "flex-[0_0_72%]")} />
+                  <span className={cn(tw.featureEmptyChip, "bg-[var(--surface-hover)] text-[var(--foreground-muted)]")}>Draft</span>
                 </div>
-                <div className="feature-empty-mock-row dim">
-                  <span className="feature-empty-mock-line medium" />
-                  <span className="feature-empty-mock-chip">Queued</span>
+                <div className={cn(tw.featureEmptyRow, "opacity-55")}>
+                  <span className={cn(tw.featureEmptyLine, "flex-[0_0_58%]")} />
+                  <span className={tw.featureEmptyChip}>Queued</span>
                 </div>
               </div>
             }
           />
         ) : (
-          <ul className="app-feature-list">
+          <ul className={tw.appFeatureList}>
             {items.map((n) => (
               <li key={n.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   <strong>{n.subject || "(no subject)"}</strong>
-                  <span className="muted">
+                  <span className={tw.muted}>
                     {" "}
                     · {n.status} · {n.capped_count} sent · {new Date(n.created_at).toLocaleString()}
                   </span>

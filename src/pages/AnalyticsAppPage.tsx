@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { api, type BillingSubscription, type DeliveryEventLogRow, type Domain } from "../lib/api";
 import { go } from "../lib/nav";
 import { PLANS, type PlanId } from "../../shared/plans";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 function pct(used: number, limit: number) {
   if (limit <= 0) return 0;
@@ -299,8 +301,8 @@ export default function AnalyticsAppPage() {
         </Button>
       }
     >
-      {error ? <p role="alert" className="error mb-4">{error}</p> : null}
-      {loading ? <p className="muted mb-4">Loading usage…</p> : null}
+      {error ? <p role="alert" className={cn("mb-4", tw.error)}>{error}</p> : null}
+      {loading ? <p className={cn("mb-4", tw.muted)}>Loading usage…</p> : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Sent" value={sendsUsed.toLocaleString()} period="This month" />
@@ -323,31 +325,31 @@ export default function AnalyticsAppPage() {
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-5">
-        <section className="app-feature-card lg:col-span-3">
+        <section className={cn(tw.appFeatureCard, "lg:col-span-3")}>
           <div className="mb-4">
             <h2>Delivery trend</h2>
-            <p className="muted">Events by day · last 14 days</p>
+            <p className={tw.muted}>Events by day · last 14 days</p>
           </div>
           <EventsTrendChart events={allEvents} />
         </section>
-        <section className="app-feature-card lg:col-span-2">
+        <section className={cn(tw.appFeatureCard, "lg:col-span-2")}>
           <div className="mb-4">
             <h2>Sending health</h2>
-            <p className="muted">Share of clean vs problem rates</p>
+            <p className={tw.muted}>Share of clean vs problem rates</p>
           </div>
           {reputation ? (
             <ReputationDonut bounceRate={reputation.bounce_rate} complaintRate={reputation.complaint_rate} />
           ) : (
-            <p className="muted">Reputation data unavailable yet.</p>
+            <p className={tw.muted}>Reputation data unavailable yet.</p>
           )}
         </section>
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <section className="app-feature-card">
+        <section className={tw.appFeatureCard}>
           <div className="mb-4">
             <h2>Plan capacity</h2>
-            <p className="muted">
+            <p className={tw.muted}>
               {plan.name} · {bill?.status || "—"} · counters reset each UTC month
             </p>
           </div>
@@ -366,10 +368,10 @@ export default function AnalyticsAppPage() {
           </div>
         </section>
 
-        <section className="app-feature-card">
+        <section className={tw.appFeatureCard}>
           <div className="mb-4">
             <h2>Workspace snapshot</h2>
-            <p className="muted">Ready domains and active mailboxes</p>
+            <p className={tw.muted}>Ready domains and active mailboxes</p>
           </div>
           <div className="mb-5 grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
@@ -406,11 +408,11 @@ export default function AnalyticsAppPage() {
         </section>
       </div>
 
-      <section className="app-feature-card">
+      <section className={tw.appFeatureCard}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2>Delivery events</h2>
-            <p className="muted">One row per recipient. Kept for 30 days.</p>
+            <p className={tw.muted}>One row per recipient. Kept for 30 days.</p>
           </div>
           <SegmentedControl
             className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
@@ -426,7 +428,7 @@ export default function AnalyticsAppPage() {
           />
         </div>
         {events.length === 0 ? (
-          <p className="muted">No delivery events in this range.</p>
+          <p className={tw.muted}>No delivery events in this range.</p>
         ) : (
           <Table>
             <TableHeader>

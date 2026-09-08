@@ -5,6 +5,7 @@ import { FOR_PATHS, VS_PATHS } from "./content/hubs";
 import { BLOG_PATHS } from "./content/blog-paths";
 import { DNS_TOOL_PATHS as DNS_TOOL_PATH_LIST, GUIDE_PATHS as GUIDE_PATH_LIST } from "./content/tool-guide-paths";
 import { normalizePathname } from "./content/public-routes";
+import { tw } from "./lib/tw";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
@@ -54,7 +55,7 @@ const ContactsAppPage = lazy(() => import("./pages/ContactsAppPage"));
 const PrimitivesGalleryPage = lazy(() => import("./pages/PrimitivesGalleryPage"));
 
 function Screen({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<div className="auth-shell"><p className="muted">Loading Flap…</p></div>}>{children}</Suspense>;
+  return <Suspense fallback={<div className={tw.authShell}><p className={tw.muted}>Loading Flap…</p></div>}>{children}</Suspense>;
 }
 
 const SEO_PATH_SET = new Set<string>(SEO_PATHS);

@@ -3,6 +3,8 @@ import AppFeaturePage, { FeatureEmpty } from "../components/AppFeaturePage";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { api, type Contact } from "../lib/api";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 export default function ContactsAppPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -63,9 +65,9 @@ export default function ContactsAppPage() {
       title="Contacts"
       subtitle="Your address book for compose autocomplete. Contacts are also remembered as you send."
     >
-      {err ? <p className="error mb-4" role="alert">{err}</p> : null}
+      {err ? <p className={cn("mb-4", tw.error)} role="alert">{err}</p> : null}
 
-      <form className="app-feature-card stack gap-3" onSubmit={(e) => void onAdd(e)}>
+      <form className={cn(tw.appFeatureCard, "gap-3", tw.stack)} onSubmit={(e) => void onAdd(e)}>
         <h2>Add contact</h2>
         <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto]">
           <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
@@ -91,7 +93,7 @@ export default function ContactsAppPage() {
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search contacts"
         />
-        <p className="muted text-sm">
+        <p className={cn("text-sm", tw.muted)}>
           {loading ? "Loading…" : `${filtered.length} contact${filtered.length === 1 ? "" : "s"}`}
         </p>
       </div>
@@ -106,26 +108,26 @@ export default function ContactsAppPage() {
           }
           mockup={
             q.trim() ? undefined : (
-              <div className="feature-empty-mock" aria-hidden>
-                <div className="feature-empty-mock-row">
-                  <span className="feature-empty-mock-avatar">A</span>
-                  <div className="stack">
-                    <span className="feature-empty-mock-line medium" />
-                    <span className="feature-empty-mock-line thin short" />
+              <div className={tw.featureEmptyMock} aria-hidden>
+                <div className={tw.featureEmptyRow}>
+                  <span className={tw.featureEmptyAvatar}>A</span>
+                  <div className={tw.stack}>
+                    <span className={cn(tw.featureEmptyLine, "flex-[0_0_58%]")} />
+                    <span className={cn(tw.featureEmptyLine, "h-1.5 flex-[0_0_42%] bg-[var(--surface-active)]")} />
                   </div>
                 </div>
-                <div className="feature-empty-mock-row">
-                  <span className="feature-empty-mock-avatar">B</span>
-                  <div className="stack">
-                    <span className="feature-empty-mock-line short" />
-                    <span className="feature-empty-mock-line thin medium" />
+                <div className={tw.featureEmptyRow}>
+                  <span className={tw.featureEmptyAvatar}>B</span>
+                  <div className={tw.stack}>
+                    <span className={cn(tw.featureEmptyLine, "flex-[0_0_42%]")} />
+                    <span className={cn(tw.featureEmptyLine, "h-1.5 flex-[0_0_58%] bg-[var(--surface-active)]")} />
                   </div>
                 </div>
-                <div className="feature-empty-mock-row dim">
-                  <span className="feature-empty-mock-avatar">C</span>
-                  <div className="stack">
-                    <span className="feature-empty-mock-line long" />
-                    <span className="feature-empty-mock-line thin short" />
+                <div className={cn(tw.featureEmptyRow, "opacity-55")}>
+                  <span className={tw.featureEmptyAvatar}>C</span>
+                  <div className={tw.stack}>
+                    <span className={cn(tw.featureEmptyLine, "flex-[0_0_72%]")} />
+                    <span className={cn(tw.featureEmptyLine, "h-1.5 flex-[0_0_42%] bg-[var(--surface-active)]")} />
                   </div>
                 </div>
               </div>
@@ -133,12 +135,12 @@ export default function ContactsAppPage() {
           }
         />
       ) : (
-        <ul className="app-feature-list mt-4">
+        <ul className={cn(tw.appFeatureList, "mt-4")}>
           {filtered.map((c) => (
             <li key={c.id}>
               <div className="min-w-0">
                 <strong className="block truncate">{c.name || c.email}</strong>
-                {c.name ? <span className="muted block truncate text-sm">{c.email}</span> : null}
+                {c.name ? <span className={cn("block truncate text-sm", tw.muted)}>{c.email}</span> : null}
               </div>
               <Button
                 size="sm"

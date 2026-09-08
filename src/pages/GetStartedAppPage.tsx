@@ -16,6 +16,8 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { api } from "../lib/api";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type StepId = "domain" | "dns" | "mailbox" | "test" | "calendar" | "newsletters" | "api";
 
@@ -236,62 +238,66 @@ export default function GetStartedAppPage() {
         ) : null
       }
     >
-      <section className="get-started-progress app-feature-card" aria-live="polite">
-        <div className="get-started-progress-row">
+      <section className={tw.appFeatureCard} aria-live="polite">
+        <div className="flex items-start justify-between gap-4 max-md:flex-col">
           <div>
-            <p className="muted text-xs uppercase tracking-wide mb-1">Setup progress</p>
-            <p className="get-started-progress-label">{headerStatus}</p>
+            <p className={cn("mb-1 text-xs tracking-wide uppercase", tw.muted)}>Setup progress</p>
+            <p className="m-0 text-[1.05rem] font-medium">{headerStatus}</p>
             {!loading ? (
-              <p className="muted text-xs mt-1">
+              <p className={cn("mt-1 text-xs", tw.muted)}>
                 {domainCount} domain{domainCount === 1 ? "" : "s"} · {mailboxCount} mailbox
                 {mailboxCount === 1 ? "" : "es"}
               </p>
             ) : null}
           </div>
-          <div className="get-started-progress-meta" aria-hidden={loading}>
-            <span className="get-started-progress-count">{loading ? "—" : `${coreDone}/4`}</span>
+          <div aria-hidden={loading}>
+            <span className="font-mono text-xl font-semibold text-[var(--foreground)]">{loading ? "—" : `${coreDone}/4`}</span>
           </div>
         </div>
         <div
-          className="get-started-progress-bar"
+          className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface-hover)]"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={4}
           aria-valuenow={loading ? 0 : coreDone}
           aria-label="Core setup steps completed"
         >
-          <span style={{ width: `${loading ? 0 : (coreDone / 4) * 100}%` }} />
+          <span className="block h-full rounded-full bg-[var(--accent)] transition-[width] duration-200" style={{ width: `${loading ? 0 : (coreDone / 4) * 100}%` }} />
         </div>
       </section>
 
       {groups.map((group) => (
         <section key={group.name} className="mt-8" aria-labelledby={`gs-${group.name}`}>
-          <h2 id={`gs-${group.name}`} className="get-started-section-title">
+          <h2 id={`gs-${group.name}`} className="m-0 text-[1.1rem] font-semibold">
             {group.name}
           </h2>
-          <ul className="get-started-steps mt-3" aria-label={group.name}>
+          <ul className="mt-3 grid list-none gap-2.5 p-0" aria-label={group.name}>
             {group.rows.map(({ item, state }) => {
               const Icon = state === "blocked" ? Lock : item.icon;
               const missing = (item.needs || []).filter((n) => !progress[n]);
               return (
                 <li
                   key={item.id}
-                  className={[
-                    "get-started-step",
-                    state === "done" ? "is-complete" : "",
-                    state === "recommended" ? "is-current is-recommended" : "",
-                    state === "blocked" ? "is-blocked" : "",
-                    state === "ready" ? "is-ready" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={cn(
+                    "flex items-start gap-3.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-[18px] py-4",
+                    state === "done" && "opacity-90",
+                    state === "recommended" && "border-[color-mix(in_srgb,var(--accent)_45%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_5%,var(--surface))] shadow-[inset_3px_0_0_var(--accent)]",
+                    state === "blocked" && "bg-[color-mix(in_srgb,var(--surface-hover)_55%,var(--surface))] opacity-70",
+                  )}
                 >
-                  <div className="get-started-step-num" aria-hidden>
+                  <div
+                    className={cn(
+                      "grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-[var(--surface-hover)] font-mono text-xs font-bold text-[var(--foreground-muted)]",
+                      state === "recommended" && "bg-[var(--accent)] text-[var(--accent-fg)]",
+                      state === "done" && "bg-[rgb(var(--accent-rgb)/0.18)] text-[var(--accent)]",
+                    )}
+                    aria-hidden
+                  >
                     {state === "done" ? <Check size={14} strokeWidth={2.5} /> : <Icon size={14} strokeWidth={2} />}
                   </div>
-                  <div className="get-started-step-body">
-                    <div className="get-started-step-head">
-                      <div className="get-started-step-title">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <div className="inline-flex items-center gap-2 [&_strong]:text-[0.98rem] [&_strong]:font-semibold">
                         <strong>{item.label}</strong>
                       </div>
                       <Badge
@@ -312,11 +318,11 @@ export default function GetStartedAppPage() {
                               : "Done"}
                       </Badge>
                     </div>
-                    <p className="muted">{loading ? "…" : item.help}</p>
+                    <p className={tw.muted}>{loading ? "…" : item.help}</p>
                     {missing.length ? (
-                      <div className="get-started-chips mt-2">
+                      <div className="mt-2 flex flex-wrap gap-1.5">
                         {missing.map((n) => (
-                          <span key={n} className="get-started-chip">
+                          <span key={n} className="inline-flex items-center rounded-md border border-[var(--line)] bg-[var(--surface-hover)] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-[var(--foreground-muted)]">
                             {needsChip(n)}
                           </span>
                         ))}
@@ -333,7 +339,7 @@ export default function GetStartedAppPage() {
                       </Button>
                     ) : null}
                     {state === "done" ? (
-                      <button type="button" className="get-started-step-link" onClick={() => go(item.href)}>
+                      <button type="button" className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-[13px] text-[var(--accent)] underline" onClick={() => go(item.href)}>
                         Review
                       </button>
                     ) : null}
@@ -346,24 +352,24 @@ export default function GetStartedAppPage() {
       ))}
 
       <section className="mt-8" aria-labelledby="get-started-explore-title">
-        <h2 id="get-started-explore-title" className="get-started-section-title">
+        <h2 id="get-started-explore-title" className="m-0 text-[1.1rem] font-semibold">
           Explore your workspace
         </h2>
-        <div className="get-started-explore">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
           {EXPLORE.map((item) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.href}
                 type="button"
-                className="get-started-explore-card"
+                className="flex cursor-pointer flex-col gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-4 text-left text-inherit hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--line))] hover:bg-[var(--surface-hover)]"
                 onClick={() => go(item.href)}
               >
-                <span className="get-started-explore-icon" aria-hidden>
+                <span className="mb-1 grid h-8 w-8 place-items-center rounded-[7px] bg-[var(--surface-hover)] text-[var(--foreground)]" aria-hidden>
                   <Icon size={18} strokeWidth={2} />
                 </span>
                 <strong>{item.title}</strong>
-                <span className="muted">{item.body}</span>
+                <span className={tw.muted}>{item.body}</span>
               </button>
             );
           })}

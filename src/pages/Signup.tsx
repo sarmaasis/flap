@@ -13,6 +13,8 @@ import {
 import { track } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, getStoredReferral } from "../lib/seo";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type SignUpLike = NonNullable<ReturnType<typeof useSignUp>["signUp"]>;
 
@@ -185,10 +187,10 @@ function SignupInner() {
   }
 
   return (
-    <div className="auth-shell">
-      <form className="auth-card" onSubmit={step === "email" ? sendCode : verifyCode}>
+    <div className={tw.authShell}>
+      <form className={tw.authCard} onSubmit={step === "email" ? sendCode : verifyCode}>
         <a
-          className="brand"
+          className={tw.brand}
           href="/"
           onClick={(e) => {
             e.preventDefault();
@@ -198,21 +200,21 @@ function SignupInner() {
           <BrandMark /> Flap
         </a>
         <h1>Create your workspace</h1>
-        <p className="muted">
+        <p className={tw.muted}>
           {step === "email"
             ? "Enter your work email and we’ll send a one-time code — no password."
             : `Enter the code we sent to ${email}.`}
         </p>
         {refCode ? (
-          <p className="muted text-xs">
+          <p className={cn("text-xs", tw.muted)}>
             Referral applied ({refCode}). Both of you earn +1 domain after you connect a domain.
           </p>
         ) : null}
-        {err ? <p className="error" role="alert">{err}</p> : null}
-        {notice ? <p className="muted" role="status">{notice}</p> : null}
-        <div className="stack gap-3">
+        {err ? <p className={tw.error} role="alert">{err}</p> : null}
+        {notice ? <p className={tw.muted} role="status">{notice}</p> : null}
+        <div className={cn("gap-3", tw.stack)}>
           {step === "email" ? (
-            <div className="stack gap-1.5">
+            <div className={cn("gap-1.5", tw.stack)}>
               <Label htmlFor="email">Work email</Label>
               <Input
                 id="email"
@@ -224,7 +226,7 @@ function SignupInner() {
               />
             </div>
           ) : (
-            <div className="stack gap-1.5">
+            <div className={cn("gap-1.5", tw.stack)}>
               <Label htmlFor="code">Verification code</Label>
               <Input
                 id="code"
@@ -251,7 +253,7 @@ function SignupInner() {
           {step === "code" ? (
             <button
               type="button"
-              className="auth-password-toggle"
+              className={tw.authPasswordToggle}
               disabled={busy}
               onClick={() => {
                 setStep("email");
@@ -265,7 +267,7 @@ function SignupInner() {
             </button>
           ) : null}
         </div>
-        <p className="muted mt-4 text-xs leading-relaxed">
+        <p className={cn("mt-4 text-xs leading-relaxed", tw.muted)}>
           By continuing you agree to the{" "}
           <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms</a>
           {", "}
@@ -273,7 +275,7 @@ function SignupInner() {
           {", and "}
           <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing Terms</a>.
         </p>
-        <p className="muted mt-4 text-sm">
+        <p className={cn("mt-4 text-sm", tw.muted)}>
           Already have an account?{" "}
           <a
             href="/login"

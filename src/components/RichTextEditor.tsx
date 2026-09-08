@@ -3,6 +3,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { cn } from "../lib/utils";
 import {
   AlignCenter,
   AlignLeft,
@@ -79,7 +80,10 @@ function ToolButton({
   return (
     <button
       type="button"
-      className={`editor-tool${active ? " active" : ""}`}
+      className={cn(
+        "inline-flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[5px] border-0 bg-transparent p-0 text-[var(--foreground-muted)] hover:bg-[rgb(var(--accent-rgb)/0.1)] hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[rgb(var(--accent-rgb)/0.45)] disabled:cursor-not-allowed disabled:opacity-[0.38] disabled:hover:bg-transparent disabled:hover:text-[var(--foreground-muted)]",
+        active && "bg-[rgb(var(--accent-rgb)/0.16)] text-[var(--accent)]",
+      )}
       aria-label={label}
       title={title}
       aria-pressed={active}
@@ -98,7 +102,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 
   return (
-    <div className="editor-toolbar" role="toolbar" aria-label="Message formatting">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--line)] bg-[linear-gradient(180deg,rgb(var(--accent-rgb)/0.06),rgb(var(--accent-rgb)/0.02))] px-1.5 py-1.5" role="toolbar" aria-label="Message formatting">
       <ToolButton
         label="Undo"
         shortcut={`${mod}+Z`}
@@ -116,7 +120,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Redo2 size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Bold"
@@ -151,7 +155,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Strikethrough size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Heading 2"
@@ -170,7 +174,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Heading3 size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Bulleted list"
@@ -197,7 +201,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Quote size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Add or edit link"
@@ -215,7 +219,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Link2Off size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Align left"
@@ -239,7 +243,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <AlignRight size={15} strokeWidth={2.25} aria-hidden />
       </ToolButton>
 
-      <span className="editor-divider" aria-hidden />
+      <span className="mx-0.5 h-[18px] w-px shrink-0 bg-[var(--line-strong)]" aria-hidden />
 
       <ToolButton
         label="Clear formatting"
@@ -271,7 +275,7 @@ const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextEditor(
           autolink: true,
           defaultProtocol: "https",
           HTMLAttributes: {
-            class: "editor-link",
+            class: "text-[var(--accent)] underline underline-offset-2",
             rel: "noopener noreferrer",
             target: "_blank",
           },
@@ -293,7 +297,7 @@ const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextEditor(
     editorProps: {
       attributes: {
         id: "body",
-        class: "rich-editor-content tiptap",
+        class: "tiptap min-h-[220px] px-4 py-3.5 text-[15px] leading-[1.65] text-[var(--foreground)] caret-[var(--accent)] outline-none",
         "aria-label": "Message body",
       },
     },
@@ -313,11 +317,11 @@ const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextEditor(
   );
 
   if (!editor) {
-    return <div className="rich-editor-loading" aria-hidden />;
+    return <div className="min-h-[268px] animate-pulse rounded-[10px] border border-[var(--line)] bg-[linear-gradient(110deg,var(--surface)_25%,var(--surface-hover)_40%,var(--surface)_55%)] bg-[length:200%_100%]" aria-hidden />;
   }
 
   return (
-    <div className="rich-editor">
+    <div className="relative overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-overlay)] focus-within:border-[rgb(var(--accent-rgb)/0.55)] focus-within:shadow-[0_0_0_3px_rgb(var(--accent-rgb)/0.14)]">
       <Toolbar editor={editor} />
       <EditorContent editor={editor} />
     </div>

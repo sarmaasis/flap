@@ -69,7 +69,7 @@ export default function BlogPost({ path }: { path: string }) {
 
   return (
     <MarketingShell>
-      <article className="flap-article mx-auto max-w-3xl px-5 pb-20 pt-10 md:px-8 md:pt-14">
+      <article className="mx-auto max-w-3xl px-5 pb-20 pt-10 md:px-8 md:pt-14">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">
           <a
             href="/blog"

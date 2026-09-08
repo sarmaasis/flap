@@ -4,6 +4,7 @@ import AppShell, { type AppNavId } from "./AppShell";
 import { api } from "../lib/api";
 import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
+import { tw } from "../lib/tw";
 import { Button } from "./ui/button";
 
 /** Shared authenticated shell for non-inbox app surfaces. */
@@ -66,18 +67,27 @@ export default function AppFeaturePage({
 
   return (
     <AppShell email={email || "…"} current={current} onLogout={() => void onLogout()}>
-      <main ref={mainRef} className="settings app-feature scroll-smooth">
-        <div className="app-feature-top">
-          <header className="app-feature-head">
-            <div className="app-feature-titles">
-              <h1>{title}</h1>
-              {subtitle ? <p className="app-feature-subtitle">{subtitle}</p> : null}
+      <main
+        ref={mainRef}
+        className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth bg-[var(--surface)] [-webkit-overflow-scrolling:touch]"
+      >
+        <div className="sticky top-0 z-[6] border-b border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] backdrop-blur-[10px]">
+          <header className="mx-auto flex w-full max-w-[1090px] flex-wrap items-start justify-between gap-3 px-4 py-3.5 md:gap-5 md:px-6 md:py-[18px]">
+            <div className="min-w-0 flex-1 basis-[220px]">
+              <h1 className="m-0 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{title}</h1>
+              {subtitle ? (
+                <p className="mt-1 max-w-[52ch] text-[13px] font-normal leading-[1.45] text-[var(--foreground-muted)]">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
-            {actions ? <div className="app-feature-actions">{actions}</div> : null}
+            {actions ? (
+              <div className="flex flex-wrap items-center justify-start gap-2 self-start pt-px md:justify-end">{actions}</div>
+            ) : null}
           </header>
-          {tabs ? <div className="app-feature-tabs">{tabs}</div> : null}
+          {tabs ? <div className="mx-auto w-full max-w-[1090px] px-4 md:px-6">{tabs}</div> : null}
         </div>
-        <div className="app-feature-body">{children}</div>
+        <div className="mx-auto w-full max-w-[1090px] px-4 py-5 pb-10 md:px-6 md:py-7 md:pb-14">{children}</div>
       </main>
     </AppShell>
   );
@@ -103,7 +113,7 @@ export function FeatureEmpty({
   onSecondaryCta?: () => void;
 }) {
   return (
-    <div className="app-feature-empty flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-6 py-10 text-center shadow-none">
+    <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-4 py-7 text-center shadow-none md:px-6 md:py-10">
       {mockup ? (
         <div className="mb-6 w-full max-w-sm">{mockup}</div>
       ) : icon ? (
@@ -112,7 +122,7 @@ export function FeatureEmpty({
         </div>
       ) : null}
       <h2 className="text-[15px] font-semibold text-[var(--foreground)]">{title}</h2>
-      <p className="muted mt-2 max-w-[380px] text-[13px]">{body}</p>
+      <p className={`${tw.muted} mt-2 max-w-[380px]`}>{body}</p>
       {(cta && onCta) || (secondaryCta && onSecondaryCta) ? (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {cta && onCta ? (

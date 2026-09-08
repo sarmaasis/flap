@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import BrandMark from "../components/BrandMark";
 import { go } from "../lib/nav";
 import { clearJsonLd, setJsonLd, setPageMeta, webPageLd } from "../lib/seo";
+import { tw } from "../lib/tw";
+import { cn } from "../lib/utils";
 
 type Doc = "terms" | "privacy" | "billing";
 
@@ -31,10 +33,10 @@ const META: Record<Doc, { path: string; title: string; description: string }> = 
 
 function Nav() {
   return (
-    <header className="legal-nav mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-6 md:px-0">
+    <header className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-6 md:px-0">
       <a
         href="/"
-        className="brand flex items-center gap-2 text-lg font-semibold"
+        className={cn("flex items-center gap-2 text-lg font-semibold", tw.brand)}
         onClick={(e) => {
           e.preventDefault();
           go("/");
@@ -66,7 +68,7 @@ function Footer() {
 function TermsBody() {
   return (
     <>
-      <p className="legal-updated">Last updated: September 4, 2026</p>
+      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 4, 2026</p>
       <p>
         These Terms of Service (“Terms”) govern your access to and use of Flap, the hosted custom-domain email
         product operated at useflap.online (the “Service”). By creating an account or using the Service, you agree
@@ -169,7 +171,7 @@ function TermsBody() {
 function PrivacyBody() {
   return (
     <>
-      <p className="legal-updated">Last updated: September 4, 2026</p>
+      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 4, 2026</p>
       <p>
         This Privacy Policy explains how Flap (“we”, “us”) collects, uses, and shares information when you use
         useflap.online and related APIs (the “Service”).
@@ -274,7 +276,7 @@ function PrivacyBody() {
 function BillingBody() {
   return (
     <>
-      <p className="legal-updated">Last updated: September 4, 2026</p>
+      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 4, 2026</p>
       <p>
         These Billing Terms supplement the{" "}
         <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms of Service</a> and apply to
@@ -353,14 +355,13 @@ export default function Legal({ doc }: { doc: Doc }) {
   }, [doc]);
 
   return (
-    <div className="legal-root min-h-screen">
-      <div className="landing-atmosphere" aria-hidden />
+    <div className="marketing-light relative min-h-screen text-[var(--foreground)]">
       <Nav />
-      <article className="legal-doc mx-auto max-w-3xl px-5 pb-8 md:px-0">
+      <article className="mx-auto max-w-3xl px-5 pb-8 md:px-0">
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight md:text-4xl">
           {TITLES[doc]}
         </h1>
-        <div className="legal-body mt-8">
+        <div className="mt-8 text-[15px] leading-[1.65] text-[var(--foreground-muted)] [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:underline-offset-2 [&_h2]:mt-7 [&_h2]:mb-2.5 [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[1.15rem] [&_h2]:font-semibold [&_h2]:text-[var(--foreground)] [&_p]:mb-3.5 [&_ul]:mb-3.5 [&_ul]:pl-5">
           {doc === "terms" ? <TermsBody /> : null}
           {doc === "privacy" ? <PrivacyBody /> : null}
           {doc === "billing" ? <BillingBody /> : null}
