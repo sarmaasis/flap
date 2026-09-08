@@ -31,6 +31,7 @@ import AppShell from "../../components/AppShell";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
+import { DomainColorPicker } from "../../components/ui/domain-color-picker";
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 
 type Tab =
@@ -233,8 +234,6 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [domainName, setDomainName] = useState("");
-  const [localPart, setLocalPart] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [domainId, setDomainId] = useState("");
   const [dns, setDns] = useState<DnsRecords | null>(null);
   const [err, setErr] = useState("");
@@ -744,24 +743,6 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
       setNotice("Domain added. We are watching DNS while you create an address.");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not add domain.");
-    }
-  }
-
-  async function addMailbox(e: React.FormEvent) {
-    e.preventDefault();
-    setErr("");
-    try {
-      const created = await api.createMailbox(domainId, localPart);
-      if (displayName.trim()) await api.updateMailbox(created.mailbox.id, displayName.trim());
-      const { track } = await import("../../lib/analytics");
-      track("address_created");
-      setLocalPart("");
-      setDisplayName("");
-      await refresh();
-      setNotice("Mailbox added. Publish the DNS records below, then send a test from an external inbox.");
-      if (domainId) startDnsAutoPoll(domainId);
-    } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Could not add mailbox.");
     }
   }
 
@@ -1384,13 +1365,17 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                               </select>
                             </td>
                             <td onClick={(e) => e.stopPropagation()}>
-                              <div className="domains-row-actions">
-                                <input
-                                  type="color"
-                                  value={d.color && /^#/.test(d.color) ? d.color : "#737168"}
-                                  aria-label={`Color for ${d.name}`}
-                                  onChange={(e) => {
-                                    void api.updateDomain(d.id, { color: e.target.value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color."));
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <DomainColorPicker
+                                  color={d.color}
+                                  label={`Color for ${d.name}`}
+                                  onChange={(hex) => {
+                                    void api
+                                      .updateDomain(d.id, { color: hex })
+                                      .then(refresh)
+                                      .catch((ex) =>
+                                        setErr(ex instanceof Error ? ex.message : "Could not update color."),
+                                      );
                                   }}
                                 />
                                 <Button
@@ -1450,65 +1435,32 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
             {hasDomain ? (
             <>
             <section className="settings-card" aria-labelledby="mailboxes-title">
-              <div className="section-heading"><div><h2 id="mailboxes-title">Mailboxes</h2><p>Addresses Flap accepts for your domains.</p></div></div>
-              <form className="row-form" onSubmit={addMailbox}>
-                <label className="sr-only" htmlFor="local-part">Mailbox name</label>
-                <input id="local-part" placeholder="hello" value={localPart} onChange={(e) => setLocalPart(e.target.value)} required />
-                <input placeholder="Display name (optional)" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-                <label className="sr-only" htmlFor="mailbox-domain">Domain</label>
-                <select
-                  id="mailbox-domain"
-                  value={domainId}
-                  onChange={(e) => selectDomain(e.target.value)}
-                  style={{ maxWidth: 220 }}
-                  disabled={!hasDomain}
-                >
-                  {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-                <Button size="sm" type="submit" disabled={!domainId}>Add mailbox</Button>
-              </form>
-              {mailboxes.length ? (
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Address</th>
-                        <th>From name</th>
-                        <th><span className="sr-only">Actions</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mailboxes.map((m) => (
-                          <tr key={m.id}>
-                            <td>{m.address}</td>
-                            <td>
-                              <input
-                                defaultValue={m.display_name ?? ""}
-                                aria-label={`Display name for ${m.address}`}
-                                onBlur={(e) => {
-                                  const value = e.target.value.trim();
-                                  if (value !== (m.display_name ?? "")) void api.updateMailbox(m.id, value).then(refresh);
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <Button
-                                size="sm"
-                                variant="danger"
-                                type="button"
-                                onClick={() => {
-                                  if (window.confirm(`Remove ${m.address}?`)) void api.deleteMailbox(m.id).then(refresh);
-                                }}
-                              >
-                                Remove
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+              <div className="section-heading">
+                <div>
+                  <h2 id="mailboxes-title">Mailboxes</h2>
+                  <p>Create and manage addresses on the Mailboxes page. Catch-all still uses the domain table above.</p>
                 </div>
-              ) : setupLoading ? null : <p className="empty-state">{hasDomain ? "Create your first address above." : "Add a domain before creating an address."}</p>}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" onClick={() => go("/app/mailboxes")}>
+                  Open mailboxes
+                </Button>
+                {domainMailboxes.length ? (
+                  <p className="m-0 text-sm text-[var(--foreground-muted)]">
+                    {domainMailboxes.length} on {selectedName || "this domain"}
+                    {domainMailboxes.slice(0, 3).map((m) => (
+                      <span key={m.id} className="ml-2 font-[family-name:var(--font-mono)] text-[var(--foreground)]">
+                        {m.address}
+                      </span>
+                    ))}
+                    {domainMailboxes.length > 3 ? <span className="ml-1">…</span> : null}
+                  </p>
+                ) : (
+                  <p className="m-0 text-sm text-[var(--foreground-muted)]">
+                    {hasDomain ? "No addresses yet for this domain." : "Add a domain before creating an address."}
+                  </p>
+                )}
+              </div>
             </section>
             <section className="settings-card" aria-labelledby="routing-title">
               <div className="section-heading">
@@ -1571,13 +1523,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                   </p>
                   <div className="row-form" style={{ marginTop: 10, flexWrap: "wrap" }}>
                     {domainMailboxes.length === 0 ? (
-                      <Button size="sm"
-                        type="button"
-                        onClick={() => {
-                          document.getElementById("local-part")?.focus();
-                          setNotice("Pick a local-part (e.g. hello) and add a mailbox.");
-                        }}
-                      >
+                      <Button size="sm" type="button" onClick={() => go("/app/mailboxes")}>
                         Create mailbox
                       </Button>
                     ) : (

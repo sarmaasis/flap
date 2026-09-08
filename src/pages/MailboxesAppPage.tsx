@@ -1,36 +1,137 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import AppFeaturePage, { FeatureEmpty } from "../components/AppFeaturePage";
 import { Button } from "../components/ui/button";
-import { api, type Mailbox } from "../lib/api";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { api, type Domain, type Mailbox } from "../lib/api";
 import { go } from "../lib/nav";
 
 export default function MailboxesAppPage() {
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [domainId, setDomainId] = useState("");
+  const [localPart, setLocalPart] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const [me, domainRes] = await Promise.all([api.me(), api.domains()]);
+    setMailboxes(me.mailboxes || []);
+    const nextDomains = domainRes.domains || [];
+    setDomains(nextDomains);
+    setDomainId((prev) => {
+      if (prev && nextDomains.some((d) => d.id === prev)) return prev;
+      return nextDomains[0]?.id || "";
+    });
+  }, []);
 
   useEffect(() => {
-    api
-      .me()
-      .then((me) => setMailboxes(me.mailboxes || []))
-      .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not load mailboxes."));
-  }, []);
+    setLoading(true);
+    void refresh()
+      .catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not load mailboxes."))
+      .finally(() => setLoading(false));
+  }, [refresh]);
+
+  async function addMailbox(e: React.FormEvent) {
+    e.preventDefault();
+    if (!domainId) {
+      setErr("Select a domain first.");
+      return;
+    }
+    const local = localPart.trim().toLowerCase();
+    if (!local) {
+      setErr("Enter a mailbox name (for example hello).");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    setNotice("");
+    try {
+      const created = await api.createMailbox(domainId, local);
+      if (displayName.trim()) await api.updateMailbox(created.mailbox.id, displayName.trim());
+      setLocalPart("");
+      setDisplayName("");
+      await refresh();
+      setNotice(`Created ${created.mailbox.address}.`);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not add mailbox.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDisplayName(id: string, value: string, previous: string) {
+    const next = value.trim();
+    if (next === (previous || "")) return;
+    try {
+      await api.updateMailbox(id, next);
+      await refresh();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not update display name.");
+    }
+  }
+
+  async function removeMailbox(address: string, id: string) {
+    if (!window.confirm(`Remove ${address}?`)) return;
+    setErr("");
+    try {
+      await api.deleteMailbox(id);
+      await refresh();
+      setNotice(`Removed ${address}.`);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not remove mailbox.");
+    }
+  }
+
+  const selectedDomain = domains.find((d) => d.id === domainId);
+  const previewAddress =
+    localPart.trim() && selectedDomain
+      ? `${localPart.trim().toLowerCase()}@${selectedDomain.name}`
+      : selectedDomain
+        ? `you@${selectedDomain.name}`
+        : "you@yourdomain.com";
 
   return (
     <AppFeaturePage
       current="mailboxes"
       title="Mailboxes"
-      subtitle="Each address is its own inbox and login surface. Shared inboxes appear for teammates you grant."
+      subtitle="Create addresses on your domains. Each one is its own inbox."
       actions={
-        <Button type="button" onClick={() => go("/app/domains")}>
-          Add mailbox
-        </Button>
+        domains.length ? (
+          <Button type="button" variant="secondary" onClick={() => go("/app/domains")}>
+            Manage domains
+          </Button>
+        ) : null
       }
     >
-      {err ? <p className="error">{err}</p> : null}
-      {mailboxes.length === 0 ? (
+      {err ? (
+        <p className="error mb-4" role="alert">
+          {err}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="notice mb-4" role="status">
+          {notice}
+        </p>
+      ) : null}
+
+      {loading ? <p className="muted mb-4 text-sm">Loading mailboxes…</p> : null}
+
+      {!loading && domains.length === 0 ? (
         <FeatureEmpty
-          title="No mailboxes yet"
-          body="Create hello@yourdomain.com after DNS verifies. Catch-all and aliases deliver into these inboxes."
+          title="Connect a domain first"
+          body="Mailboxes live on a domain you control. Add example.com, publish DNS, then create hello@ here."
           cta="Connect a domain"
           onCta={() => go("/app/domains")}
           mockup={
@@ -45,24 +146,112 @@ export default function MailboxesAppPage() {
                 <span className="feature-empty-mock-line grow" />
                 <span className="feature-empty-mock-chip muted">Private</span>
               </div>
-              <div className="feature-empty-mock-row dim">
-                <span className="feature-empty-mock-swatch" />
-                <span className="feature-empty-mock-line grow" />
-                <span className="feature-empty-mock-chip muted">Alias</span>
-              </div>
             </div>
           }
         />
-      ) : (
-        <ul className="app-feature-list">
-          {mailboxes.map((m) => (
-            <li key={m.id}>
-              <strong>{m.address}</strong>
-              <span className="muted">{m.is_shared ? "Shared" : "Private"}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : null}
+
+      {!loading && domains.length > 0 ? (
+        <section className="mb-8 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+          <h2 className="m-0 text-base font-semibold text-[var(--foreground)]">Add mailbox</h2>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            Creates <span className="font-[family-name:var(--font-mono)] text-[var(--foreground)]">{previewAddress}</span>
+          </p>
+          <form onSubmit={(e) => void addMailbox(e)} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_minmax(10rem,14rem)_auto] sm:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="mb-local">Local part</Label>
+              <Input
+                id="mb-local"
+                value={localPart}
+                onChange={(e) => setLocalPart(e.target.value)}
+                placeholder="hello"
+                required
+                autoComplete="off"
+                pattern="[A-Za-z0-9._+-]+"
+                title="Letters, numbers, dots, plus, underscore, hyphen"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mb-display">Display name</Label>
+              <Input
+                id="mb-display"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Domain</Label>
+              <Select value={domainId} onValueChange={setDomainId}>
+                <SelectTrigger aria-label="Domain" className="w-full">
+                  <SelectValue placeholder="Select domain" />
+                </SelectTrigger>
+                <SelectContent>
+                  {domains.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" disabled={busy || !domainId} className="sm:mb-0.5">
+              <Plus className="h-4 w-4" />
+              {busy ? "Adding…" : "Add mailbox"}
+            </Button>
+          </form>
+        </section>
+      ) : null}
+
+      {!loading && domains.length > 0 && mailboxes.length === 0 ? (
+        <p className="muted text-sm">No mailboxes yet — create your first address above.</p>
+      ) : null}
+
+      {!loading && mailboxes.length > 0 ? (
+        <div className="overflow-x-auto rounded-2xl border border-[var(--line)]">
+          <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-[var(--line)] bg-[var(--surface-hover)] text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--foreground-faint)]">
+                <th className="px-4 py-3">Address</th>
+                <th className="px-4 py-3">From name</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {mailboxes.map((m) => (
+                <tr key={m.id} className="border-b border-[var(--line)] last:border-0">
+                  <td className="px-4 py-3 font-medium text-[var(--foreground)]">{m.address}</td>
+                  <td className="px-4 py-3">
+                    <Input
+                      defaultValue={m.display_name ?? ""}
+                      aria-label={`Display name for ${m.address}`}
+                      className="max-w-xs"
+                      onBlur={(e) => void saveDisplayName(m.id, e.target.value, m.display_name ?? "")}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-[var(--foreground-muted)]">
+                    {m.is_shared ? "Shared" : "Private"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      onClick={() => void removeMailbox(m.address, m.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </AppFeaturePage>
   );
 }
