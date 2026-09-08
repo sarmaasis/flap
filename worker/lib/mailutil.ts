@@ -15,9 +15,17 @@ export function extractName(value: string): string {
 
 export function parseRecipients(value: string): string[] {
   const recipients = value.split(/[,;]/).map((recipient) => recipient.trim()).filter(Boolean);
-  const emails = recipients.map(extractEmail);
-  if (emails.some((recipient) => !EMAIL_RE.test(recipient))) return [];
+  const emails = recipients.map(extractEmail).filter((recipient) => EMAIL_RE.test(recipient));
+  // If the field had content but nothing valid, signal failure with [].
+  // Callers that need “strict all-or-nothing” should compare against the raw token count.
   return [...new Set(emails)];
+}
+
+/** True when every non-empty token in the field is a valid email (or the field is empty). */
+export function recipientsFieldValid(value: string): boolean {
+  const tokens = value.split(/[,;]/).map((recipient) => recipient.trim()).filter(Boolean);
+  if (!tokens.length) return true;
+  return tokens.every((token) => EMAIL_RE.test(extractEmail(token)));
 }
 
 export function makeSnippet(text: string, html: string): string {

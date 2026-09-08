@@ -408,11 +408,15 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       return c.json({ error: "Valid start and end times are required." }, 400);
     }
     const attendees = parseAttendeeInput(body.attendees);
-    const sendInvites = Boolean(body.send_invites && attendees.length);
+    let sendInvites = Boolean(body.send_invites && attendees.length);
+    let invite_sent = 0;
+    let invite_error: string | undefined;
     if (sendInvites) {
       const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
       if (!planAtLeast(plan.plan_id, "solo")) {
-        return c.json({ error: "Sending calendar invitations requires Solo or higher." }, 402);
+        // Still save the event; just skip outbound invites on Free.
+        sendInvites = false;
+        invite_error = "Sending calendar invitations requires Solo or higher.";
       }
     }
     const mailbox = await resolveOrganizerMailbox(c.env.DB, ctx.workspaceId, body.mailbox_id);
@@ -446,8 +450,6 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       .run();
     if (attendees.length) await replaceAttendees(c.env.DB, id, attendees);
 
-    let invite_sent = 0;
-    let invite_error: string | undefined;
     if (sendInvites && mailbox) {
       const ics = buildInviteIcs(
         eventToIcsPayload(
@@ -490,6 +492,8 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       });
       if (sent.ok) invite_sent = attendees.length;
       else invite_error = sent.error;
+    } else if (sendInvites && !mailbox) {
+      invite_error = "Add a mailbox before sending invitations.";
     }
 
     await bumpCalendarSync(c.env.DB, ctx.workspaceId);
@@ -538,11 +542,14 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     }
     const attendees =
       body.attendees !== undefined ? parseAttendeeInput(body.attendees) : await listAttendees(c.env.DB, id);
-    const sendInvites = Boolean(body.send_invites && attendees.length);
+    let sendInvites = Boolean(body.send_invites && attendees.length);
+    let invite_sent = 0;
+    let invite_error: string | undefined;
     if (sendInvites) {
       const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
       if (!planAtLeast(plan.plan_id, "solo")) {
-        return c.json({ error: "Sending calendar invitations requires Solo or higher." }, 402);
+        sendInvites = false;
+        invite_error = "Sending calendar invitations requires Solo or higher.";
       }
     }
     const mailbox = await resolveOrganizerMailbox(
@@ -578,8 +585,6 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       .run();
     if (body.attendees !== undefined) await replaceAttendees(c.env.DB, id, attendees);
 
-    let invite_sent = 0;
-    let invite_error: string | undefined;
     if (sendInvites && mailbox) {
       const ics = buildInviteIcs(
         eventToIcsPayload(
@@ -612,6 +617,8 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
       });
       if (sent.ok) invite_sent = attendees.length;
       else invite_error = sent.error;
+    } else if (sendInvites && !mailbox) {
+      invite_error = "Add a mailbox before sending invitations.";
     }
 
     await bumpCalendarSync(c.env.DB, ctx.workspaceId);
@@ -862,18 +869,26 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    const rows = await c.env.DB.prepare(
-      `SELECT id, label, token_prefix, created_at, last_used_at
-       FROM calendar_app_tokens WHERE user_id = ? ORDER BY created_at DESC`,
-    )
-      .bind(ctx.workspaceId)
-      .all();
+    const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
+    const soloPlus = planAtLeast(plan.plan_id, "solo");
+    const rows = soloPlus
+      ? await c.env.DB.prepare(
+          `SELECT id, label, token_prefix, created_at, last_used_at
+           FROM calendar_app_tokens WHERE user_id = ? ORDER BY created_at DESC`,
+        )
+          .bind(ctx.workspaceId)
+          .all()
+      : { results: [] as Array<{ id: string; label: string; token_prefix: string; created_at: number; last_used_at: number | null }> };
     const origin = new URL(c.req.url).origin;
     return c.json({
       tokens: rows.results || [],
-      caldav_url: `${origin}/dav/calendars/${encodeURIComponent(ctx.workspaceId)}/`,
+      caldav_url: soloPlus ? `${origin}/dav/calendars/${encodeURIComponent(ctx.workspaceId)}/` : "",
       username_hint: "your mailbox email (or any username)",
-      note: "Create an app password, then add this CalDAV URL in Apple Calendar, Thunderbird, or similar.",
+      plan_id: plan.plan_id,
+      caldav_unlocked: soloPlus,
+      note: soloPlus
+        ? "Create an app password, then add this CalDAV URL in Apple Calendar, Thunderbird, or similar."
+        : "CalDAV sync requires Solo or higher.",
     });
   });
 

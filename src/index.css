@@ -1622,7 +1622,7 @@ textarea { min-height: 160px; resize: vertical; }
 .message-body {
   flex: 1 1 auto;
   min-height: 280px;
-  background: #fff;
+  background: var(--email-canvas, #f6f3ee);
   border-bottom: 1px solid var(--line);
 }
 .message-frame {
@@ -1630,7 +1630,7 @@ textarea { min-height: 160px; resize: vertical; }
   width: 100%;
   min-height: 360px;
   border: 0;
-  background: #fff;
+  background: var(--email-canvas, #f6f3ee);
 }
 .message-attachments,
 .message-attachments-missing {
@@ -1891,6 +1891,10 @@ textarea { min-height: 160px; resize: vertical; }
 }
 .message-collab-btn:hover {
   background: var(--surface-hover);
+  color: var(--foreground);
+}
+.message-collab-btn-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-hover));
   color: var(--foreground);
 }
 
@@ -2840,7 +2844,7 @@ textarea { min-height: 160px; resize: vertical; }
   width: 100%;
   min-height: 360px;
   border: 0;
-  background: #fff;
+  background: var(--email-canvas, #f6f3ee);
 }
 .message-reader .message-body {
   padding: 0;
@@ -4401,6 +4405,7 @@ html[data-theme="dark"] .mail-main {
 html.dark .message-reader,
 html[data-theme="dark"] .message-reader {
   background: var(--bg-elevated);
+  --email-canvas: #221f1c;
 }
 
 html.dark .message-reader .body-text,
@@ -4410,12 +4415,12 @@ html[data-theme="dark"] .message-reader .body-text {
 
 html.dark .message-body,
 html[data-theme="dark"] .message-body {
-  background: #f7f5f0;
+  background: var(--email-canvas, #221f1c);
 }
 
 html.dark .message-reader .message-frame,
 html[data-theme="dark"] .message-reader .message-frame {
-  background: #f7f5f0;
+  background: var(--email-canvas, #221f1c);
 }
 
 html.dark .message-toolbar,

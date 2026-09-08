@@ -4,6 +4,7 @@ import AppFeaturePage from "../components/AppFeaturePage";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { SegmentedControl } from "../components/ui/segmented-control";
 import {
   Dialog,
@@ -12,15 +13,55 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { api, type CalendarAppToken, type CalendarEvent } from "../lib/api";
 import { go } from "../lib/nav";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const h = Math.floor(i / 4);
+  const m = (i % 4) * 15;
+  const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const label = new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return { value, label };
+});
+const DURATION_OPTIONS = [
+  { value: "15", label: "15 min" },
+  { value: "30", label: "30 min" },
+  { value: "45", label: "45 min" },
+  { value: "60", label: "1 hour" },
+  { value: "90", label: "1.5 hours" },
+  { value: "120", label: "2 hours" },
+];
+
 const dateKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 const escapeIcs = (s: string) =>
   s.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+function parseLocalDateTime(date: string, time: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+  const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match || !timeMatch) return null;
+  const y = Number(match[1]);
+  const mo = Number(match[2]) - 1;
+  const d = Number(match[3]);
+  const h = Number(timeMatch[1]);
+  const mi = Number(timeMatch[2]);
+  if (![y, mo, d, h, mi].every((n) => Number.isFinite(n))) return null;
+  const start = new Date(y, mo, d, h, mi, 0, 0);
+  return Number.isFinite(start.getTime()) ? start : null;
+}
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -128,8 +169,10 @@ export default function CalendarAppPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [tokens, setTokens] = useState<CalendarAppToken[]>([]);
   const [caldavUrl, setCaldavUrl] = useState("");
+  const [caldavUnlocked, setCaldavUnlocked] = useState(false);
   const [freshToken, setFreshToken] = useState("");
   const [tokenBusy, setTokenBusy] = useState(false);
+  const [soloPlus, setSoloPlus] = useState(false);
   const today = new Date();
 
   useEffect(() => {
@@ -139,6 +182,16 @@ export default function CalendarAppPage() {
     };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    void api
+      .billingSubscription()
+      .then((b) => {
+        const id = (b.plan_id || "free").toLowerCase();
+        setSoloPlus(id !== "free");
+      })
+      .catch(() => setSoloPlus(false));
   }, []);
 
   const days = useMemo(() => {
@@ -184,6 +237,7 @@ export default function CalendarAppPage() {
       const res = await api.calendarTokens();
       setTokens(res.tokens || []);
       setCaldavUrl(res.caldav_url || "");
+      setCaldavUnlocked(Boolean(res.caldav_unlocked ?? res.caldav_url));
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "Could not load CalDAV settings.");
     }
@@ -205,7 +259,7 @@ export default function CalendarAppPage() {
     setTime(forTime || "09:00");
     setDuration("30");
     setAttendees("");
-    setSendInvites(true);
+    setSendInvites(soloPlus);
     setOpen(true);
   }
 
@@ -217,16 +271,25 @@ export default function CalendarAppPage() {
     setTime(`${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`);
     setDuration(String(Math.max(5, Math.round((event.ends_at - event.starts_at) / 60000))));
     setAttendees((event.attendees || []).map((a) => a.email).join(", "));
-    setSendInvites(Boolean(event.attendees?.length));
+    setSendInvites(soloPlus && Boolean(event.attendees?.length));
     setOpen(true);
   }
 
   async function saveEvent(e: React.FormEvent) {
     e.preventDefault();
-    const start = new Date(`${date}T${time}`);
-    if (!title.trim() || !Number.isFinite(start.getTime())) return;
-    const endsAt = start.getTime() + Number(duration) * 60000;
+    const start = parseLocalDateTime(date, time);
+    if (!title.trim()) {
+      setError("Event title is required.");
+      return;
+    }
+    if (!start) {
+      setError("Pick a valid date and time.");
+      return;
+    }
+    const mins = Math.max(5, Number(duration) || 30);
+    const endsAt = start.getTime() + mins * 60000;
     const guestList = parseAttendeeEmails(attendees);
+    const shouldInvite = soloPlus && sendInvites && guestList.length > 0;
     setSaving(true);
     setError("");
     try {
@@ -235,7 +298,7 @@ export default function CalendarAppPage() {
         starts_at: start.getTime(),
         ends_at: endsAt,
         attendees: guestList,
-        send_invites: sendInvites && guestList.length > 0,
+        send_invites: shouldInvite,
       };
       if (selected) {
         const res = await api.updateCalendarEvent(selected.id, payload);
@@ -249,6 +312,7 @@ export default function CalendarAppPage() {
         );
       } else {
         const res = await api.createCalendarEvent(payload);
+        if (!res.event) throw new Error("Event was not returned from the server.");
         setEvents((prev) => [...prev, res.event].sort((a, b) => a.starts_at - b.starts_at));
         setNotice(
           res.invite_sent
@@ -296,6 +360,7 @@ export default function CalendarAppPage() {
       const res = await api.createCalendarToken("CalDAV");
       setFreshToken(res.token.token);
       setCaldavUrl(res.caldav_url);
+      setCaldavUnlocked(true);
       await loadTokens();
       setNotice("CalDAV app password created. Copy it now — it is shown only once.");
     } catch (ex) {
@@ -321,6 +386,18 @@ export default function CalendarAppPage() {
   }
 
   const dayEvents = (day: Date) => events.filter((ev) => eventOverlapsDay(ev, day));
+  const timeOptions = useMemo(() => {
+    if (TIME_OPTIONS.some((o) => o.value === time)) return TIME_OPTIONS;
+    const h = Number(time.slice(0, 2));
+    const m = Number(time.slice(3, 5));
+    const label = Number.isFinite(h)
+      ? new Date(2000, 0, 1, h, Number.isFinite(m) ? m : 0).toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : time;
+    return [{ value: time, label }, ...TIME_OPTIONS];
+  }, [time]);
 
   return (
     <AppFeaturePage
@@ -486,47 +563,94 @@ export default function CalendarAppPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{selected ? "Edit event" : "New event"}</DialogTitle>
             <DialogDescription>
               Save to Flap and optionally email .ics invitations (Solo+). Guests can Accept / Decline from their inbox.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={(e) => void saveEvent(e)} className="stack gap-3">
-            <label>
-              Event title
-              <Input autoFocus required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project catch-up" />
-            </label>
-            <div className="grid-2">
-              <label>
-                Date
-                <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-              </label>
-              <label>
-                Time
-                <Input type="time" required value={time} onChange={(e) => setTime(e.target.value)} />
-              </label>
-            </div>
-            <label>
-              Duration in minutes
-              <Input type="number" min="5" max="1440" required value={duration} onChange={(e) => setDuration(e.target.value)} />
-            </label>
-            <label>
-              Invite guests
+          <form onSubmit={(e) => void saveEvent(e)} className="flex flex-col gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cal-title">Event title</Label>
               <Input
+                id="cal-title"
+                autoFocus
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Project catch-up"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="cal-date">Date</Label>
+                <Input id="cal-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Time</Label>
+                <Select value={time} onValueChange={setTime}>
+                  <SelectTrigger aria-label="Start time" className="w-full">
+                    <SelectValue placeholder="Pick a time" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {timeOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Duration</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger aria-label="Duration" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                  {!DURATION_OPTIONS.some((o) => o.value === duration) ? (
+                    <SelectItem value={duration}>{duration} min</SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cal-guests">Invite guests</Label>
+              <Input
+                id="cal-guests"
                 value={attendees}
                 onChange={(e) => setAttendees(e.target.value)}
                 placeholder="alex@startup.com, jordan@client.com"
               />
-            </label>
-            <Checkbox
-              checked={sendInvites}
-              onChange={(e) => setSendInvites(e.target.checked)}
-              label="Email invitations when guests are listed"
-            />
+            </div>
+            {soloPlus ? (
+              <Checkbox
+                checked={sendInvites}
+                onChange={(e) => setSendInvites(e.target.checked)}
+                label="Email invitations when guests are listed"
+              />
+            ) : (
+              <p className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-hover)] px-3 py-2 text-sm text-[var(--foreground-muted)]">
+                Email invitations require Solo+. Guests are saved on the event;{" "}
+                <button
+                  type="button"
+                  className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
+                  onClick={() => go("/app/billing")}
+                >
+                  upgrade to send invites
+                </button>
+                .
+              </p>
+            )}
             {selected?.attendees?.length ? (
-              <ul className="muted text-sm" style={{ margin: 0, paddingLeft: "1.1rem" }}>
+              <ul className="m-0 list-disc space-y-1 pl-5 text-sm text-[var(--foreground-muted)]">
                 {selected.attendees.map((a) => (
                   <li key={a.email}>
                     {a.email} · {(a.partstat || "NEEDS-ACTION").toLowerCase().replace("-", " ")}
@@ -534,10 +658,16 @@ export default function CalendarAppPage() {
                 ))}
               </ul>
             ) : null}
-            <p className="muted text-sm">Times use your device’s time zone.</p>
+            <p className="text-sm text-[var(--foreground-muted)]">Times use your device’s time zone.</p>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving…" : selected ? "Save changes" : sendInvites && parseAttendeeEmails(attendees).length ? "Save & send invites" : "Save event"}
+                {saving
+                  ? "Saving…"
+                  : selected
+                    ? "Save changes"
+                    : soloPlus && sendInvites && parseAttendeeEmails(attendees).length
+                      ? "Save & send invites"
+                      : "Save event"}
               </Button>
               {selected ? (
                 <>
@@ -564,60 +694,76 @@ export default function CalendarAppPage() {
               Connect Apple Calendar, Thunderbird, or other CalDAV clients with an app password (Solo+).
             </DialogDescription>
           </DialogHeader>
-          <div className="stack gap-3">
-            {caldavUrl ? (
-              <label>
-                Server URL
-                <div className="flex gap-2">
-                  <Input readOnly value={caldavUrl} />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    aria-label="Copy CalDAV URL"
-                    onClick={() => void navigator.clipboard.writeText(caldavUrl)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </label>
-            ) : null}
-            <p className="muted text-sm">Username: any mailbox address on this workspace. Password: the app password below.</p>
-            {freshToken ? (
-              <label>
-                New app password (copy now)
-                <div className="flex gap-2">
-                  <Input readOnly value={freshToken} />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    aria-label="Copy app password"
-                    onClick={() => void navigator.clipboard.writeText(freshToken)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </label>
-            ) : null}
-            <Button type="button" onClick={() => void createToken()} disabled={tokenBusy}>
-              {tokenBusy ? "Working…" : "Create app password"}
-            </Button>
-            {tokens.length ? (
-              <ul className="stack gap-2" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {tokens.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span>
-                      {t.label} · {t.token_prefix}…
-                    </span>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => void revokeToken(t.id)} disabled={tokenBusy}>
-                      Revoke
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+          <div className="flex flex-col gap-3">
+            {!caldavUnlocked ? (
+              <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-hover)] p-4">
+                <p className="text-sm text-[var(--foreground)]">CalDAV is included on Solo and above.</p>
+                <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+                  Free plans can still create events inside Flap. Upgrade to sync with external calendar apps.
+                </p>
+                <Button type="button" className="mt-3" onClick={() => go("/app/billing")}>
+                  View plans
+                </Button>
+              </div>
             ) : (
-              <p className="muted text-sm">No app passwords yet.</p>
+              <>
+                {caldavUrl ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="caldav-url">Server URL</Label>
+                    <div className="flex gap-2">
+                      <Input id="caldav-url" readOnly value={caldavUrl} />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        aria-label="Copy CalDAV URL"
+                        onClick={() => void navigator.clipboard.writeText(caldavUrl)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  Username: any mailbox address on this workspace. Password: the app password below.
+                </p>
+                {freshToken ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="caldav-pass">New app password (copy now)</Label>
+                    <div className="flex gap-2">
+                      <Input id="caldav-pass" readOnly value={freshToken} />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        aria-label="Copy app password"
+                        onClick={() => void navigator.clipboard.writeText(freshToken)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                <Button type="button" onClick={() => void createToken()} disabled={tokenBusy}>
+                  {tokenBusy ? "Working…" : "Create app password"}
+                </Button>
+                {tokens.length ? (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {tokens.map((t) => (
+                      <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span>
+                          {t.label} · {t.token_prefix}…
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => void revokeToken(t.id)} disabled={tokenBusy}>
+                          Revoke
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[var(--foreground-muted)]">No app passwords yet.</p>
+                )}
+              </>
             )}
           </div>
         </DialogContent>

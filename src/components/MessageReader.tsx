@@ -47,29 +47,54 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 
 type TeamMember = { user_id: string; email: string };
 
-/** Soften HTML email canvas to match Flap elevated surface. */
+/** Soften HTML email canvas to match Flap elevated surface (light + dark). */
 function emailSrcDoc(html: string): string {
   const softHead =
     '<meta name="color-scheme" content="light dark" />' +
     `<style>
+      :root{
+        color-scheme: light dark;
+        --email-bg: #f6f3ee;
+        --email-fg: #1c1917;
+        --email-link: #b84a0a;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --email-bg: #221f1c;
+          --email-fg: #e8e2d9;
+          --email-link: #f0a070;
+        }
+      }
+      html.flap-dark, html.flap-dark body{
+        --email-bg: #221f1c;
+        --email-fg: #e8e2d9;
+        --email-link: #f0a070;
+      }
       html,body{
         margin:0!important;
-        background:var(--surface-raised, #ffffff)!important;
-        color:var(--foreground, #141211)!important;
+        background:var(--email-bg)!important;
+        color:var(--email-fg)!important;
         font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif!important;
         font-size:15px!important;
         line-height:1.55!important;
       }
       img{max-width:100%;height:auto;}
-      a{color:var(--accent-text, #b84a0a);}
+      a{color:var(--email-link);}
     </style>`;
+  const darkClass =
+    typeof document !== "undefined" &&
+    (document.documentElement.classList.contains("dark") ||
+      document.documentElement.getAttribute("data-theme") === "dark")
+      ? ' class="flap-dark"'
+      : "";
   if (/<head[\s>]/i.test(html)) {
-    return html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
+    const withHead = html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
+    return withHead.replace(/<html([^>]*)>/i, `<html$1${darkClass}>`);
   }
   if (/<html[\s>]/i.test(html)) {
-    return html.replace(/<html([^>]*)>/i, `<html$1><head>${softHead}</head>`);
+    return html.replace(/<html([^>]*)>/i, `<html$1${darkClass}><head>${softHead}</head>`);
   }
-  return `<!DOCTYPE html><html><head>${softHead}</head><body>${html}</body></html>`;
+  return `<!DOCTYPE html><html${darkClass}><head>${softHead}</head><body>${html}</body></html>`;
 }
 
 export type MessageReaderProps = {
@@ -384,11 +409,12 @@ export default function MessageReader({
               type="button"
               variant="ghost"
               size="sm"
-              className="message-collab-btn"
-              onClick={() => {
-                /* Done state lands in Phase 6 — archive as a useful stub. */
-                onArchive();
-              }}
+              className={cn(
+                "message-collab-btn",
+                message.workflow_status === "done" && "message-collab-btn-active",
+              )}
+              aria-pressed={message.workflow_status === "done"}
+              onClick={() => onWorkflow?.(message.workflow_status === "done" ? "" : "done")}
             >
               <Check className="h-3.5 w-3.5" />
               Done
@@ -397,8 +423,12 @@ export default function MessageReader({
               type="button"
               variant="ghost"
               size="sm"
-              className="message-collab-btn"
-              onClick={() => onApplyLabel("Follow-up")}
+              className={cn(
+                "message-collab-btn",
+                message.workflow_status === "follow_up" && "message-collab-btn-active",
+              )}
+              aria-pressed={message.workflow_status === "follow_up"}
+              onClick={() => onWorkflow?.(message.workflow_status === "follow_up" ? "" : "follow_up")}
             >
               <Flag className="h-3.5 w-3.5" />
               Follow up
@@ -409,7 +439,9 @@ export default function MessageReader({
               size="sm"
               className="message-collab-btn"
               onClick={() => {
-                document.getElementById("message-note-draft")?.focus();
+                const el = document.getElementById("message-note-draft");
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                el?.focus();
               }}
             >
               <StickyNote className="h-3.5 w-3.5" />
@@ -510,60 +542,6 @@ export default function MessageReader({
             ) : null}
           </div>
         ) : null}
-
-        <div className="message-collab-bar" role="group" aria-label="Collaboration">
-          {teamsUnlocked ? (
-            <label className="message-collab-assign">
-              <span className="sr-only">Assigned to</span>
-              <select
-                aria-label="Assigned to"
-                value={message.assignee_user_id || ""}
-                onChange={(e) => onAssign(e.target.value || null)}
-              >
-                <option value="">Assigned to…</option>
-                {teamMembers.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <Button type="button" variant="ghost" size="sm" onClick={onOpenBilling}>
-              Assigned to…
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant={message.workflow_status === "done" ? "primary" : "secondary"}
-            aria-pressed={message.workflow_status === "done"}
-            onClick={() => onWorkflow?.(message.workflow_status === "done" ? "" : "done")}
-          >
-            Done
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={message.workflow_status === "follow_up" ? "primary" : "secondary"}
-            aria-pressed={message.workflow_status === "follow_up"}
-            onClick={() => onWorkflow?.(message.workflow_status === "follow_up" ? "" : "follow_up")}
-          >
-            Follow up
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              const el = document.getElementById("message-note-draft");
-              el?.scrollIntoView({ behavior: "smooth", block: "center" });
-              el?.focus();
-            }}
-          >
-            Add note
-          </Button>
-        </div>
 
         <div className="message-quick-reply">
           <Button type="button" variant="outline" className="message-quick-reply-btn" onClick={() => onReply(false)}>

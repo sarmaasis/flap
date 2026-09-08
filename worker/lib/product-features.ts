@@ -76,14 +76,15 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
 
     let labelId = (body.label_id || "").trim();
     let labelName = "";
+    const requestedName = typeof body.name === "string" ? body.name.trim() : "";
     if (labelId) {
       const label = await c.env.DB.prepare("SELECT id, name FROM labels WHERE id = ? AND user_id = ?")
         .bind(labelId, ctx.workspaceId)
         .first<{ id: string; name: string }>();
       if (!label) return c.json({ error: "Label not found." }, 404);
       labelName = label.name;
-    } else if (body.name) {
-      const name = body.name.trim();
+    } else if (requestedName) {
+      const name = requestedName;
       if (!LABEL_NAME_RE.test(name)) return c.json({ error: "Invalid label name." }, 400);
       const existing = await c.env.DB.prepare(
         "SELECT id, name FROM labels WHERE user_id = ? AND lower(name) = lower(?)",

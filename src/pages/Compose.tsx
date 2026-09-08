@@ -135,6 +135,29 @@ export default function Compose({
       setErr("Finish sending setup for your domain before sending.");
       return;
     }
+    const toList = to
+      .split(/[,;]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (kind !== "draft") {
+      if (!toList.length) {
+        setErr("Add at least one recipient.");
+        return;
+      }
+      if (toList.length > 20) {
+        setErr("Enter between 1 and 20 valid recipient addresses, separated by commas.");
+        return;
+      }
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (toList.some((addr) => !emailOk.test(addr.replace(/^.*<([^>]+)>.*$/, "$1").trim()))) {
+        setErr("Enter between 1 and 20 valid recipient addresses, separated by commas.");
+        return;
+      }
+      if (!subject.trim() && kind === "send") {
+        setErr("Subject is required.");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const scheduled_at = kind === "schedule" && scheduleAt ? new Date(scheduleAt).getTime() : null;

@@ -604,6 +604,8 @@ export const api = {
       caldav_url: string;
       username_hint: string;
       note: string;
+      plan_id?: string;
+      caldav_unlocked?: boolean;
     }>("/api/calendar/tokens"),
   createCalendarToken: (label?: string) =>
     req<{

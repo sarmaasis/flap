@@ -56,7 +56,7 @@ export default function BookingsAppPage() {
             id="book-slug"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="ashish"
+            placeholder="your-name"
             required
             pattern="[a-z0-9-]+"
           />

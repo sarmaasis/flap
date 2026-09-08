@@ -1032,7 +1032,9 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
                       else window.print();
                     }}
                     onApplyLabel={(name) => {
-                      void api.addMessageLabel(message.id, { name }).then((r) => {
+                      const label = name.trim();
+                      if (!label) return;
+                      void api.addMessageLabel(message.id, { name: label }).then((r) => {
                         setMessage({ ...message, label: r.name });
                         setList((prev) => prev.map((item) => (item.id === message.id ? { ...item, label: r.name } : item)));
                         return api.labels().then((l) => setLabels(l.labels));

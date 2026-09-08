@@ -4,7 +4,7 @@ import { getSessionUser, requireUser, userCount } from "./lib/auth";
 import { clerkConfigured } from "./lib/clerk";
 import { randomId, nowMs } from "./lib/ids";
 import { handleEmail } from "./email";
-import { HEADER_VALUE_RE, makeSnippet, parseRecipients } from "./lib/mailutil";
+import { HEADER_VALUE_RE, makeSnippet, parseRecipients, recipientsFieldValid } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
 import { processQueuedNewsletterBlasts } from "./lib/studio-channels";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
@@ -944,26 +944,33 @@ app.post("/api/mail/send", async (c) => {
     in_reply_to?: string;
     attachments?: OutboundAttachment[];
   };
-  const to = (body.to ?? "").trim();
-  const cc = (body.cc ?? "").trim();
-  const bcc = (body.bcc ?? "").trim();
+  const to = String(body.to ?? "").trim();
+  const cc = String(body.cc ?? "").trim();
+  const bcc = String(body.bcc ?? "").trim();
   const subject = (body.subject ?? "").trim();
   const text = body.text ?? "";
   const html = body.html ?? "";
-  const draft = body.draft === true;
+  // Accept boolean true or common JSON truthy variants from clients.
+  const draft = body.draft === true || (body as { draft?: unknown }).draft === 1 || (body as { draft?: unknown }).draft === "true";
   const scheduledAt = typeof body.scheduled_at === "number" && body.scheduled_at > nowMs() ? body.scheduled_at : null;
   const incomingAttachments = Array.isArray(body.attachments) ? body.attachments : [];
   if (to.length > 4_096 || cc.length > 4_096 || bcc.length > 4_096 || subject.length > 998 || text.length > 1_000_000 || html.length > 1_500_000) {
     return c.json({ error: "Message fields exceed Flap's supported size limits." }, 400);
   }
   const uniqueRecipients = [...new Set([...parseRecipients(to), ...parseRecipients(cc), ...parseRecipients(bcc)])];
-  if (!draft && !scheduledAt && (!uniqueRecipients.length || uniqueRecipients.length > 20)) {
-    return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
+  // Drafts may be empty or mid-typing; sends and schedules need 1–20 valid recipients.
+  if (!draft) {
+    if (!recipientsFieldValid(to) || !recipientsFieldValid(cc) || !recipientsFieldValid(bcc)) {
+      return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
+    }
+    if (!uniqueRecipients.length || uniqueRecipients.length > 20) {
+      return c.json({ error: "Enter between 1 and 20 valid recipient addresses, separated by commas." }, 400);
+    }
   }
   if (!draft && !scheduledAt && !subject) return c.json({ error: "Subject is required." }, 400);
   if (!HEADER_VALUE_RE.test(subject)) return c.json({ error: "Subject cannot contain line breaks." }, 400);
-  if (cc && !parseRecipients(cc).length) return c.json({ error: "Cc contains an invalid address." }, 400);
-  if (bcc && !parseRecipients(bcc).length) return c.json({ error: "Bcc contains an invalid address." }, 400);
+  if (!draft && cc && !parseRecipients(cc).length) return c.json({ error: "Cc contains an invalid address." }, 400);
+  if (!draft && bcc && !parseRecipients(bcc).length) return c.json({ error: "Bcc contains an invalid address." }, 400);
 
   if (!draft && !scheduledAt && !canSendMail(c.env)) {
     return c.json(
