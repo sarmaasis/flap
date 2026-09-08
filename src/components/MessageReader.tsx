@@ -241,8 +241,8 @@ export default function MessageReader({
       >
         <div className="message-accent" aria-hidden />
 
-        <div className="message-toolbar">
-          <div className="message-toolbar-primary">
+        <div className="message-toolbar max-[480px]:flex-wrap max-[480px]:gap-1.5 max-[480px]:px-2.5 max-[480px]:py-2">
+          <div className="message-toolbar-primary max-[480px]:gap-0.5">
             <Button type="button" size="sm" className="h-9 gap-1.5 px-3.5" onClick={() => onReply(false)}>
               <Reply className="h-4 w-4" />
               Reply
@@ -253,7 +253,7 @@ export default function MessageReader({
             <ToolBtn label="Forward" onClick={onForward}>
               <Forward className="h-4 w-4" />
             </ToolBtn>
-            <span className="message-toolbar-sep" aria-hidden />
+            <span className="message-toolbar-sep max-[480px]:hidden" aria-hidden />
             <ToolBtn label="Archive" onClick={onArchive}>
               <Archive className="h-4 w-4" />
             </ToolBtn>

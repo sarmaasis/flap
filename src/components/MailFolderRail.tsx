@@ -65,7 +65,7 @@ export default function MailFolderRail({
         <button
           type="button"
           aria-current={folder === "needs-you" ? "page" : undefined}
-          className={cn("mail-folder-btn", folder === "needs-you" && "active")}
+          className={cn("mail-folder-btn max-w-[140px] overflow-hidden text-ellipsis", folder === "needs-you" && "active")}
           onClick={() => onFolder("needs-you")}
         >
           <span className="mail-folder-btn-main">
@@ -83,7 +83,7 @@ export default function MailFolderRail({
               key={item.id}
               type="button"
               aria-current={active ? "page" : undefined}
-              className={cn("mail-folder-btn", active && "active")}
+              className={cn("mail-folder-btn max-w-[140px] overflow-hidden text-ellipsis", active && "active")}
               onClick={() => onFolder(item.id)}
             >
               <span className="mail-folder-btn-main">
@@ -101,7 +101,7 @@ export default function MailFolderRail({
           <span className="mail-folder-section">Domains</span>
           <button
             type="button"
-            className={cn("mail-folder-btn", !domainFilter && "active")}
+            className={cn("mail-folder-btn max-w-[140px] overflow-hidden text-ellipsis", !domainFilter && "active")}
             onClick={() => onDomainFilter!("")}
           >
             <span>All domains</span>
@@ -112,7 +112,7 @@ export default function MailFolderRail({
               <button
                 key={d.id}
                 type="button"
-                className={cn("mail-folder-btn", domainFilter === d.id && "active")}
+                className={cn("mail-folder-btn max-w-[140px] overflow-hidden text-ellipsis", domainFilter === d.id && "active")}
                 onClick={() => onDomainFilter!(d.id)}
                 style={d.color ? ({ ["--domain-color"]: d.color } as CSSProperties) : undefined}
               >

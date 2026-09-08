@@ -70,7 +70,7 @@ export default function BookingsAppPage() {
         </Button>
         {createdUrl ? (
           <p className="muted text-sm">
-            Public URL: <a href={createdUrl} className="booking-created-url">{createdUrl}</a>
+            Public URL: <a href={createdUrl} className="break-all">{createdUrl}</a>
           </p>
         ) : null}
       </form>

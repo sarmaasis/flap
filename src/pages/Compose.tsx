@@ -298,7 +298,7 @@ export default function Compose({
           </div>
         ) : (
           <div
-            className={`compose-from-row${identityLocked ? " compose-from-identity" : fromDomain?.color ? " compose-from-tinted" : ""}`}
+            className={`compose-from-row flex-wrap${identityLocked ? " compose-from-identity" : fromDomain?.color ? " compose-from-tinted" : ""}`}
             style={domainStyle}
           >
             <div className="field" style={{ marginBottom: 0, flex: 1 }}>

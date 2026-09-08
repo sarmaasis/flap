@@ -1730,8 +1730,8 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         <p className="dns-step-help">
                           Set Type + Host, paste Value, then click Check setup.
                         </p>
-                        <div className="dns-table-wrap">
-                        <table className="dns-table">
+                        <div className="overflow-x-auto rounded-lg border border-[var(--line)] [-webkit-overflow-scrolling:touch]">
+                        <table className="dns-table min-w-[540px]">
                           <thead>
                             <tr>
                               <th scope="col">Type</th>
