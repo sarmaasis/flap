@@ -2,10 +2,12 @@
 
 export type AnalyticsEvent =
   | "landing_view"
+  | "homepage_view"
   | "organic_landing"
   | "pricing_view"
   | "signup_clicked"
   | "signup_cta_clicked"
+  | "cta_connect_domain"
   | "comparison_page_view"
   | "calculator_started"
   | "calculator_completed"
@@ -21,6 +23,7 @@ export type AnalyticsEvent =
   | "email_verified"
   | "domain_add_started"
   | "domain_added"
+  | "second_domain_added"
   | "domain_dns_records_viewed"
   | "domain_check_started"
   | "domain_identity_verified"
@@ -49,7 +52,8 @@ export type AnalyticsEvent =
   | "referral_qualified"
   | "referral_reward_granted"
   | "guide_view"
-  | "seo_page_view";
+  | "seo_page_view"
+  | "migration_page_view";
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

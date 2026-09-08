@@ -10,6 +10,7 @@ import {
   type Contact,
   type DnsRecords,
   type Domain,
+  type DeliveryEventLogRow,
   type Filter,
   type Label,
   type Mailbox,
@@ -288,6 +289,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
   const [labels, setLabels] = useState<Label[]>([]);
   const [labelName, setLabelName] = useState("");
   const [suppressions, setSuppressions] = useState<Suppression[]>([]);
+  const [deliveryEvents, setDeliveryEvents] = useState<DeliveryEventLogRow[]>([]);
   const [deliveryInfo, setDeliveryInfo] = useState<Awaited<ReturnType<typeof api.deliverability>> | null>(null);
   const [newToken, setNewToken] = useState("");
   const [newWebhookSecret, setNewWebhookSecret] = useState("");
@@ -407,10 +409,16 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
           break;
         }
         case "delivery": {
-          const [d, s, l] = await Promise.all([api.deliverability(), api.suppressions().catch(() => ({ suppressions: [] })), api.labels()]);
+          const [d, s, l, ev] = await Promise.all([
+            api.deliverability(),
+            api.suppressions().catch(() => ({ suppressions: [] })),
+            api.labels(),
+            api.deliveryEvents().catch(() => ({ events: [] as DeliveryEventLogRow[], retention_days: 30 })),
+          ]);
           setDeliveryInfo(d);
           setSuppressions(s.suppressions);
           setLabels(l.labels);
+          setDeliveryEvents(ev.events);
           break;
         }
         case "developers": {
@@ -755,6 +763,10 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
       track("domain_add_started");
       const created = await api.createDomain(domainName);
       track("domain_added");
+      // Mirror server activation: second connected domain is the differentiation signal.
+      if ((domains?.length ?? 0) + 1 === 2) {
+        track("second_domain_added");
+      }
       setDomainName("");
       await refresh();
       if (created.domain?.id) {
@@ -1916,7 +1928,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                       : ""}
                   </p>
                   <div className="overflow-x-auto"><table className={settingsTable} style={{ marginTop: 12 }}>
-                    <thead><tr><th>Domain</th><th>Identity</th><th>MX</th><th>Receiving</th><th>Sending</th><th>Last error</th></tr></thead>
+                    <thead><tr><th>Domain</th><th>Identity</th><th>MX</th><th>Receiving</th><th>Sending</th><th>Last inbound</th><th>Last error</th></tr></thead>
                     <tbody>
                       {(deliveryInfo.domains || []).map((d) => (
                         <tr key={d.id}>
@@ -1925,13 +1937,36 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                           <td>{d.mx_verified_at ? "✓" : "—"}</td>
                           <td>{d.receiving_ready_at ? "✓" : "—"}</td>
                           <td>{d.sending_ready_at ? "✓" : "—"}</td>
-                          <td className={tw.muted} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
+                          <td className={tw.muted} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }} title={d.last_inbound_provider_message_id || undefined}>
+                            {d.last_inbound_error
+                              ? `${d.last_inbound_error}${d.last_inbound_error_at ? ` · ${new Date(d.last_inbound_error_at).toLocaleString()}` : ""}`
+                              : "—"}
+                          </td>
+                          <td className={tw.muted} style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{d.last_provider_error || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table></div>
                 </>
               ) : <p className={tw.muted}>Loading…</p>}
+            </section>
+            <section className={tw.settingsCard}>
+              <div className={tw.sectionHeading}><div><h2>Delivery events</h2><p>Bounce, soft-bounce, complaint, and delivery notices for sends from this workspace (last 30 days).</p></div></div>
+              {deliveryEvents.length ? (
+                <div className="overflow-x-auto"><table className={settingsTable}>
+                  <thead><tr><th>When</th><th>Kind</th><th>Recipient</th><th>Provider id</th></tr></thead>
+                  <tbody>
+                    {deliveryEvents.slice(0, 100).map((ev) => (
+                      <tr key={ev.id}>
+                        <td className={tw.muted}>{new Date(ev.created_at).toLocaleString()}</td>
+                        <td>{ev.kind}</td>
+                        <td>{ev.recipient_email}</td>
+                        <td className={tw.muted} style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{ev.provider_message_id || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div>
+              ) : <p className={tw.emptyState}>No bounce or complaint events yet. Events appear after SES reports delivery outcomes for your outbound mail.</p>}
             </section>
             <section className={tw.settingsCard}>
               <div className={tw.sectionHeading}><div><h2>Labels</h2><p>Organize mail with reusable labels. Apply them from the open message or Rules.</p></div></div>

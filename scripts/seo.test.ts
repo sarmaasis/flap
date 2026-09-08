@@ -15,6 +15,7 @@ import {
   isPrivatePath,
 } from "../src/content/seo-registry.ts";
 import { buildSitemapEntries, renderSitemapXml } from "../src/content/sitemap.ts";
+import { SEO_PATHS, SEO_REDIRECTS, FOR_PATHS, VS_PATHS } from "../shared/client-routes.ts";
 import { SEO_PAGE_DEFS } from "../src/content/seo-pages.ts";
 import { BLOG_POSTS } from "../src/content/blog.ts";
 import { TOOL_EXPLAINERS } from "../src/content/tool-explainers.ts";
@@ -78,6 +79,22 @@ function collectCorpus(): string {
   ok("5–6 private routes absent; sitemap matches registry canonicals");
 }
 
+// SEO_PAGE_DEFS ↔ shared/client-routes SEO_PATHS stay in sync
+{
+  assert.deepEqual(Object.keys(SEO_PAGE_DEFS).sort(), [...SEO_PATHS].sort());
+  ok("SEO_PAGE_DEFS keys match shared SEO_PATHS");
+}
+
+// SEO alias redirects target known indexable routes (no orphan 301s)
+{
+  const targets = new Set<string>([...SEO_PATHS, ...FOR_PATHS, ...VS_PATHS]);
+  for (const [from, to] of Object.entries(SEO_REDIRECTS)) {
+    assert.notEqual(from, to, `redirect must change path: ${from}`);
+    assert.equal(targets.has(to), true, `redirect ${from} → unknown target ${to}`);
+  }
+  ok("SEO_REDIRECTS targets are known SEO/for/vs paths");
+}
+
 // 7 JSON-LD parses
 {
   const soft = softwareApplicationLd();
@@ -139,6 +156,8 @@ function collectCorpus(): string {
   assert.match(robots, /Disallow: \/app/);
   assert.match(robots, /Disallow: \/api/);
   assert.match(robots, /Disallow: \/signup/);
+  assert.match(robots, /Disallow: \/sso-callback/);
+  assert.match(robots, /Disallow: \/auth\//);
   const xml = renderSitemapXml();
   assert.match(xml, /<urlset/);
   assert.match(xml, /useflap\.online\/about/);

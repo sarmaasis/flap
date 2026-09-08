@@ -55,7 +55,11 @@ export default function StatusPage() {
           Flap status
         </h1>
         <p className="mt-4 text-[var(--muted)]">
-          Lightweight public check against <code>/api/health</code>. This is not a full incident timeline.
+          Lightweight public check against <code>/api/health</code>. For product notes see{" "}
+          <a href="/changelog" className="text-[var(--foreground)] underline-offset-2 hover:underline">
+            changelog
+          </a>
+          . This page is not a full incident timeline.
         </p>
         <div
           className={`mt-8 rounded-xl border px-5 py-4 ${ok ? "border-emerald-600/40 bg-emerald-500/10" : "border-[var(--line)] bg-[var(--surface)]"}`}
@@ -68,6 +72,13 @@ export default function StatusPage() {
             </p>
           ) : null}
         </div>
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--foreground-faint)]">Notes</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-[var(--muted)]">
+            <li>No active incidents posted. When something is wrong, we will note it here with a real date.</li>
+            <li>Mail delivery depends on your domain DNS (MX/SPF/DKIM) and Amazon SES; check Settings → Deliverability for bounce events.</li>
+          </ul>
+        </section>
       </main>
     </MarketingShell>
   );

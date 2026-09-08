@@ -131,20 +131,20 @@ function articleShell(opts: {
 
 const HOME_FAQS = [
   {
-    q: "Who is Flap for?",
-    a: "Indie hackers, serial founders, and small studios who own multiple domains and do not want a separate Workspace for every project.",
+    q: "Can I use multiple domains in one inbox?",
+    a: `Yes. Free includes ${PLANS.free.limits.domains} domains. Solo, Pro, Team, and Scale each include up to ${PLANS.solo.limits.domains} custom domains in one Flap inbox.`,
   },
   {
-    q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Builder ${PLANS.pro.limits.domains}, Studio ${PLANS.team.limits.domains}.`,
+    q: "When I reply, which email address does Flap send from?",
+    a: "Reply uses the mailbox that received the message. Compose shows that From address before you send; you can change it for that reply.",
   },
   {
-    q: "How does DNS / delivery work?",
-    a: "Publish Amazon SES MX/SPF/DKIM at your DNS host. Inbound mail goes SES → Flap ingest. The Flap app runs on Cloudflare; Cloudflare Email Routing is not required.",
+    q: "Does Flap use Amazon SES?",
+    a: "Yes. Customer mail runs on Amazon SES. The Flap app runs on Cloudflare. See /why-not-amazon-ses for build-vs-buy.",
   },
   {
-    q: "Can I cancel and export?",
-    a: "Yes. Cancel from Settings → Billing; access continues through the paid period. Export JSON or .mbox from Settings → Privacy anytime.",
+    q: "Can I export if I leave?",
+    a: "Yes. JSON workspace backup and per-mailbox .mbox from Settings. See /migrate for cutover narrative.",
   },
 ];
 
@@ -167,7 +167,11 @@ function buildPages(): Page[] {
         },
         {
           heading: "Pricing",
-          body: `Domain-first plans at ${SITE_URL}/#pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, team seats).`,
+          body: `Capacity-based plans at ${SITE_URL}/pricing: Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Pro $${PLANS.pro.price_monthly}/mo, Team $${PLANS.team.price_monthly}/mo. Upgrade for mailboxes and seats — not a different product.`,
+        },
+        {
+          heading: "Trust",
+          body: `Architecture, export, and policies: ${SITE_URL}/security, ${SITE_URL}/status, ${SITE_URL}/migrate, ${SITE_URL}/about.`,
         },
       ],
       faqs: HOME_FAQS,
@@ -437,12 +441,12 @@ function buildPages(): Page[] {
 
   pages.push({
     path: "/pricing",
-    title: "Pricing | Flap — domain-first custom-domain email",
-    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Builder $${PLANS.pro.price_monthly}/mo (${PLANS.pro.limits.domains} domains), Studio $${PLANS.team.price_monthly}/mo. Annual −20%.`,
+    title: "Pricing | Flap — custom-domain email",
+    description: `Free $${PLANS.free.price_monthly}, Solo $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains), Pro $${PLANS.pro.price_monthly}/mo, Team $${PLANS.team.price_monthly}/mo. Annual = 10× monthly (2 months free).`,
     bodyHtml: articleShell({
       eyebrow: "Pricing",
-      h1: "Domain-first plans",
-      lede: "Pay for domains you launch, not a Workspace seat per brand. Annual billing is 20% off monthly.",
+      h1: "Transparent email hosting pricing",
+      lede: "Up to 50 domains on every paid plan. Upgrade for mailboxes, seats, and send capacity — not a different product.",
       definition: MARKETING.short_description,
       sections: PLAN_ORDER.map((id) => ({
         heading: `${PLANS[id].name} — $${PLANS[id].price_monthly}${PLANS[id].price_monthly ? "/mo" : ""}`,
@@ -450,6 +454,10 @@ function buildPages(): Page[] {
         bullets: PLANS[id].features,
       })),
       faqs: [
+        {
+          q: "Why upgrade if every paid plan has 50 domains?",
+          a: "You upgrade for mailboxes, team seats, storage, and monthly send caps — capacity for the same product surface.",
+        },
         {
           q: "Can I cancel anytime?",
           a: "Yes. You keep access through the paid period. Export JSON or .mbox from Settings before it ends.",
@@ -463,8 +471,8 @@ function buildPages(): Page[] {
     }),
     jsonLd: [softwareLd(), faqLd([
       {
-        q: "Can I cancel anytime?",
-        a: "Yes. You keep access through the paid period. Export JSON or .mbox from Settings before it ends.",
+        q: "Why upgrade if every paid plan has 50 domains?",
+        a: "You upgrade for mailboxes, team seats, storage, and monthly send caps.",
       },
     ])],
   });
@@ -616,37 +624,33 @@ function buildPages(): Page[] {
     bodyHtml: articleShell({
       eyebrow: "Security",
       h1: "Privacy and security",
-      lede: "Short promises we can keep. Amazon SES for your domains. Cloudflare for the app.",
+      lede: "Precise statements we can keep. No bank-grade vagueness. Amazon SES for your domains. Cloudflare for the app.",
       definition:
-        "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare.",
+        "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare. No invented certifications.",
       sections: [
         {
-          heading: "We do not read your email for ads",
-          body: "Flap does not scan customer mail to sell ads or build advertising profiles.",
+          heading: "Architecture",
+          body: `${MAIL_ARCHITECTURE.inbound_flow}. ${MAIL_ARCHITECTURE.outbound_flow}. ${MAIL_ARCHITECTURE.app_host}.`,
         },
         {
-          heading: "We do not sell behavioral mail data",
-          body: "Message content is not sold. Product analytics use aggregate product events, not inbox contents.",
+          heading: "Encryption",
+          body: "TLS in transit. Encryption at rest via Cloudflare D1/R2 and SES storage. Not end-to-end encrypted mailboxes.",
         },
         {
-          heading: "Your data stays yours",
-          body: "Export JSON or .mbox anytime from Settings. After cancel, paid accounts keep a 30-day export window.",
+          heading: "Auth and access",
+          body: "Clerk authentication. Workspace-scoped mailboxes. HMAC-signed webhooks. API keys shown once.",
         },
         {
-          heading: "How deliverability is configured",
-          body: "You publish MX, SPF, and DKIM for Amazon SES at your DNS host. DMARC is recommended. Flap shows exact records in the DNS wizard.",
+          heading: "AI behavior",
+          body: "Opt-in where offered. Confirm before send — never silent delivery.",
         },
         {
-          heading: "Portability",
-          body: "Today: webmail, PWA, and export. IMAP/SMTP app passwords are scheduled for 2026-10-15. We will not market client protocols as live before they ship.",
+          heading: "Export and leave",
+          body: "JSON and .mbox from Settings. Paid accounts keep an export window after cancel.",
         },
         {
-          heading: "Concrete controls",
-          body: "TLS in transit to the app and to SES. Encryption at rest via Cloudflare D1/R2 and SES storage. Auth rate limits on magic links. HMAC-signed inbound and outbound webhooks.",
-        },
-        {
-          heading: "Infrastructure honesty",
-          body: `${MAIL_ARCHITECTURE.app_host}. Customer mail: ${MAIL_ARCHITECTURE.inbound_provider} inbound and outbound. System mail for useflap.online uses Cloudflare Email Sending. Flap is not an EU Rust MTA and does not claim Proton-style end-to-end encryption.`,
+          heading: "Abuse and incidents",
+          body: `Report to ${SUPPORT_EMAIL}. We do not claim SOC 2 or ISO 27001.`,
         },
       ],
     }),
@@ -654,7 +658,123 @@ function buildPages(): Page[] {
       path: "/security",
       title: "Security | Flap",
       description: "Honest security and privacy commitments for Flap custom-domain email.",
-      dateModified: "2026-09-07",
+      dateModified: "2026-09-08",
+    }),
+  });
+
+  pages.push({
+    path: "/migrate",
+    title: "Migrate to Flap | Custom-domain email cutover",
+    description:
+      "Verify DNS first, test send, switch MX, rollback, and export. Honest migration narrative for custom-domain email.",
+    bodyHtml: articleShell({
+      eyebrow: "Migration",
+      h1: "Migrate to Flap without guessing the MX cutover",
+      lede: "Verify the domain in Flap and test send/receive before you change MX.",
+      definition:
+        "Flap exports .mbox and JSON; it does not silently IMAP-import your old provider today.",
+      sections: [
+        {
+          heading: "Cutover steps",
+          body: "Add and verify domain → create addresses and test outbound → optional archive export from old provider → switch MX → rollback by restoring old MX if needed → export anytime from Flap.",
+          bullets: [
+            "MX only moves email; website DNS is separate",
+            "Cloudflare Email Routing domains can migrate to the SES path from Settings",
+            "See /guides for registrar-specific DNS",
+          ],
+        },
+      ],
+      ctaHref: "/signup",
+    }),
+    jsonLd: webPageLd({
+      path: "/migrate",
+      title: "Migrate to Flap",
+      description: "Domain-first migration narrative for custom-domain email cutover.",
+      dateModified: "2026-09-08",
+    }),
+  });
+
+  pages.push({
+    path: "/why-not-amazon-ses",
+    title: "Why not Amazon SES alone? | Flap",
+    description:
+      "Flap uses Amazon SES for customer mail. The product layer adds inbox, identities, reply-from, and onboarding.",
+    bodyHtml: articleShell({
+      eyebrow: "Build vs buy",
+      h1: "Why not use Amazon SES directly?",
+      lede: "SES is the mail pipe. Flap is the multi-domain inbox product on top.",
+      definition:
+        "We use SES on purpose — this is build-vs-buy, not an attack on AWS.",
+      sections: [
+        {
+          heading: "What Flap adds",
+          body: "Guided DNS, mailboxes, inbox UI, reply-from identity, aliases, team workflows, API, and export.",
+        },
+        {
+          heading: "When to use SES alone",
+          body: "When you are building your own mail product or already have inbox and identity infrastructure.",
+        },
+      ],
+    }),
+    jsonLd: webPageLd({
+      path: "/why-not-amazon-ses",
+      title: "Why not Amazon SES alone?",
+      description: "Build-vs-buy: SES as the pipe, Flap as multi-domain inbox product.",
+      dateModified: "2026-09-08",
+    }),
+  });
+
+  pages.push({
+    path: "/demo",
+    title: "Interactive demo | Flap",
+    description:
+      "Try Flap’s multi-domain inbox without signing up: open a message and see reply From lock to the receiving domain.",
+    bodyHtml: articleShell({
+      eyebrow: "Demo",
+      h1: "One inbox. Correct From on reply.",
+      lede: "Fake domains and messages only — nothing is sent. Open the live demo in the app to try reply-from locking.",
+      definition: "Front-end-only walkthrough of multi-domain receive → reply with locked From.",
+      sections: [
+        {
+          heading: "What you will see",
+          body: "Three fake product domains in one inbox. Reply locks Sending as to the address that received the mail.",
+        },
+      ],
+      ctaHref: "/demo",
+    }),
+    jsonLd: webPageLd({
+      path: "/demo",
+      title: "Interactive demo | Flap",
+      description: "No-signup demo of Flap reply-from identity.",
+      dateModified: "2026-09-09",
+    }),
+  });
+
+  pages.push({
+    path: "/changelog",
+    title: "Changelog | Flap",
+    description: "Product updates for Flap — multi-domain custom email inbox.",
+    bodyHtml: articleShell({
+      eyebrow: "Changelog",
+      h1: "What shipped",
+      lede: "Concise product notes with real dates. For live health, see /status.",
+      sections: [
+        {
+          heading: "2026-09-09 — Security & multi-domain hardening",
+          body: "Workspace-scoped suppressions, inbound failure breadcrumbs, HTML email sanitization, deliverability event visibility.",
+        },
+        {
+          heading: "2026-09-08 — Positioning",
+          body: "Homepage centered on multi-domain → one inbox → correct reply-from. Public /migrate and /why-not-amazon-ses.",
+        },
+      ],
+      ctaHref: "/signup",
+    }),
+    jsonLd: webPageLd({
+      path: "/changelog",
+      title: "Changelog | Flap",
+      description: "Flap product changelog.",
+      dateModified: "2026-09-09",
     }),
   });
 
@@ -850,7 +970,7 @@ function injectPage(template: string, page: Page): string {
   html = html.replace(/<title>[^<]*<\/title>/i, `<title>${esc(page.title)}</title>`);
   html = upsertMeta(html, "name", "description", page.description);
   html = upsertMeta(html, "property", "og:type", "website");
-  html = upsertMeta(html, "property", "og:site_name", "Flap");
+  html = upsertMeta(html, "property", "og:site_name", "Flap Email");
   html = upsertMeta(html, "property", "og:title", page.title);
   html = upsertMeta(html, "property", "og:description", page.description);
   html = upsertMeta(html, "property", "og:url", url);

@@ -47,6 +47,9 @@ export type Domain = {
   receiving_ready_at?: number | null;
   sending_ready_at?: number | null;
   last_provider_error?: string | null;
+  last_inbound_error?: string | null;
+  last_inbound_error_at?: number | null;
+  last_inbound_provider_message_id?: string | null;
   migration_from?: string | null;
   migration_state?: string | null;
 };

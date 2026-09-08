@@ -40,7 +40,7 @@ import { isAddressSuppressed } from "./lib/inbound-webhook";
 import { domainIsSendingReady, loadDomain } from "./lib/domain-readiness";
 import { trackServerEvent } from "./lib/analytics";
 import { InboxHub } from "./inbox-hub";
-import { isKnownClientPath, normalizePathname } from "../shared/client-routes";
+import { isKnownClientPath, normalizePathname, SEO_PATHS, SEO_REDIRECTS } from "../shared/client-routes";
 
 export { InboxHub };
 
@@ -187,6 +187,8 @@ app.get("/vs", (c) => servePrerenderOrSpa(c));
 app.get("/for/*", (c) => servePrerenderOrSpa(c));
 app.get("/for", (c) => servePrerenderOrSpa(c));
 app.get("/security", (c) => servePrerenderOrSpa(c));
+app.get("/migrate", (c) => servePrerenderOrSpa(c));
+app.get("/why-not-amazon-ses", (c) => servePrerenderOrSpa(c));
 app.get("/support", (c) => servePrerenderOrSpa(c));
 app.get("/status", (c) => servePrerenderOrSpa(c));
 app.get("/terms", (c) => servePrerenderOrSpa(c));
@@ -200,20 +202,12 @@ app.get("/guides", (c) => servePrerenderOrSpa(c));
 app.get("/guides/*", (c) => servePrerenderOrSpa(c));
 app.get("/blog", (c) => servePrerenderOrSpa(c));
 app.get("/blog/*", (c) => servePrerenderOrSpa(c));
-app.get("/google-workspace-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/email-hosting-for-multiple-domains", (c) => servePrerenderOrSpa(c));
-app.get("/custom-domain-email", (c) => servePrerenderOrSpa(c));
-app.get("/email-for-indie-hackers", (c) => servePrerenderOrSpa(c));
-app.get("/email-for-side-projects", (c) => servePrerenderOrSpa(c));
-app.get("/flap-vs-google-workspace", (c) => servePrerenderOrSpa(c));
-app.get("/flap-vs-zoho", (c) => servePrerenderOrSpa(c));
-app.get("/multiple-domains-one-inbox", (c) => servePrerenderOrSpa(c));
-app.get("/cloudflare-email-routing-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/hydra-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/folio-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/justemails-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/migadu-alternative", (c) => servePrerenderOrSpa(c));
-app.get("/improvmx-alternative", (c) => servePrerenderOrSpa(c));
+for (const [from, to] of Object.entries(SEO_REDIRECTS)) {
+  app.get(from, (c) => c.redirect(to, 301));
+}
+for (const path of SEO_PATHS) {
+  app.get(path, (c) => servePrerenderOrSpa(c));
+}
 
 app.get("/api/health", (c) =>
   c.json({
@@ -352,6 +346,17 @@ app.post("/api/domains", async (c) => {
     return c.json({ error: "That domain is reserved." }, 400);
   }
 
+  // Global uniqueness: only one workspace may claim a domain for send/receive authority.
+  const claimed = await c.env.DB.prepare("SELECT id, user_id FROM domains WHERE lower(name) = ? LIMIT 1")
+    .bind(name)
+    .first<{ id: string; user_id: string }>();
+  if (claimed) {
+    if (claimed.user_id === ctx.workspaceId) {
+      return c.json({ error: "That domain is already on this account." }, 409);
+    }
+    return c.json({ error: "That domain is already claimed by another Flap workspace." }, 409);
+  }
+
   const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM domains WHERE user_id = ?")
     .bind(ctx.workspaceId)
     .first<{ n: number }>();
@@ -390,7 +395,7 @@ app.post("/api/domains", async (c) => {
       )
       .run();
   } catch {
-    return c.json({ error: "That domain is already on this account." }, 409);
+    return c.json({ error: "That domain is already claimed." }, 409);
   }
   await afterDomainAdded(c.env.DB, ctx.workspaceId);
   return c.json(
@@ -1093,7 +1098,7 @@ app.post("/api/mail/send", async (c) => {
 
   if (!draft && !scheduledAt) {
     for (const addr of uniqueRecipients) {
-      if (await isAddressSuppressed(c.env.DB, addr)) {
+      if (await isAddressSuppressed(c.env.DB, ctx.workspaceId, addr)) {
         return c.json({ error: `${addr} is on the suppression list (bounce or complaint).` }, 400);
       }
     }
@@ -1146,9 +1151,13 @@ app.post("/api/mail/send", async (c) => {
   let id = (body.id ?? "").trim();
   let oldBodyBytes = 0;
   let oldAttBytes = 0;
+  const access = mailboxAccessClause(ctx);
   if (id) {
-    const existing = await c.env.DB.prepare("SELECT id, folder, storage_bytes FROM messages WHERE id = ? AND user_id = ?")
-      .bind(id, ctx.workspaceId)
+    // Workspace + mailbox ACL — restricted members cannot update drafts in other mailboxes (IDOR).
+    const existing = await c.env.DB.prepare(
+      `SELECT id, folder, storage_bytes FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+    )
+      .bind(id, ctx.workspaceId, ...access.binds)
       .first<{ id: string; folder: string; storage_bytes: number }>();
     if (!existing || (existing.folder !== "drafts" && existing.folder !== "scheduled")) {
       return c.json({ error: "Draft not found." }, 404);
@@ -1163,9 +1172,29 @@ app.post("/api/mail/send", async (c) => {
     if (!storageCheck.ok) return c.json({ error: storageCheck.error }, storageCheck.status);
     await c.env.DB.prepare(
       `UPDATE messages SET mailbox_id = ?, folder = ?, from_addr = ?, to_addr = ?, cc_addr = ?, bcc_addr = ?, subject = ?, date_ms = ?, text_body = ?, html_body = ?, has_attachments = CASE WHEN ? = 1 THEN 1 ELSE has_attachments END, unread = 0, snippet = ?, scheduled_at = ?, in_reply_to = COALESCE(?, in_reply_to), thread_id = COALESCE(?, thread_id), storage_bytes = ?
-       WHERE id = ? AND user_id = ?`,
+       WHERE id = ? AND user_id = ?${access.sql}`,
     )
-      .bind(fromMailbox.id, folder, fromMailbox.fromHeader, to, cc, bcc, subject, now, text, html, attachments.length ? 1 : 0, snippet, scheduledAt, replyHeader, threadId, bodyBytes, id, ctx.workspaceId)
+      .bind(
+        fromMailbox.id,
+        folder,
+        fromMailbox.fromHeader,
+        to,
+        cc,
+        bcc,
+        subject,
+        now,
+        text,
+        html,
+        attachments.length ? 1 : 0,
+        snippet,
+        scheduledAt,
+        replyHeader,
+        threadId,
+        bodyBytes,
+        id,
+        ctx.workspaceId,
+        ...access.binds,
+      )
       .run();
   } else {
     const storageCheck = await assertStorageRoom(c.env.DB, ctx.workspaceId, bodyBytes + newAttBytes);

@@ -32,6 +32,10 @@ export const MARKETING_HTML_PREFIXES = [
   "/guides",
   "/blog",
   "/security",
+  "/migrate",
+  "/why-not-amazon-ses",
+  "/demo",
+  "/changelog",
   "/for",
   "/vs",
   "/research",
@@ -64,10 +68,17 @@ export const VS_PATHS = [
 
 export const SEO_PATHS = [
   "/google-workspace-alternative",
+  "/email-for-multiple-domains",
   "/email-hosting-for-multiple-domains",
   "/custom-domain-email",
   "/email-for-indie-hackers",
+  "/email-for-founders",
   "/email-for-side-projects",
+  "/email-for-multiple-saas-products",
+  "/email-for-venture-studios",
+  "/how-to-manage-email-for-multiple-domains",
+  "/how-to-send-email-from-multiple-domains",
+  "/google-workspace-multiple-domains",
   "/flap-vs-google-workspace",
   "/flap-vs-zoho",
   "/multiple-domains-one-inbox",
@@ -78,6 +89,21 @@ export const SEO_PATHS = [
   "/migadu-alternative",
   "/improvmx-alternative",
 ] as const;
+
+/**
+ * Alias / keyword URLs that 301 to a canonical SEO page (avoid thin duplicates).
+ * Worker returns 301; App soft-redirects for client navigations.
+ */
+export const SEO_REDIRECTS = {
+  "/one-inbox-multiple-domains": "/multiple-domains-one-inbox",
+  "/one-inbox-for-multiple-businesses": "/multiple-domains-one-inbox",
+  "/email-for-agencies": "/for/agencies",
+  "/email-for-portfolio-founders": "/email-for-founders",
+  "/custom-domain-email-for-side-projects": "/email-for-side-projects",
+  "/flap-vs-zoho-mail": "/flap-vs-zoho",
+  "/flap-vs-folio": "/folio-alternative",
+  "/flap-vs-fastmail": "/vs/fastmail",
+} as const satisfies Record<string, string>;
 
 export const BLOG_PATHS = [
   "/blog/custom-domain-email-without-google-workspace",
@@ -143,6 +169,10 @@ const MARKETING_EXACT = [
   "/guides",
   "/blog",
   "/security",
+  "/migrate",
+  "/why-not-amazon-ses",
+  "/demo",
+  "/changelog",
   "/for",
   "/vs",
   "/research",
@@ -151,6 +181,7 @@ const MARKETING_EXACT = [
 const KNOWN_CLIENT_PATHS = new Set<string>([
   ...MARKETING_EXACT,
   ...SEO_PATHS,
+  ...Object.keys(SEO_REDIRECTS),
   ...BLOG_PATHS,
   ...DNS_TOOL_PATHS,
   ...GUIDE_PATHS,
@@ -159,6 +190,10 @@ const KNOWN_CLIENT_PATHS = new Set<string>([
   "/for",
   "/vs",
   "/security",
+  "/migrate",
+  "/why-not-amazon-ses",
+  "/demo",
+  "/changelog",
   "/research",
   "/book",
 ]);

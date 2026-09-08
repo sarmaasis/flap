@@ -8,6 +8,7 @@ import { PLANS } from "../shared/plans.ts";
 import { OBSOLETE_PLAN_PHRASES, OBSOLETE_SETUP_PHRASES } from "../shared/obsolete-seo-phrases.ts";
 import { getSeoRegistry, isPrivatePath, absoluteCanonical } from "../src/content/seo-registry.ts";
 import { buildSitemapEntries } from "../src/content/sitemap.ts";
+import { SEO_PATHS } from "../shared/client-routes.ts";
 import { SEO_PAGE_DEFS } from "../src/content/seo-pages.ts";
 import { BLOG_POSTS } from "../src/content/blog.ts";
 import { TOOL_EXPLAINERS } from "../src/content/tool-explainers.ts";
@@ -172,9 +173,18 @@ function validatePrerender() {
   }
 }
 
+function validateSeoPathSync() {
+  const fromDefs = Object.keys(SEO_PAGE_DEFS).sort();
+  const fromRoutes = [...SEO_PATHS].sort();
+  if (fromDefs.join("\n") !== fromRoutes.join("\n")) {
+    fail(`SEO_PAGE_DEFS keys !== SEO_PATHS\n defs: ${fromDefs.join(", ")}\n routes: ${fromRoutes.join(", ")}`);
+  }
+}
+
 function main() {
   validateRegistry();
   validateSitemap();
+  validateSeoPathSync();
   validateStalePhrases();
   validatePricingConsistency();
   validatePrerender();

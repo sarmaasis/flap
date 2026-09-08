@@ -33,8 +33,12 @@ const FAQS = [
     a: "A unique address like hello@yourdomain.com. Each mailbox has its own inbox and storage. Aliases deliver into an existing mailbox.",
   },
   {
+    q: "Why upgrade if every paid plan has 50 domains?",
+    a: "Domains are intentionally high on all paid plans. You upgrade for mailboxes, team seats, storage, and monthly send/newsletter caps — capacity for the same product surface.",
+  },
+  {
     q: "Do plans share the same features?",
-    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes, not the product surface. Free lets you try real mailboxes before choosing a paid plan.",
+    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes, not the core inbox. Free lets you try real mailboxes before choosing a paid plan.",
   },
   {
     q: "Do you support IMAP/SMTP today?",
@@ -42,7 +46,7 @@ const FAQS = [
   },
   {
     q: "Can I use multiple domains?",
-    a: `Yes. Every paid plan includes up to ${PLANS.solo.limits.domains} custom domains. Your plan limit is based on mailboxes.`,
+    a: `Yes. Every paid plan includes up to ${PLANS.solo.limits.domains} custom domains. Your plan limit is based on mailboxes and seats.`,
   },
 ];
 
@@ -56,6 +60,7 @@ export default function PricingPage() {
       description: `Custom-domain email hosting plans: Free $0 forever, Solo $${PLANS.solo.price_monthly}/mo (3 mailboxes, 50 domains), Pro $${PLANS.pro.price_monthly}/mo (6 mailboxes, 5 seats), Team $${PLANS.team.price_monthly}/mo. Annual billing = 2 months free. No per-domain seat tax.`,
       path: PATH,
     });
+    track("pricing_view");
     setJsonLd("pricing-page", [
       webPageLd({
         title: "Pricing | Flap",
@@ -83,8 +88,25 @@ export default function PricingPage() {
         </h1>
         <LastUpdated date={UPDATED} />
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)]">
-          Start free with real custom-domain mailboxes. No credit card required. Paid plans include up to {PLANS.solo.limits.domains} custom domains, AI assistant, newsletters, calendar, booking pages, and a transactional email API. From ${PLANS.solo.price_monthly}/month.
+          Start free with real custom-domain mailboxes. Paid plans include up to {PLANS.solo.limits.domains} custom
+          domains — you upgrade for mailboxes, seats, and send capacity, not a different product. From $
+          {PLANS.solo.price_monthly}/month.
         </p>
+
+        <div className="mt-6 grid gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm text-[var(--muted)] sm:grid-cols-3">
+          <p>
+            <strong className="text-[var(--fg)]">Solo</strong> — one founder, up to {PLANS.solo.limits.mailboxes}{" "}
+            mailboxes, API included.
+          </p>
+          <p>
+            <strong className="text-[var(--fg)]">Pro</strong> — up to {PLANS.pro.limits.team_seats} seats and{" "}
+            {PLANS.pro.limits.mailboxes} mailboxes for shared support@.
+          </p>
+          <p>
+            <strong className="text-[var(--fg)]">Team</strong> — studio capacity: more mailboxes and seats for client
+            domains.
+          </p>
+        </div>
 
         <div
           className="mt-8 inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-hover)] p-1 text-sm"

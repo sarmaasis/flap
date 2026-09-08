@@ -26,6 +26,7 @@ import type { Attachment, Label, MailFull, MailSummary, MessageNote } from "../l
 import { api } from "../lib/api";
 import { extractEmail, fmtDate, initials, senderName } from "../lib/format";
 import { cn } from "../lib/utils";
+import { sanitizeEmailHtml } from "../../shared/sanitize-email-html";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
@@ -50,8 +51,10 @@ type TeamMember = { user_id: string; email: string };
 
 /** Soften HTML email canvas to match Flap elevated surface (light + dark). */
 function emailSrcDoc(html: string): string {
+  const safe = sanitizeEmailHtml(html);
   const softHead =
     '<meta name="color-scheme" content="light dark" />' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data: https: http:; style-src \'unsafe-inline\'; font-src data: https:; media-src https: http:; base-uri \'none\'; form-action \'none\'; frame-ancestors \'none\'" />' +
     `<style>
       :root{
         color-scheme: light dark;
@@ -88,14 +91,14 @@ function emailSrcDoc(html: string): string {
       document.documentElement.getAttribute("data-theme") === "dark")
       ? ' class="flap-dark"'
       : "";
-  if (/<head[\s>]/i.test(html)) {
-    const withHead = html.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
+  if (/<head[\s>]/i.test(safe)) {
+    const withHead = safe.replace(/<head([^>]*)>/i, `<head$1>${softHead}`);
     return withHead.replace(/<html([^>]*)>/i, `<html$1${darkClass}>`);
   }
-  if (/<html[\s>]/i.test(html)) {
-    return html.replace(/<html([^>]*)>/i, `<html$1${darkClass}><head>${softHead}</head>`);
+  if (/<html[\s>]/i.test(safe)) {
+    return safe.replace(/<html([^>]*)>/i, `<html$1${darkClass}><head>${softHead}</head>`);
   }
-  return `<!DOCTYPE html><html${darkClass}><head>${softHead}</head><body>${html}</body></html>`;
+  return `<!DOCTYPE html><html${darkClass}><head>${softHead}</head><body>${safe}</body></html>`;
 }
 
 export type MessageReaderProps = {
@@ -515,6 +518,7 @@ export default function MessageReader({
             <iframe
               title="Message body"
               sandbox=""
+              referrerPolicy="no-referrer"
               srcDoc={emailSrcDoc(message.html_body)}
               className="block min-h-[360px] w-full border-0 bg-[var(--email-canvas,#f6f3ee)]"
             />

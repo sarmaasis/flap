@@ -3,7 +3,7 @@
  * Sitemap and build-time validation consume this - do not maintain a parallel URL list.
  */
 import { PLANS, PLAN_ORDER } from "../../shared/plans";
-import { pricingOneLiner, SITE_URL } from "../../shared/product-facts";
+import { pricingOneLiner, POSITIONING_THESIS, SITE_URL } from "../../shared/product-facts";
 import { BLOG_POSTS } from "./blog";
 import { GUIDE_CONTENT } from "./guides";
 import {
@@ -87,7 +87,7 @@ export const PRIVATE_PATH_PREFIXES = [
   "/reset-password",
 ] as const;
 
-const SITE_MODIFIED = "2026-09-07";
+const SITE_MODIFIED = "2026-09-09";
 
 function ogSlug(path: string): string {
   if (path === "/") return "home";
@@ -120,7 +120,7 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
       path: "/",
       title: MARKETING.seo_title,
       description: MARKETING.seo_description,
-      h1: "Every project. One calm inbox.",
+      h1: POSITIONING_THESIS,
       pageType: "home",
       indexable: true,
       sitemap: true,
@@ -367,6 +367,10 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
   }
 
   out.push(entry({ path: "/security", title: "Security | Flap", description: "How Flap handles privacy, export, TLS, and mail infrastructure on Amazon SES and Cloudflare.", h1: "Privacy and security", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "Flap does not scan mail for ads. Customer mail runs on Amazon SES; the app on Cloudflare." }));
+  out.push(entry({ path: "/migrate", title: "Migrate to Flap | Custom-domain email cutover", description: "Verify DNS first, test send, switch MX, rollback, and export. Honest migration narrative for custom-domain email.", h1: "Migrate to Flap without guessing the MX cutover", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "Add and verify your domain in Flap before changing MX. Export .mbox/JSON anytime; no automatic IMAP import today." }));
+  out.push(entry({ path: "/why-not-amazon-ses", title: "Why not Amazon SES alone? | Flap", description: "Flap uses Amazon SES for customer mail. The product layer adds inbox, identities, reply-from, and onboarding.", h1: "Why not use Amazon SES directly?", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "SES is the mail pipe. Flap is the multi-domain inbox product on top — build-vs-buy, not an attack on AWS." }));
+  out.push(entry({ path: "/demo", title: "Interactive demo | Flap", description: "Try Flap’s multi-domain inbox without signing up: open a message and see reply From lock to the receiving domain.", h1: "One inbox. Correct From on reply.", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "Front-end-only demo with fake domains — nothing is sent." }));
+  out.push(entry({ path: "/changelog", title: "Changelog | Flap", description: "Product updates for Flap — multi-domain custom email inbox.", h1: "What shipped", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED, answerFirst: "Concise product notes with real dates." }));
   out.push(entry({ path: "/for", title: "Flap for your role | Flap", description: "ICP pages for indie hackers, startups, freelancers, developers, agencies, ecommerce, and creators.", h1: "Flap for your role", pageType: "collection", indexable: true, sitemap: true, modified: SITE_MODIFIED }));
   out.push(entry({ path: "/vs", title: "Compare Flap | Flap", description: "Compare Flap with Google Workspace, Shipmail, Hydra, Folio, Zoho, and more.", h1: "Compare Flap", pageType: "collection", indexable: true, sitemap: true, modified: SITE_MODIFIED }));
   out.push(entry({ path: "/research", title: "Business email cost research | Flap", description: "2026 cost table comparing Workspace, Shipmail sticker prices, and Flap plans.", h1: "Business email cost, 2026", pageType: "product", indexable: true, sitemap: true, modified: SITE_MODIFIED }));

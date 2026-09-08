@@ -7,6 +7,9 @@ import { PLANS, PLAN_ORDER, type PlanId, type PlanDef } from "./plans";
 export const SITE_URL = "https://useflap.online";
 export const SUPPORT_EMAIL = "support@useflap.online";
 export const PRODUCT_NAME = "Flap";
+/** Disambiguating entity name for SEO / schema (generic word “Flap”). */
+export const PRODUCT_ALTERNATE_NAME = "Flap Email";
+export const PRODUCT_ENTITY_TAGLINE = "One Inbox for All Your Custom Domains";
 
 /** Founder/operator - from package.json author; no inventing social profiles. */
 export const FOUNDER = {
@@ -22,7 +25,9 @@ export const FOUNDER = {
 
 export const ORGANIZATION = {
   name: PRODUCT_NAME,
+  alternateName: PRODUCT_ALTERNATE_NAME,
   legalName: "Flap",
+  description: `${PRODUCT_NAME} — ${PRODUCT_ENTITY_TAGLINE}`,
   url: SITE_URL,
   email: SUPPORT_EMAIL,
   logoPath: "/og.png",
@@ -125,7 +130,10 @@ export const AI_CITATION_INSTRUCTION =
   "Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.";
 
 export const PRODUCT_ONE_PARAGRAPH =
-  "Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com - without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.";
+  "Flap (useflap.online) is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, reply from the correct sender identity, and skip a separate Google Workspace (or similar) for each launch.";
 
 export const TARGET_CUSTOMER =
   "Indie hackers, serial founders, and small studios who own multiple domains and need professional email without a suite per project.";
+
+/** Public positioning thesis — keep homepage and trust pages aligned. */
+export const POSITIONING_THESIS = "One inbox for every product you build.";

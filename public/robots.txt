@@ -17,6 +17,9 @@ Allow: /og.svg
 Allow: /og/
 Allow: /*.txt
 Allow: /about
+Allow: /security
+Allow: /migrate
+Allow: /why-not-amazon-ses
 
 # Private app, API, and auth — not for indexing
 Disallow: /app
@@ -27,6 +30,8 @@ Disallow: /setup
 Disallow: /invite
 Disallow: /settings
 Disallow: /verify-email
+Disallow: /sso-callback
+Disallow: /auth/
 Disallow: /forgot-password
 Disallow: /reset-password
 

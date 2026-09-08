@@ -3,8 +3,10 @@ import { randomId, nowMs } from "./ids";
 /** Allowed client/server event names — keep in sync with src/lib/analytics.ts */
 export const ANALYTICS_EVENTS = new Set([
   "landing_view",
+  "homepage_view",
   "pricing_view",
   "signup_clicked",
+  "cta_connect_domain",
   "comparison_page_view",
   "calculator_started",
   "calculator_completed",
@@ -14,6 +16,7 @@ export const ANALYTICS_EVENTS = new Set([
   "email_verified",
   "domain_add_started",
   "domain_added",
+  "second_domain_added",
   "domain_dns_records_viewed",
   "domain_check_started",
   "domain_identity_verified",
@@ -45,6 +48,8 @@ export const ANALYTICS_EVENTS = new Set([
   "referral_reward_granted",
   "guide_view",
   "seo_page_view",
+  "migration_page_view",
+  "content_to_pricing",
 ]);
 
 type Props = Record<string, string | number | boolean | null | undefined>;

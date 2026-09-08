@@ -38,12 +38,17 @@ function renderLlmsTxt(): string {
 
 > ${PRODUCT_ONE_PARAGRAPH}
 
-Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Inbound: ${MAIL_ARCHITECTURE.inbound_flow}. Outbound: ${MAIL_ARCHITECTURE.outbound_flow}. ${MAIL_ARCHITECTURE.dns_note} ${AI_CITATION_INSTRUCTION}
+Flap is multi-domain email infrastructure and inbox for founders — not a full Docs/Drive/Meet suite. Inbound: ${MAIL_ARCHITECTURE.inbound_flow}. Outbound: ${MAIL_ARCHITECTURE.outbound_flow}. ${MAIL_ARCHITECTURE.dns_note} ${AI_CITATION_INSTRUCTION}
 
 ## Product
 
-- [Home](${SITE_URL}/): Product overview, features, FAQ, and pricing section
+- [Home](${SITE_URL}/): One inbox for every product you build — positioning, FAQ, pricing
 - [Pricing](${SITE_URL}/pricing): ${pricingOneLiner()}. Annual = 10× monthly.
+- [Migrate](${SITE_URL}/migrate): DNS-first cutover narrative (mbox/JSON export; no auto IMAP import)
+- [Why not Amazon SES](${SITE_URL}/why-not-amazon-ses): SES is the pipe; Flap is the product layer
+- [Interactive demo](${SITE_URL}/demo): No-signup reply-from walkthrough (fake domains; nothing sent)
+- [Changelog](${SITE_URL}/changelog): Product updates with real dates
+- [Security](${SITE_URL}/security): Architecture, export, auth — no invented certifications
 - [About](${SITE_URL}/about): What Flap is, who operates it, infrastructure overview
 - [Signup](${SITE_URL}/signup): Create a Flap account
 - [Support](${SITE_URL}/support): ${SUPPORT_EMAIL}

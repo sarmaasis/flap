@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import RequireVerified from "./components/RequireVerified";
-import { SEO_PATHS } from "./content/seo-paths";
+import { SEO_PATHS, SEO_REDIRECTS } from "./content/seo-paths";
 import { FOR_PATHS, VS_PATHS } from "./content/hubs";
 import { BLOG_PATHS } from "./content/blog-paths";
 import { DNS_TOOL_PATHS as DNS_TOOL_PATH_LIST, GUIDE_PATHS as GUIDE_PATH_LIST } from "./content/tool-guide-paths";
@@ -40,6 +40,10 @@ const StatusPage = lazy(() => import("./pages/StatusPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const SecurityPage = lazy(() => import("./pages/SecurityPage"));
+const MigratePage = lazy(() => import("./pages/MigratePage"));
+const WhyNotSesPage = lazy(() => import("./pages/WhyNotSesPage"));
+const DemoPage = lazy(() => import("./pages/DemoPage"));
+const ChangelogPage = lazy(() => import("./pages/ChangelogPage"));
 const HubIndexPage = lazy(() => import("./pages/HubIndexPage"));
 const HubPage = lazy(() => import("./pages/HubPage"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
@@ -59,7 +63,16 @@ function Screen({ children }: { children: ReactNode }) {
   return <Suspense fallback={<div className={tw.authShell}><p className={tw.muted}>Loading Flap…</p></div>}>{children}</Suspense>;
 }
 
+function SeoAliasRedirect({ to }: { to: string }) {
+  useEffect(() => {
+    window.history.replaceState({}, "", to);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [to]);
+  return <div className={tw.authShell}><p className={tw.muted}>Redirecting…</p></div>;
+}
+
 const SEO_PATH_SET = new Set<string>(SEO_PATHS);
+const SEO_REDIRECT_MAP = SEO_REDIRECTS as Record<string, string>;
 const DNS_TOOL_PATHS = new Set<string>(DNS_TOOL_PATH_LIST);
 const GUIDE_PATHS = new Set<string>(GUIDE_PATH_LIST);
 const BLOG_PATH_SET = new Set<string>(BLOG_PATHS);
@@ -225,6 +238,10 @@ export default function App() {
 
 
   if (path === "/security") return <Screen><SecurityPage /></Screen>;
+  if (path === "/migrate") return <Screen><MigratePage /></Screen>;
+  if (path === "/why-not-amazon-ses") return <Screen><WhyNotSesPage /></Screen>;
+  if (path === "/demo") return <Screen><DemoPage /></Screen>;
+  if (path === "/changelog") return <Screen><ChangelogPage /></Screen>;
   if (path === "/for") return <Screen><HubIndexPage kind="for" /></Screen>;
   if (path === "/vs") return <Screen><HubIndexPage kind="vs" /></Screen>;
   if (FOR_PATH_SET.has(path) || VS_PATH_SET.has(path)) {
@@ -267,6 +284,9 @@ export default function App() {
   }
   if (BLOG_PATH_SET.has(path)) {
     return <Screen><BlogPost path={path} /></Screen>;
+  }
+  if (SEO_REDIRECT_MAP[path]) {
+    return <Screen><SeoAliasRedirect to={SEO_REDIRECT_MAP[path]!} /></Screen>;
   }
   if (SEO_PATH_SET.has(path)) {
     return <Screen><SeoLanding path={path} /></Screen>;

@@ -4,6 +4,10 @@ import { appOrigin } from "./system-email";
 import { verifyMailgunWebhook, verifySesInboundSignature } from "./mail-provider";
 import { nowMs, randomId } from "./ids";
 import { trackServerEvent } from "./analytics";
+import { isAllowedSnsSubscribeUrl, softBounceExpiresAt } from "../../shared/security-guards";
+import { verifySnsEnvelopeIfPresent } from "./sns-verify";
+
+export { isAddressSuppressed } from "./suppressions";
 
 type App = { Bindings: Env };
 
@@ -74,6 +78,9 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
     });
     if (!result.ok) {
       if (result.reason === "duplicate") return c.json({ ok: true, duplicate: true });
+      if (result.reason === "in_progress" || result.reason === "store_failed") {
+        return c.json({ error: "Ingest in progress or failed; retry.", reason: result.reason }, 503);
+      }
       if (result.reason === "no_mailbox") {
         return c.json({ error: "Recipient not configured in Flap.", reason: result.reason }, 406);
       }
@@ -186,6 +193,9 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
         recipient: envelope[0],
       });
       if (result.reason === "duplicate") return c.json({ ok: true, duplicate: true });
+      if (result.reason === "in_progress" || result.reason === "store_failed") {
+        return c.json({ error: "Ingest in progress or failed; retry.", reason: result.reason }, 503);
+      }
       if (result.reason === "no_mailbox" || result.reason === "domain_not_ready") {
         return c.json({ error: "Recipient not configured or domain not receiving-ready.", reason: result.reason }, 406);
       }
@@ -221,7 +231,6 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
     const rawBody = await c.req.text();
     const timestamp = c.req.header("X-Flap-Timestamp") || "";
     const signature = c.req.header("X-Flap-Signature") || "";
-    // SNS subscription confirmation is unsigned JSON with SubscribeURL — handle separately.
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(rawBody) as Record<string, unknown>;
@@ -229,19 +238,33 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
       return c.json({ error: "Expected JSON." }, 400);
     }
 
-    if (parsed.Type === "SubscriptionConfirmation" && typeof parsed.SubscribeURL === "string") {
-      await fetch(parsed.SubscribeURL).catch(() => undefined);
-      return c.json({ ok: true, confirmed: true });
+    // Native SNS signature (SigningCertURL + Signature) when body is an SNS envelope.
+    // Defense in depth beyond Flap HMAC; also hardens allow-unsigned direct SNS posts.
+    const sns = await verifySnsEnvelopeIfPresent(parsed);
+    if (sns.required && !sns.ok) {
+      return c.json({ error: "Invalid SNS signature." }, 401);
     }
 
+    const allowUnsigned = (c.env.SES_INBOUND_ALLOW_UNSIGNED || "").trim() === "true";
     const valid = await verifySesInboundSignature(c.env, {
       body: rawBody,
       signature,
       timestamp: timestamp || undefined,
     });
-    // Also accept SNS Notification wrapping Message JSON when secret unset in early ops.
-    if (!valid && (c.env.SES_INBOUND_ALLOW_UNSIGNED || "").trim() !== "true" && parsed.Type !== "Notification") {
+    // Never accept unsigned Notifications / events when a secret is configured.
+    // SES_INBOUND_ALLOW_UNSIGNED is the only explicit escape hatch (local/dev).
+    // If the body is an SNS envelope, native SNS verify already ran above even when allow-unsigned.
+    if (!valid && !allowUnsigned) {
       return c.json({ error: "Invalid signature." }, 401);
+    }
+
+    if (parsed.Type === "SubscriptionConfirmation" && typeof parsed.SubscribeURL === "string") {
+      if (!isAllowedSnsSubscribeUrl(parsed.SubscribeURL)) {
+        console.warn("Rejected SNS SubscribeURL (host/protocol not allowed)");
+        return c.json({ error: "Invalid SubscribeURL." }, 400);
+      }
+      await fetch(parsed.SubscribeURL).catch(() => undefined);
+      return c.json({ ok: true, confirmed: true });
     }
 
     const messageRaw =
@@ -269,13 +292,18 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
         const email = (r.emailAddress || "").trim().toLowerCase();
         if (!email) continue;
         const reason = event.bounce?.bounceType === "Transient" ? "soft_bounce" : "bounce";
-        await upsertSuppression(c.env.DB, {
-          email,
-          reason,
-          source: "ses",
-          providerMessageId: event.mail?.messageId,
-          now,
-        });
+        const owner = await resolveOutboundOwner(c.env.DB, event.mail?.messageId);
+        // Workspace-scoped suppressions: only write when we can attribute the outbound send.
+        if (owner) {
+          await upsertSuppression(c.env.DB, {
+            userId: owner,
+            email,
+            reason,
+            source: "ses",
+            providerMessageId: event.mail?.messageId,
+            now,
+          });
+        }
         await recordDeliveryEvent(c.env.DB, {
           recipientEmail: email,
           kind: reason === "soft_bounce" ? "soft_bounce" : "bounce",
@@ -283,13 +311,13 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
           providerMessageId: event.mail?.messageId || "",
           now,
         });
-        if (reason !== "soft_bounce") {
+        if (reason !== "soft_bounce" && owner) {
           await c.env.DB.prepare(
             `UPDATE newsletter_subscribers
              SET status = 'unsubscribed', unsubscribed_at = ?
-             WHERE email = ? AND status != 'unsubscribed'`,
+             WHERE user_id = ? AND email = ? AND status != 'unsubscribed'`,
           )
-            .bind(now, email)
+            .bind(now, owner, email)
             .run()
             .catch(() => undefined);
         }
@@ -303,13 +331,17 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
       for (const r of event.complaint?.complainedRecipients ?? []) {
         const email = (r.emailAddress || "").trim().toLowerCase();
         if (!email) continue;
-        await upsertSuppression(c.env.DB, {
-          email,
-          reason: "complaint",
-          source: "ses",
-          providerMessageId: event.mail?.messageId,
-          now,
-        });
+        const owner = await resolveOutboundOwner(c.env.DB, event.mail?.messageId);
+        if (owner) {
+          await upsertSuppression(c.env.DB, {
+            userId: owner,
+            email,
+            reason: "complaint",
+            source: "ses",
+            providerMessageId: event.mail?.messageId,
+            now,
+          });
+        }
         await recordDeliveryEvent(c.env.DB, {
           recipientEmail: email,
           kind: "complaint",
@@ -317,14 +349,16 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
           providerMessageId: event.mail?.messageId || "",
           now,
         });
-        await c.env.DB.prepare(
-          `UPDATE newsletter_subscribers
-           SET status = 'unsubscribed', unsubscribed_at = ?
-           WHERE email = ? AND status != 'unsubscribed'`,
-        )
-          .bind(now, email)
-          .run()
-          .catch(() => undefined);
+        if (owner) {
+          await c.env.DB.prepare(
+            `UPDATE newsletter_subscribers
+             SET status = 'unsubscribed', unsubscribed_at = ?
+             WHERE user_id = ? AND email = ? AND status != 'unsubscribed'`,
+          )
+            .bind(now, owner, email)
+            .run()
+            .catch(() => undefined);
+        }
       }
       await trackServerEvent(c.env.DB, "ses_complaint_received", {
         props: { count: event.complaint?.complainedRecipients?.length ?? 0 },
@@ -333,6 +367,20 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
 
     return c.json({ ok: true });
   });
+}
+
+/** Resolve workspace owner from outbound SES message id (not bounce recipient domain). */
+async function resolveOutboundOwner(
+  db: D1Database,
+  providerMessageId?: string | null,
+): Promise<string | null> {
+  const mid = (providerMessageId || "").trim();
+  if (!mid) return null;
+  const row = await db
+    .prepare("SELECT user_id FROM messages WHERE provider_message_id = ? LIMIT 1")
+    .bind(mid)
+    .first<{ user_id: string }>();
+  return row?.user_id || null;
 }
 
 async function recordDeliveryEvent(
@@ -345,21 +393,23 @@ async function recordDeliveryEvent(
     now: number;
   },
 ): Promise<void> {
-  const domain = opts.recipientEmail.includes("@")
-    ? opts.recipientEmail.split("@").pop()!.toLowerCase()
-    : "";
-  let userId = "";
+  let userId = (await resolveOutboundOwner(db, opts.providerMessageId)) || "";
   let domainId = "";
-  if (domain) {
-    const row = await db
-      .prepare("SELECT id, user_id FROM domains WHERE lower(name) = ? LIMIT 1")
-      .bind(domain)
-      .first<{ id: string; user_id: string }>();
-    if (row) {
-      userId = row.user_id;
-      domainId = row.id;
-    }
+  if (userId) {
+    const fromMsg = await db
+      .prepare(
+        `SELECT m.mailbox_id, mb.domain_id
+         FROM messages m
+         LEFT JOIN mailboxes mb ON mb.id = m.mailbox_id
+         WHERE m.provider_message_id = ? AND m.user_id = ?
+         LIMIT 1`,
+      )
+      .bind(opts.providerMessageId, userId)
+      .first<{ mailbox_id: string | null; domain_id: string | null }>();
+    domainId = fromMsg?.domain_id || "";
   }
+  // Fallback: never attribute by bounce *recipient* domain (external addresses).
+  // Only attribute by Flap *sending* domain when From domain is known via message.
   await db
     .prepare(
       `INSERT INTO delivery_event_log
@@ -395,6 +445,7 @@ async function recordDeliveryEvent(
 async function upsertSuppression(
   db: D1Database,
   opts: {
+    userId: string;
     email: string;
     reason: string;
     source: string;
@@ -402,23 +453,36 @@ async function upsertSuppression(
     now: number;
   },
 ): Promise<void> {
+  if (!opts.userId) return;
+  const expiresAt = opts.reason === "soft_bounce" ? softBounceExpiresAt(opts.now) : null;
   const existing = await db
-    .prepare("SELECT id FROM mail_suppressions WHERE email = ?")
-    .bind(opts.email)
+    .prepare("SELECT id FROM mail_suppressions WHERE user_id = ? AND email = ?")
+    .bind(opts.userId, opts.email)
     .first<{ id: string }>();
   if (existing) {
     await db
-      .prepare("UPDATE mail_suppressions SET reason = ?, source = ?, provider_message_id = ? WHERE id = ?")
-      .bind(opts.reason, opts.source, opts.providerMessageId || null, existing.id)
+      .prepare(
+        "UPDATE mail_suppressions SET reason = ?, source = ?, provider_message_id = ?, expires_at = ? WHERE id = ? AND user_id = ?",
+      )
+      .bind(opts.reason, opts.source, opts.providerMessageId || null, expiresAt, existing.id, opts.userId)
       .run();
     return;
   }
   await db
     .prepare(
-      `INSERT INTO mail_suppressions (id, email, reason, source, provider_message_id, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+      `INSERT INTO mail_suppressions (id, user_id, email, reason, source, provider_message_id, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(randomId("sup"), opts.email, opts.reason, opts.source, opts.providerMessageId || null, opts.now)
+    .bind(
+      randomId("sup"),
+      opts.userId,
+      opts.email,
+      opts.reason,
+      opts.source,
+      opts.providerMessageId || null,
+      opts.now,
+      expiresAt,
+    )
     .run();
 }
 
@@ -441,15 +505,4 @@ function logInboundOutcome(meta: {
       recipient: meta.recipient ? meta.recipient.replace(/^(.).*(@.*)$/, "$1***$2") : null,
     }),
   );
-}
-
-export async function isAddressSuppressed(db: D1Database, email: string): Promise<boolean> {
-  const row = await db
-    .prepare(
-      `SELECT id FROM mail_suppressions
-       WHERE email = ? AND (expires_at IS NULL OR expires_at > ?)`,
-    )
-    .bind(email.toLowerCase(), nowMs())
-    .first();
-  return Boolean(row);
 }

@@ -18,7 +18,7 @@ import {
 } from "./calendar-invite";
 import { nowMs, randomId } from "./ids";
 import { buildIcs, parseIcs, type IcsAttendee } from "../../shared/ics";
-import { resolveWorkspace } from "./team";
+import { resolveWorkspace, mailboxAccessClause } from "./team";
 import { planAtLeast, type AppEnv } from "./plan-guard";
 
 export { processQueuedNewsletterBlasts } from "./newsletters";
@@ -180,11 +180,20 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "solo")) return c.json({ error: "Open tracking opt-in requires Solo+." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { enabled?: boolean };
-    await c.env.DB.prepare("UPDATE messages SET open_track = ? WHERE id = ? AND user_id = ?")
-      .bind(body.enabled ? 1 : 0, c.req.param("id"), ctx.workspaceId)
+    const msg = await c.env.DB.prepare(
+      `SELECT id FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
+    )
+      .bind(c.req.param("id"), ctx.workspaceId, ...access.binds)
+      .first();
+    if (!msg) return c.json({ error: "Message not found." }, 404);
+    await c.env.DB.prepare(
+      `UPDATE messages SET open_track = ? WHERE id = ? AND user_id = ?${access.sql}`,
+    )
+      .bind(body.enabled ? 1 : 0, c.req.param("id"), ctx.workspaceId, ...access.binds)
       .run();
     return c.json({ ok: true, open_track: Boolean(body.enabled), default: false });
   });
@@ -194,12 +203,15 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Quarantine requires Pro+.", items: [] }, 402);
     const rows = await c.env.DB.prepare(
-      "SELECT id, subject, from_addr, virus_status, created_at FROM messages WHERE user_id = ? AND virus_status = 'quarantine' ORDER BY created_at DESC LIMIT 50",
+      `SELECT id, subject, from_addr, virus_status, created_at FROM messages
+       WHERE user_id = ? AND virus_status = 'quarantine'${access.sql}
+       ORDER BY created_at DESC LIMIT 50`,
     )
-      .bind(ctx.workspaceId)
+      .bind(ctx.workspaceId, ...access.binds)
       .all();
     return c.json({
       items: rows.results ?? [],
@@ -551,11 +563,12 @@ export function registerStudioChannelRoutes(app: Hono<AppEnv>) {
     const messageId = (body.message_id || "").trim();
     if (!messageId) return c.json({ error: "message_id is required." }, 400);
 
+    const access = mailboxAccessClause(ctx);
     const message = await c.env.DB.prepare(
       `SELECT id, mailbox_id, from_addr, to_addr, subject, rfc_message_id
-       FROM messages WHERE id = ? AND user_id = ?`,
+       FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
     )
-      .bind(messageId, ctx.workspaceId)
+      .bind(messageId, ctx.workspaceId, ...access.binds)
       .first<{
         id: string;
         mailbox_id: string;

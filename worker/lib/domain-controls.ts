@@ -15,6 +15,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can park domains." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "solo")) return c.json({ error: "Park requires Solo or higher." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { parked?: boolean; mode?: string };
@@ -34,6 +35,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can change reputation mode." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     const body = (await c.req.json().catch(() => ({}))) as { mode?: string };
     const mode = body.mode === "isolated" ? "isolated" : "shared";
@@ -82,6 +84,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can manage health badges." }, 403);
     const domain = await c.env.DB.prepare("SELECT id, name FROM domains WHERE id = ? AND user_id = ?")
       .bind(c.req.param("id"), ctx.workspaceId)
       .first<{ id: string; name: string }>();
@@ -119,6 +122,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can run domain checks." }, 403);
     const domain = await c.env.DB.prepare(
       "SELECT id, name, sending_ready_at, receiving_ready_at, identity_verified_at FROM domains WHERE id = ? AND user_id = ?",
     )
@@ -147,6 +151,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can change retention." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "team")) return c.json({ error: "Custom retention requires Team." }, 402);
     const body = (await c.req.json().catch(() => ({}))) as { days?: number | null; legal_hold?: boolean };
@@ -162,6 +167,7 @@ export function registerDomainControlRoutes(app: Hono<AppEnv>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can view auth upgrades." }, 403);
     const plan = await getEffectivePlan(c.env.DB, ctx.workspaceId);
     if (!planAtLeast(plan.plan_id, "pro")) return c.json({ error: "Auth upgrades require Pro or Team." }, 402);
     const domain = await c.env.DB.prepare("SELECT name FROM domains WHERE id = ? AND user_id = ?")

@@ -36,7 +36,11 @@ const FOOTER_COLUMNS = [
     links: [
       { href: "/pricing", label: "Pricing" },
       { href: "/security", label: "Security" },
+      { href: "/migrate", label: "Migrate" },
+      { href: "/demo", label: "Demo" },
+      { href: "/why-not-amazon-ses", label: "Why not SES?" },
       { href: "/about", label: "About" },
+      { href: "/changelog", label: "Changelog" },
       { href: "/status", label: "Status" },
       { href: "/for", label: "Who it's for" },
       { href: "/vs", label: "Compare" },
@@ -63,7 +67,11 @@ const FOOTER_COLUMNS = [
       { href: "/docs/getting-started", label: "Getting started" },
       { href: "/research", label: "Research" },
       { href: "/guides", label: "Guides" },
+      { href: "/email-for-multiple-domains", label: "Multi-domain email" },
       { href: "/email-for-indie-hackers", label: "Indie hackers" },
+      { href: "/email-for-founders", label: "Founders" },
+      { href: "/email-for-multiple-saas-products", label: "Multi-SaaS email" },
+      { href: "/how-to-manage-email-for-multiple-domains", label: "Manage multi-domain email" },
     ],
   },
   {

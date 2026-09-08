@@ -14,6 +14,10 @@ import {
   touchContact,
 } from "./lib/workspace";
 import { broadcastInboxEvent } from "./inbox-hub";
+import {
+  inboundClaimIsFreshProcessing,
+  inboundClaimIsTerminalDuplicate,
+} from "../shared/security-guards";
 
 type MailboxRow = {
   id: string;
@@ -33,7 +37,9 @@ export type IngestResult =
         | "parse_error"
         | "duplicate"
         | "domain_not_ready"
-        | "disabled";
+        | "disabled"
+        | "in_progress"
+        | "store_failed";
       detail?: string;
     };
 
@@ -59,34 +65,100 @@ export async function ingestRawEmail(
   }
 
   if (opts.providerMessageId) {
+    const provider = opts.provider || "ses";
     const claim = await env.DB.prepare(
       `INSERT OR IGNORE INTO inbound_idempotency
         (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
        VALUES (?, ?, ?, NULL, NULL, NULL, 'processing', ?)`,
     )
-      .bind(randomId("idem"), opts.provider || "ses", opts.providerMessageId, nowMs())
+      .bind(randomId("idem"), provider, opts.providerMessageId, nowMs())
       .run();
     if ((claim.meta.changes ?? 0) === 0) {
-      return { ok: false, reason: "duplicate" };
+      const existing = await env.DB.prepare(
+        `SELECT outcome, created_at FROM inbound_idempotency
+         WHERE provider = ? AND provider_message_id = ?`,
+      )
+        .bind(provider, opts.providerMessageId)
+        .first<{ outcome: string; created_at: number }>();
+      if (!existing || inboundClaimIsTerminalDuplicate(existing.outcome)) {
+        return { ok: false, reason: "duplicate" };
+      }
+      if (inboundClaimIsFreshProcessing(existing.outcome, existing.created_at, nowMs())) {
+        // Another worker is mid-ingest — ask the provider to retry; do not ACK as stored.
+        return { ok: false, reason: "in_progress" };
+      }
+      // Stale `processing` claim (crash after SMTP accept) — reclaim so the message is not lost.
+      await env.DB.prepare(
+        `DELETE FROM inbound_idempotency WHERE provider = ? AND provider_message_id = ? AND outcome = 'processing'`,
+      )
+        .bind(provider, opts.providerMessageId)
+        .run()
+        .catch(() => undefined);
+      const reclaim = await env.DB.prepare(
+        `INSERT OR IGNORE INTO inbound_idempotency
+          (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
+         VALUES (?, ?, ?, NULL, NULL, NULL, 'processing', ?)`,
+      )
+        .bind(randomId("idem"), provider, opts.providerMessageId, nowMs())
+        .run();
+      if ((reclaim.meta.changes ?? 0) === 0) {
+        return { ok: false, reason: "in_progress" };
+      }
     }
   }
 
-  const releaseClaim = async (outcome: string) => {
+  const releaseClaim = async (
+    outcome: string,
+    meta?: { domainId?: string; mailboxId?: string; userId?: string; detail?: string },
+  ) => {
     if (!opts.providerMessageId) return;
+    const provider = opts.provider || "ses";
+    // Release the processing lock so SES can retry; durable trail goes to inbound_ingest_log.
     await env.DB.prepare(
       `DELETE FROM inbound_idempotency WHERE provider = ? AND provider_message_id = ? AND outcome = 'processing'`,
     )
-      .bind(opts.provider || "ses", opts.providerMessageId)
+      .bind(provider, opts.providerMessageId)
       .run()
       .catch(() => undefined);
     if (outcome === "duplicate") {
-      // Keep a permanent row so racing twin deliveries stay collapsed.
       await env.DB.prepare(
         `INSERT OR IGNORE INTO inbound_idempotency
           (id, provider, provider_message_id, rfc_message_id, domain_id, mailbox_id, outcome, created_at)
          VALUES (?, ?, ?, NULL, NULL, NULL, 'duplicate', ?)`,
       )
-        .bind(randomId("idem"), opts.provider || "ses", opts.providerMessageId, nowMs())
+        .bind(randomId("idem"), provider, opts.providerMessageId, nowMs())
+        .run()
+        .catch(() => undefined);
+    }
+
+    const detail = (meta?.detail || "").slice(0, 400);
+    await env.DB.prepare(
+      `INSERT INTO inbound_ingest_log
+         (id, provider, provider_message_id, domain_id, mailbox_id, user_id, outcome, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        randomId("iil"),
+        provider,
+        opts.providerMessageId.slice(0, 200),
+        meta?.domainId || "",
+        meta?.mailboxId || "",
+        meta?.userId || "",
+        outcome,
+        detail,
+        nowMs(),
+      )
+      .run()
+      .catch(() => undefined);
+
+    if (meta?.domainId && outcome !== "duplicate" && outcome !== "stored") {
+      const errText = detail ? `${outcome}: ${detail}` : outcome;
+      await env.DB.prepare(
+        `UPDATE domains
+         SET last_inbound_error = ?, last_inbound_error_at = ?, last_inbound_provider_message_id = ?
+         WHERE id = ?`,
+      )
+        .bind(errText.slice(0, 500), nowMs(), opts.providerMessageId.slice(0, 200), meta.domainId)
         .run()
         .catch(() => undefined);
     }
@@ -96,7 +168,9 @@ export async function ingestRawEmail(
   try {
     parsed = await parseMessage(rawBuf);
   } catch (err) {
-    await releaseClaim("parse_error");
+    await releaseClaim("parse_error", {
+      detail: err instanceof Error ? err.message : "parse failed",
+    });
     return {
       ok: false,
       reason: "parse_error",
@@ -141,8 +215,13 @@ export async function ingestRawEmail(
   if (domain) {
     const p = (domain.mail_provider || "ses").toLowerCase();
     const suspended = /SUSPENDED|FAILED/i.test(domain.provider_state || "");
+    const failMeta = {
+      domainId: mailbox.domain_id,
+      mailboxId: mailbox.id,
+      userId: mailbox.user_id,
+    };
     if (suspended) {
-      await releaseClaim("disabled");
+      await releaseClaim("disabled", failMeta);
       return { ok: false, reason: "disabled" };
     }
     if (p === "ses") {
@@ -156,7 +235,7 @@ export async function ingestRawEmail(
         // Still accept mail if MX was pointed (ops may mark later) — only hard-block when
         // explicitly not ready and identity never verified. Soft-allow for migration.
         if (domain.provider_state === "PENDING" && !domain.identity_verified_at) {
-          await releaseClaim("domain_not_ready");
+          await releaseClaim("domain_not_ready", failMeta);
           return { ok: false, reason: "domain_not_ready" };
         }
       }
@@ -197,7 +276,11 @@ export async function ingestRawEmail(
       .bind(mailbox.user_id, rfcMessageId)
       .first<{ id: string }>();
     if (existing) {
-      await releaseClaim("duplicate");
+      await releaseClaim("duplicate", {
+        domainId: mailbox.domain_id,
+        mailboxId: mailbox.id,
+        userId: mailbox.user_id,
+      });
       return { ok: false, reason: "duplicate" };
     }
   }
@@ -230,41 +313,106 @@ export async function ingestRawEmail(
 
   const storageCheck = await assertStorageRoom(env.DB, userId, bodyBytes + attachmentBytes);
   if (!storageCheck.ok) {
-    await releaseClaim("quota");
+    await releaseClaim("quota", {
+      domainId: mailbox.domain_id,
+      mailboxId: mailbox.id,
+      userId: mailbox.user_id,
+      detail: storageCheck.error,
+    });
     return { ok: false, reason: "quota" };
   }
 
-  await env.DB.prepare(
-    `INSERT INTO messages
-      (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body,
-       has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, plus_tag, storage_bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      id,
-      userId,
-      mailbox.id,
-      policy.folder,
-      parsed.from,
-      recipients.join(", ") || envelopeRecipients[0] || "",
-      parsed.cc,
-      parsed.subject,
-      dateMs,
-      parsed.text,
-      parsed.html,
-      hasAttachments,
-      policy.starred,
-      snippet,
-      inReplyTo || null,
-      rfcMessageId,
-      referencesHeader,
-      threadId,
-      policy.label,
-      plusTag.slice(0, 120),
-      bodyBytes,
-      now,
+  try {
+    await env.DB.prepare(
+      `INSERT INTO messages
+        (id, user_id, mailbox_id, folder, from_addr, to_addr, cc_addr, subject, date_ms, text_body, html_body,
+         has_attachments, unread, starred, snippet, in_reply_to, rfc_message_id, references_header, thread_id, label, plus_tag, storage_bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run();
+      .bind(
+        id,
+        userId,
+        mailbox.id,
+        policy.folder,
+        parsed.from,
+        recipients.join(", ") || envelopeRecipients[0] || "",
+        parsed.cc,
+        parsed.subject,
+        dateMs,
+        parsed.text,
+        parsed.html,
+        hasAttachments,
+        policy.starred,
+        snippet,
+        inReplyTo || null,
+        rfcMessageId,
+        referencesHeader,
+        threadId,
+        policy.label,
+        plusTag.slice(0, 120),
+        bodyBytes,
+        now,
+      )
+      .run();
+  } catch (err) {
+    await releaseClaim("store_failed", {
+      domainId: mailbox.domain_id,
+      mailboxId: mailbox.id,
+      userId: mailbox.user_id,
+      detail: err instanceof Error ? err.message : "message insert failed",
+    });
+    return {
+      ok: false,
+      reason: "store_failed",
+      detail: err instanceof Error ? err.message : "message insert failed",
+    };
+  }
+
+  // Mark stored immediately after the message row exists so a crash mid-side-effect
+  // cannot leave a stuck `processing` claim that ACKs retries as duplicates.
+  if (opts.providerMessageId) {
+    await env.DB.prepare(
+      `UPDATE inbound_idempotency
+       SET rfc_message_id = ?, domain_id = ?, mailbox_id = ?, outcome = 'stored'
+       WHERE provider = ? AND provider_message_id = ?`,
+    )
+      .bind(
+        rfcMessageId.slice(0, 500),
+        mailbox.domain_id,
+        mailbox.id,
+        opts.provider || "ses",
+        opts.providerMessageId,
+      )
+      .run()
+      .catch(() => undefined);
+    await env.DB.prepare(
+      `INSERT INTO inbound_ingest_log
+         (id, provider, provider_message_id, domain_id, mailbox_id, user_id, outcome, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'stored', ?, ?)`,
+    )
+      .bind(
+        randomId("iil"),
+        opts.provider || "ses",
+        opts.providerMessageId.slice(0, 200),
+        mailbox.domain_id,
+        mailbox.id,
+        userId,
+        id,
+        nowMs(),
+      )
+      .run()
+      .catch(() => undefined);
+    // Clear last failure breadcrumb once mail lands successfully.
+    await env.DB.prepare(
+      `UPDATE domains
+       SET last_inbound_error = NULL, last_inbound_error_at = NULL, last_inbound_provider_message_id = NULL
+       WHERE id = ? AND last_inbound_error IS NOT NULL`,
+    )
+      .bind(mailbox.domain_id)
+      .run()
+      .catch(() => undefined);
+  }
+
   await touchContact(env.DB, userId, parsed.from).catch(() => undefined);
   if (policy.folder === "inbox" && !isNoReply(parsed.from)) {
     await maybeVacationReply(env, userId, mailbox.address, parsed.from).catch((error) => console.warn("vacation", error));
@@ -303,34 +451,21 @@ export async function ingestRawEmail(
 
   if (preparedAtts.length && env.ATTACHMENTS) {
     for (const att of preparedAtts) {
-      const attId = randomId("att");
-      const key = "attachments/" + id + "/" + attId + "/" + safeName(att.filename);
-      await env.ATTACHMENTS.put(key, att.bytes, {
-        httpMetadata: { contentType: att.mimeType },
-      });
-      await env.DB.prepare(
-        `INSERT INTO attachments (id, message_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-        .bind(attId, id, key, att.filename, att.mimeType, att.bytes.byteLength, now)
-        .run();
+      try {
+        const attId = randomId("att");
+        const key = "attachments/" + id + "/" + attId + "/" + safeName(att.filename);
+        await env.ATTACHMENTS.put(key, att.bytes, {
+          httpMetadata: { contentType: att.mimeType },
+        });
+        await env.DB.prepare(
+          `INSERT INTO attachments (id, message_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+          .bind(attId, id, key, att.filename, att.mimeType, att.bytes.byteLength, now)
+          .run();
+      } catch (error) {
+        console.warn("inbound attachment store failed", id, error);
+      }
     }
-  }
-
-  if (opts.providerMessageId) {
-    await env.DB.prepare(
-      `UPDATE inbound_idempotency
-       SET rfc_message_id = ?, domain_id = ?, mailbox_id = ?, outcome = 'stored'
-       WHERE provider = ? AND provider_message_id = ?`,
-    )
-      .bind(
-        rfcMessageId.slice(0, 500),
-        mailbox.domain_id,
-        mailbox.id,
-        opts.provider || "ses",
-        opts.providerMessageId,
-      )
-      .run()
-      .catch(() => undefined);
   }
 
   // First successful SES inbound can mark receiving_ready_at if infra checks already passed MX.

@@ -5,27 +5,28 @@ export const SUPPORT_EMAIL = "support@useflap.online";
 
 export const MARKETING = {
   product_name: "Flap",
-  one_line: "Custom-domain email for every project you ship.",
+  one_line: "One inbox for every product you build.",
   short_description:
-    "Custom-domain email for indie hackers, serial founders, and agencies. One inbox for all your domains. Webmail, shared inboxes, AI assistant, newsletters, booking pages, and a transactional API.",
+    "One inbox for every product you build. Connect multiple custom domains, receive everything in one place, and reply from the correct sender identity.",
   long_description:
-    "Flap is custom-domain email hosting for indie hackers, serial founders, and small studios. Connect every project domain, send and receive as you@yourstartup.com, and keep webmail, calendar, newsletters, bookings, AI assistant, and a developer API in one subscription. From $6/mo. Free plan includes real mailboxes.",
-  primary_tagline: "Custom-domain email for every project you ship.",
+    "Flap is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, preserve each brand’s sender identity on reply, and skip a separate Google Workspace (or similar) subscription per launch. From $6/mo. Free plan includes real mailboxes.",
+  primary_tagline: "One inbox for every product you build.",
   founder_tagline: "Email infrastructure for people who keep launching things.",
   product_hunt_tagline: "One inbox for every domain you own, without a Workspace per project",
   hero_subheadline:
-    "Shared inboxes, AI-assisted replies, newsletters, booking pages, and a transactional API, all on your own custom domain.",
-  microcopy: "Same features on every paid plan. Pick how many mailboxes you need.",
-  seo_title: "Flap: Custom-domain email for every project you ship",
+    "Connect all your custom domains, receive every message in one place, and reply automatically from the correct address.",
+  secondary_line: "No extra Workspace account. No forwarding hack. No SMTP juggling.",
+  microcopy: "Same product surface on every paid plan. Upgrade for mailboxes, seats, and send capacity.",
+  seo_title: "Flap — One Inbox for All Your Custom Domains",
   seo_description:
-    "Custom-domain email hosting for founders with multiple projects. Shared inboxes, AI assistant, newsletters, calendar, and transactional email API, all on your own domain. Free plan includes real mailboxes. From $6/mo.",
+    "Manage email for every SaaS, side project, client, or business domain from one inbox. Receive centrally and reply automatically from the correct address.",
   key_features: [
-    "Webmail across every domain",
-    "Calendars & booking pages",
-    "Newsletters from your domain",
-    "AI assistant (confirm-before-send)",
-    "API, webhooks, MCP, thin SDKs",
-    "Guided DNS setup on Amazon SES",
+    "Many domains → one inbox",
+    "Reply from the receiving address",
+    "Guided DNS (MX/SPF/DKIM)",
+    "Shared inboxes & seats when you grow",
+    "Export anytime (.mbox / JSON)",
+    "API, newsletters, bookings once domains are connected",
   ],
   architecture_line:
     "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar.",
@@ -39,13 +40,13 @@ export const ICP_LINES = [
   "Launch a new domain without adding another email subscription",
 ] as const;
 
-/** Qualitative credibility until real testimonials exist - do not invent stats. */
+/** Qualitative credibility until real testimonials exist - do not invent stats or star ratings. */
 export const CREDIBILITY = [
-  { title: "Secure domain verification", body: "Guided MX/SPF checks with precise errors - not a vague “verification failed.”" },
-  { title: "Proper DNS authentication", body: "SPF and DKIM records you control - published at any DNS host for Flap’s mail provider." },
-  { title: "Founder-built", body: "Shipped for indie hackers and studios - not enterprise procurement theater." },
-  { title: "Transparent pricing", body: "Domain-first plans. No surprise seat tax for every side project." },
-  { title: "Fast setup", body: "Add domain → point DNS → create hello@ → inbox." },
+  { title: "Guided domain verification", body: "MX/SPF/DKIM checks with precise errors — not a vague “verification failed.”" },
+  { title: "DNS you control", body: "Publish SPF and DKIM at any registrar. Customer mail runs on Amazon SES." },
+  { title: "Export anytime", body: "JSON workspace backup and per-mailbox .mbox downloads from Settings." },
+  { title: "Transparent pricing", body: "Up to 50 domains on every paid plan. Capacity is mailboxes and seats, not a per-domain seat tax." },
+  { title: "Founder-operated", body: "Built and supported by Ashish Sharma — see About for contact and infrastructure." },
 ] as const;
 
 /** Empty until real customer quotes are collected. */
@@ -72,6 +73,12 @@ export function planCards() {
 
 export const SEO_PAGES = [
   {
+    path: "/email-for-multiple-domains",
+    title: "Email for multiple domains — one inbox | Flap",
+    description:
+      "Run professional email across every domain you own from one Flap inbox. Receive centrally, reply from the correct address.",
+  },
+  {
     path: "/google-workspace-alternative",
     title: "Google Workspace alternative for multi-domain founders | Flap",
     description:
@@ -94,9 +101,43 @@ export const SEO_PAGES = [
     description: "Professional email for every side project domain - one inbox, no per-project Workspace tax.",
   },
   {
+    path: "/email-for-founders",
+    title: "Email for founders with multiple products | Flap",
+    description: "Founder email across every product domain — one inbox, correct reply-from identity.",
+  },
+  {
     path: "/email-for-side-projects",
     title: "Email for side projects | Flap",
     description: "Launch another domain without another email subscription. Flap is one inbox for all your projects.",
+  },
+  {
+    path: "/email-for-multiple-saas-products",
+    title: "Email for multiple SaaS products — one inbox | Flap",
+    description:
+      "Run hello@ and support@ across every SaaS product domain from one Flap inbox.",
+  },
+  {
+    path: "/email-for-venture-studios",
+    title: "Email for venture studios — portfolio domains, one inbox | Flap",
+    description:
+      "Operate email across venture studio and portfolio company domains from one Flap inbox.",
+  },
+  {
+    path: "/how-to-manage-email-for-multiple-domains",
+    title: "How to manage email for multiple domains | Flap",
+    description: "Practical playbook for operating email across many domains — inventory, DNS, and cutover.",
+  },
+  {
+    path: "/how-to-send-email-from-multiple-domains",
+    title: "How to send email from multiple domains | Flap",
+    description:
+      "Send as the correct domain across many brands — SPF/DKIM and reply-from identity.",
+  },
+  {
+    path: "/google-workspace-multiple-domains",
+    title: "Google Workspace multiple domains — when Flap fits better | Flap",
+    description:
+      "Workspace multi-domain options vs Flap’s one-inbox model for separate product brands.",
   },
   {
     path: "/flap-vs-google-workspace",

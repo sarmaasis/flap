@@ -500,11 +500,12 @@ export async function verifySesInboundSignature(
   if (!secret) {
     return (env.SES_INBOUND_ALLOW_UNSIGNED || "").trim() === "true";
   }
-  if (opts.timestamp) {
-    const ts = Number(opts.timestamp) * 1000;
-    if (Number.isFinite(ts) && Math.abs(Date.now() - ts) > 15 * 60 * 1000) return false;
-  }
-  const payload = (opts.timestamp || "") + "." + opts.body;
+  // Timestamp required when a secret is configured — blocks unlimited replay of captured bodies.
+  const timestamp = (opts.timestamp || "").trim();
+  if (!timestamp) return false;
+  const ts = Number(timestamp) * 1000;
+  if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > 15 * 60 * 1000) return false;
+  const payload = timestamp + "." + opts.body;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),

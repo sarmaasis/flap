@@ -26,9 +26,87 @@ export type SeoPageDef = {
   primaryIntent?: string;
 };
 
-const UPDATED = "2026-09-07";
+const UPDATED = "2026-09-09";
 
 export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
+  "/email-for-multiple-domains": {
+    path: "/email-for-multiple-domains",
+    primaryIntent: "Commercial: get professional email that covers many domains I already own",
+    title: "Email for multiple domains — one inbox | Flap",
+    description:
+      "Run professional email across every domain you own from one Flap inbox. Receive centrally, reply from the correct address, skip a Workspace per project.",
+    h1: "Email for multiple domains — without a suite per brand",
+    definition:
+      "Email for multiple domains means sending and receiving as addresses on several custom domains you own, ideally from one product. Flap (useflap.online) is built for that: connect domains to one inbox and reply as the brand that received the mail.",
+    lede: "You already bought the domains. The hard part is not “does email exist?” — it is running hello@ and support@ across brands without another Google Workspace (or similar) setup each time. Flap is the commercial answer to that search.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "What this search usually means",
+        body: "People searching “email for multiple domains” are rarely hunting a generic productivity suite. They need branded addresses on domain A, B, and C — often as a solo founder, studio, or agency — and they want one operational home instead of N admin consoles.",
+        bullets: [
+          "Receive mail for every connected domain in one place",
+          "Reply as the address (and domain) that received the thread",
+          "Add the next launch without buying another suite seat stack",
+        ],
+      },
+      {
+        heading: "Why separate Workspace accounts break down",
+        body: "Google Workspace is excellent when one company lives in Docs, Drive, and Meet. It is awkward when each side project is its own brand: you either pay for another environment, lean on domain aliases that do not match how you launch, or forward everything into personal Gmail and lose clean reply-from behavior.",
+      },
+      {
+        heading: "How Flap maps to the job",
+        body: `Add domains to one Flap account (Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Pro ${PLANS.pro.limits.domains} · Team ${PLANS.team.limits.domains}), publish MX/SPF/DKIM for Amazon SES, create addresses, and work from a single inbox. Outbound uses your authenticated domain identities — not a personal rewrite.`,
+      },
+      {
+        heading: "Inbox vs forwarding vs “hosting”",
+        body: "Forwarding (Cloudflare Email Routing, ImprovMX-style tools) is fine when you only need redirects. Multi-domain “hosting” answers “who accepts MX.” This page is about the buying intent: professional email across domains with a real place to read and reply. See also Flap’s hosting and one-inbox pages if those angles match better.",
+      },
+      {
+        heading: "Honest fit check",
+        body: "Choose Flap when multi-domain founder email is the job. Stay on Workspace/Microsoft 365 when collaboration apps matter more than domain count. Flap is not Docs, Drive, or Meet — and IMAP/SMTP client access is not available yet (use the web app and PWA).",
+      },
+    ],
+    table: {
+      caption: "Common approaches to multi-domain email",
+      headers: ["Approach", "Works when", "Breaks when"],
+      rows: [
+        ["Workspace per brand", "One company, suite needed", "Many launches, seat × brand tax"],
+        ["Forwarders only", "Low-stakes intake", "You must send as the brand"],
+        ["Aliases in one org", "Single company, many names", "Separate products / clients"],
+        ["Flap multi-domain inbox", "Many domains, one operator", "You need a full office suite"],
+      ],
+    },
+    faqs: [
+      {
+        q: "How many domains can I put on Flap?",
+        a: `Up to your plan limit (Free ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Pro ${PLANS.pro.limits.domains}, Team ${PLANS.team.limits.domains}), plus referral domain bonuses when earned.`,
+      },
+      {
+        q: "Do replies keep the right From address?",
+        a: "Flap is designed so you reply using the domain identity that received the message — the core multi-domain workflow, not an afterthought.",
+      },
+      {
+        q: "Is this the same as email hosting for multiple domains?",
+        a: "Related but different search intent. Hosting answers MX/provider choice; this page answers the commercial “email for multiple domains” problem. See /email-hosting-for-multiple-domains for the hosting angle.",
+      },
+      {
+        q: "Where do I start?",
+        a: "Sign up free, add a domain, publish the SES DNS Flap shows, create hello@, and send a test. Upgrade when domain count needs it.",
+      },
+    ],
+    related: [
+      { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/email-hosting-for-multiple-domains", label: "Email hosting for multiple domains" },
+      { href: "/how-to-manage-email-for-multiple-domains", label: "How to manage email for multiple domains" },
+      { href: "/how-to-send-email-from-multiple-domains", label: "How to send from multiple domains" },
+      { href: "/email-for-multiple-saas-products", label: "Email for multiple SaaS products" },
+      { href: "/email-for-founders", label: "Email for founders" },
+      { href: "/flap-vs-google-workspace", label: "Flap vs Google Workspace" },
+      { href: "/pricing", label: "Pricing" },
+    ],
+  },
+
   "/google-workspace-alternative": {
     path: "/google-workspace-alternative",
     primaryIntent: "Find alternatives to the Workspace email model (not a full suite replacement)",
@@ -166,6 +244,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
     ],
     related: [
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
       { href: "/custom-domain-email", label: "Custom domain email" },
       { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
       { href: "/guides/cloudflare-custom-domain-email", label: "Cloudflare setup guide" },
@@ -270,10 +349,64 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       },
     ],
     related: [
+      { href: "/email-for-founders", label: "Email for founders" },
       { href: "/email-for-side-projects", label: "Email for side projects" },
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
       { href: "/blog/self-host-vs-hosted-email-startups", label: "Blog: self-host vs hosted" },
       { href: "/#pricing", label: "Pricing" },
       { href: "/tools/google-workspace-cost-calculator", label: "Cost calculator" },
+    ],
+  },
+
+  "/email-for-founders": {
+    path: "/email-for-founders",
+    primaryIntent: "Audience: serial / portfolio founders (broader than indie-hacker framing)",
+    title: "Email for founders with multiple products | Flap",
+    description:
+      "Founder email across every product domain — one Flap inbox, correct reply-from identity, no Workspace account per launch.",
+    h1: "Email for founders who run more than one product",
+    definition:
+      "Email for founders in this context means professional custom-domain mail sized for people who operate several products or brands. Flap gives serial founders one inbox across domains so each project keeps its identity without a separate suite per launch.",
+    lede: "Indie hackers ship alone; many founders also run studios, client brands, or a small portfolio of SaaS experiments. Flap is the founder-shaped inbox for that portfolio — not a generic “business email” page.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "The portfolio problem",
+        body: "Founders accumulate domains faster than headcount: a main company, a spin-out, a client brand, a dead experiment still getting press mail. Thread context scatters when each brand has its own mailbox product.",
+      },
+      {
+        heading: "What Flap optimizes",
+        body: "One login. Domains added to the same account. Mail lands together. Replies use the receiving address’s domain. Plans scale primarily with how many domains and mailboxes you need — not with how many Google customers you open.",
+      },
+      {
+        heading: "Founders vs indie hackers vs agencies",
+        body: "Use /email-for-indie-hackers if you identify with solo shipping culture. Use /for/agencies when the job is holding many client domains with Team seats. This page is the middle: operators who own the brands and need founder-grade email without agency jargon.",
+      },
+      {
+        heading: "What we do not claim",
+        body: "Flap is not a full Google Workspace replacement (no Docs/Drive/Meet). It is not an ESP for cold outreach. IMAP/SMTP is not available yet — use the web app and PWA.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Can my cofounder join?",
+        a: "Solo and Pro are single-seat. Team adds seats and shared inboxes (support@, hello@) when you grow past one operator.",
+      },
+      {
+        q: "Do I move personal Gmail?",
+        a: "No. Keep personal mail where it is. Put product and brand domains on Flap.",
+      },
+      {
+        q: "How is this different from “email for multiple domains”?",
+        a: "That pillar page answers the commercial multi-domain problem. This page answers the founder audience intent with portfolio language and ICP fit.",
+      },
+    ],
+    related: [
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/email-for-indie-hackers", label: "Email for indie hackers" },
+      { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/for/startups", label: "Flap for startups" },
+      { href: "/#pricing", label: "Pricing" },
     ],
   },
 
@@ -471,7 +604,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       "Connect every startup domain to a single Flap inbox. Send and receive as each brand identity - one inbox for every startup you build.",
     h1: "Multiple domains. One inbox.",
     definition:
-      "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the tagline “One inbox for every startup you build.”",
+      "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the positioning “One inbox for every product you build.”",
     lede: "The problem is workflow: threads scatter across forwards and forgotten trials. Flap’s job here is one inbox, many sender identities - not “which host supports N domains.”",
     updated: UPDATED,
     sections: [
@@ -519,11 +652,358 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     related: [
       { href: "/#pricing", label: "Pricing" },
       { href: "/signup", label: "Start free" },
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
       { href: "/email-hosting-for-multiple-domains", label: "Email hosting for multiple domains" },
+      { href: "/how-to-manage-email-for-multiple-domains", label: "How to manage multi-domain email" },
       { href: "/blog/mx-spf-dmarc-setup-checklist", label: "Blog: MX/SPF/DMARC checklist" },
       { href: "/tools/google-workspace-cost-calculator", label: "Cost calculator" },
     ],
   },
+
+  "/how-to-manage-email-for-multiple-domains": {
+    path: "/how-to-manage-email-for-multiple-domains",
+    primaryIntent: "Education: practical steps to operate email across many domains",
+    title: "How to manage email for multiple domains | Flap",
+    description:
+      "A practical playbook for managing email across many domains: inventory, DNS, one inbox vs many suites, reply identity, and when to use Flap.",
+    h1: "How to manage email for multiple domains",
+    definition:
+      "Managing email for multiple domains means keeping branded send/receive working across several domains without losing threads or mixing From identities. Flap is one hosted approach: one inbox, many domain identities, guided Amazon SES DNS.",
+    lede: "This is the how-to companion to Flap’s commercial multi-domain pages — a checklist you can follow whether you stay on Workspace, use forwarders, or move portfolio mail to Flap.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "1. Inventory domains and addresses",
+        body: "List every live domain and the addresses that must work (hello@, support@, founder@). Mark which are customer-facing vs experiments. Kill or park domains that no longer need MX before you pay for another mailbox.",
+      },
+      {
+        heading: "2. Choose an operating model",
+        body: "Three common models: (A) suite per brand, (B) forward everything to personal Gmail, (C) one multi-domain inbox. A fits companies living in Docs/Meet. B is fine for low-stakes intake. C fits founders who need to send as each brand from one place.",
+        bullets: [
+          "Suite-per-brand: highest admin and seat cost as N grows",
+          "Forwarders: cheap intake, weak reply-from and history",
+          "Multi-domain inbox (Flap): one operator surface across brands",
+        ],
+      },
+      {
+        heading: "3. Fix DNS once per domain",
+        body: "For each domain you keep, publish a single clear inbound MX target, SPF that authorizes your sender, and DKIM for that provider. Conflicting MX (e.g. Email Routing plus SES) causes intermittent delivery. Use Flap’s free MX/SPF checkers if you want a second opinion.",
+      },
+      {
+        heading: "4. Protect reply identity",
+        body: "Decide how replies pick From. The failure mode is answering support@brand-a.com from personal Gmail or from brand-b.com. Flap’s workflow is: receive on a domain identity → reply as that identity.",
+      },
+      {
+        heading: "5. Cut over without heroics",
+        body: "Lower TTL the day before. Add the domain in Flap, publish SES MX/SPF/DKIM, Check setup, create matching addresses, send a test, then remove the old MX. Export older mail separately if you need history — Flap does not auto-import yet.",
+      },
+      {
+        heading: "When Flap is the right tool",
+        body: `Choose Flap when the job is portfolio email without suite overhead. Free covers ${PLANS.free.limits.domains} domains to prove the path; paid plans raise domain and mailbox limits. Stay on Workspace when collaboration apps are the product.`,
+      },
+    ],
+    table: {
+      caption: "Cutover checklist",
+      headers: ["Step", "Done when"],
+      rows: [
+        ["Inventory", "Every live domain has an owner and address list"],
+        ["Model chosen", "Suite / forward / multi-domain inbox decided"],
+        ["DNS published", "MX/SPF/DKIM match one inbound provider"],
+        ["Addresses created", "hello@ / support@ exist in the new system"],
+        ["Test pass", "Send + receive + reply-from verified"],
+        ["Old MX removed", "No conflicting inbound targets"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Can I keep some domains on Workspace?",
+        a: "Yes. Many founders keep the main company on Workspace and put experimental or client domains on Flap. Each domain should have one inbound MX story.",
+      },
+      {
+        q: "Do I need Cloudflare Email Routing?",
+        a: "No for Flap’s current path. Publish Amazon SES records Flap shows. DNS can live at any registrar.",
+      },
+      {
+        q: "Where is the product page for this problem?",
+        a: "Start at /email-for-multiple-domains for commercial intent, or /multiple-domains-one-inbox for the unified-inbox workflow.",
+      },
+    ],
+    related: [
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/how-to-send-email-from-multiple-domains", label: "How to send from multiple domains" },
+      { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/guides", label: "DNS setup guides" },
+      { href: "/blog/mx-spf-dmarc-setup-checklist", label: "MX/SPF/DMARC checklist" },
+      { href: "/tools/email-setup-checker", label: "Email setup checker" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+
+  "/email-for-multiple-saas-products": {
+    path: "/email-for-multiple-saas-products",
+    primaryIntent: "Commercial: email for operators running several SaaS products / brands",
+    title: "Email for multiple SaaS products — one inbox | Flap",
+    description:
+      "Run hello@ and support@ across every SaaS product domain from one Flap inbox. Correct reply-from identity without a Workspace per launch.",
+    h1: "Email for multiple SaaS products",
+    definition:
+      "Email for multiple SaaS products means branded send and receive on several product domains — often one founder or small team — without standing up a separate Google Workspace (or similar) per product. Flap (useflap.online) connects those domains to one inbox and replies as the product that received the mail.",
+    lede: "You ship product-one.com, then product-two.dev, then an experiment.app. Each needs a real mailbox. Flap is built for that portfolio — not for replacing Docs/Drive across a large company.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "The SaaS portfolio email problem",
+        body: "Serial product builders accumulate domains faster than admin patience. Suite-per-product works once; by the third launch you are juggling seats, MX, and “which Gmail has that support thread?”",
+        bullets: [
+          "Customer mail must land on each product’s domain",
+          "Replies must keep that product’s From identity",
+          "Next launch should be “add domain,” not “new suite”",
+        ],
+      },
+      {
+        heading: "What Flap does for multi-product operators",
+        body: `Connect each product domain to one Flap account (plan limits: Free ${PLANS.free.limits.domains} · Solo ${PLANS.solo.limits.domains} · Pro ${PLANS.pro.limits.domains} · Team ${PLANS.team.limits.domains}), publish Amazon SES MX/SPF/DKIM, create hello@ / support@, and work from a single inbox. Outbound uses authenticated domain identities.`,
+      },
+      {
+        heading: "SaaS products vs agencies vs side projects",
+        body: "Use this page when you own the products. Use /for/agencies (alias /email-for-agencies) when domains belong to clients. Use /email-for-side-projects when launches are experiments more than live SaaS brands. Use /email-for-venture-studios when a studio operates many portfolio companies under one operator surface.",
+      },
+      {
+        heading: "Honest fit check",
+        body: "Stay on Workspace or Microsoft 365 when collaboration apps are the daily product. Choose Flap when the job is multi-product mail without suite overhead. Flap is not a cold-outbound ESP; send caps protect reputation.",
+      },
+    ],
+    table: {
+      caption: "Where multi-SaaS email usually breaks",
+      headers: ["Approach", "Works when", "Breaks when"],
+      rows: [
+        ["Workspace per product", "One company, suite needed", "Many launches, seat × brand tax"],
+        ["Forwarders to personal mail", "Early intake only", "You must send as the product"],
+        ["Aliases in one org", "Single company, many names", "Separate products / brands"],
+        ["Flap multi-domain inbox", "Many product domains, one operator", "You need a full office suite"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Can each SaaS keep its own support@?",
+        a: "Yes. Create addresses per domain. Replies are designed to use the identity that received the thread.",
+      },
+      {
+        q: "Does Flap replace my product’s transactional ESP?",
+        a: "Flap is mailbox + multi-domain inbox first. Paid plans include an API send path with plan caps — not a bulk marketing ESP replacement.",
+      },
+      {
+        q: "Where do I start?",
+        a: "Sign up free, add a product domain, publish the SES DNS Flap shows, create hello@, and send a test. See /migrate for cutover notes.",
+      },
+    ],
+    related: [
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/email-for-founders", label: "Email for founders" },
+      { href: "/email-for-venture-studios", label: "Email for venture studios" },
+      { href: "/multiple-domains-one-inbox", label: "Multiple domains, one inbox" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+
+  "/email-for-venture-studios": {
+    path: "/email-for-venture-studios",
+    primaryIntent: "Commercial: email for venture studios / portfolio company domains",
+    title: "Email for venture studios — portfolio domains, one inbox | Flap",
+    description:
+      "Operate email across venture studio and portfolio company domains from one Flap inbox. Correct sender identity without a suite per company.",
+    h1: "Email for venture studios",
+    definition:
+      "Email for venture studios means operating branded mail across a studio domain and multiple portfolio company domains from one operational home. Flap (useflap.online) is built for multi-domain inboxes with reply-from identity preserved per brand.",
+    lede: "Studios spin up companies faster than traditional IT tickets. Flap keeps studio@ and each portfolio hello@ in one place — without claiming full agency client-portal software (that is a later roadmap).",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "Studio email is a portfolio problem",
+        body: "A venture studio typically holds a studio brand plus N company domains. Operators need shared visibility, correct From on reply, and a path to add the next company without another Workspace environment.",
+      },
+      {
+        heading: "How Flap maps to studio ops",
+        body: `Add studio and company domains to one account up to your plan limit. Team plan adds seats and shared inboxes when partners need access. DNS stays at your registrar; Flap guides Amazon SES MX/SPF/DKIM.`,
+      },
+      {
+        heading: "Studios vs agencies vs founders",
+        body: "Founders own personal product stacks (/email-for-founders). Agencies hold client brands (/for/agencies). Studios sit between: portfolio companies the studio helps build, often with shared operators. Domain transfer to a spun-out company is a future capability — not marketed as shipped today.",
+      },
+      {
+        heading: "What we do not overclaim",
+        body: "No white-label client portals, no automatic company handoff UI yet, and no fabricated delivery SLAs. Export (.mbox / JSON) is available when a company leaves the studio stack.",
+      },
+    ],
+    table: {
+      caption: "Studio mail operating models",
+      headers: ["Model", "Pros", "Cons"],
+      rows: [
+        ["Suite per company", "Familiar admin", "Slow + expensive as N grows"],
+        ["Forward-only intake", "Cheap", "Weak reply-from and history"],
+        ["Flap multi-domain inbox", "One operator surface", "Not a full office suite"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Can partners share an inbox?",
+        a: "Team plan unlocks seats and shared inboxes. Grant access intentionally — do not assume every member sees every mailbox.",
+      },
+      {
+        q: "Can we hand a domain to a spun-out company?",
+        a: "Not as a one-click product feature today. Export mail and re-point DNS; a formal transfer workflow is planned only after real demand.",
+      },
+      {
+        q: "Is this the same as email for agencies?",
+        a: "Related. Agencies optimize for client domains; studios optimize for portfolio companies they help build. Both use multi-domain inbox mechanics.",
+      },
+    ],
+    related: [
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/email-for-multiple-saas-products", label: "Email for multiple SaaS products" },
+      { href: "/for/agencies", label: "Flap for agencies" },
+      { href: "/email-for-founders", label: "Email for founders" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+
+  "/how-to-send-email-from-multiple-domains": {
+    path: "/how-to-send-email-from-multiple-domains",
+    primaryIntent: "Education: send as the correct domain across many brands",
+    title: "How to send email from multiple domains | Flap",
+    description:
+      "Practical guide to sending as addresses on many domains: SPF/DKIM per domain, reply-from identity, and when a multi-domain inbox beats aliases or forwards.",
+    h1: "How to send email from multiple domains",
+    definition:
+      "Sending email from multiple domains means authenticating outbound mail (SPF/DKIM) for each domain and choosing the correct From identity per thread. Flap does this inside one inbox so replies stay on the domain that received the message.",
+    lede: "Receiving is half the job. The failure mode that hurts brand trust is answering support@brand-a.com from personal Gmail or from brand-b.com. This page is the send-side companion to managing multi-domain email.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "1. Authenticate each sending domain",
+        body: "Every domain you send as needs SPF that authorizes your provider and DKIM for that provider. On Flap, publish the Amazon SES records shown in Settings. Conflicting SPF includes or leftover forwarder rules cause intermittent failures.",
+      },
+      {
+        heading: "2. Decide how From is chosen",
+        body: "Options: (A) manually pick From every time, (B) aliases inside one org that is not really multi-brand, (C) an inbox that defaults From to the receiving address. Flap optimizes for (C) — reply as the identity that received the thread.",
+        bullets: [
+          "Manual pick: error-prone under volume",
+          "Single-org aliases: fine for one company, many names",
+          "Receive → reply-from lock: best for multi-brand portfolios",
+        ],
+      },
+      {
+        heading: "3. Separate transactional pipes carefully",
+        body: "Product transactional mail (receipts, password resets) may stay on a dedicated ESP. Founder and support mail can live on Flap. Do not mix cold outbound into the same domain reputation pool as customer support.",
+      },
+      {
+        heading: "4. Test before you cut MX",
+        body: "Create the address in Flap, send a test to an external account, confirm DKIM passes, then reply to an inbound test and verify From. Use /migrate for the full cutover narrative.",
+      },
+      {
+        heading: "When Flap is the right tool",
+        body: "Choose Flap when the job is multi-domain send/receive without suite overhead. See /how-to-manage-email-for-multiple-domains for the broader operating playbook and /email-for-multiple-domains for the commercial landing.",
+      },
+    ],
+    table: {
+      caption: "Send identity checklist",
+      headers: ["Check", "Pass when"],
+      rows: [
+        ["SPF", "Includes your outbound provider for that domain"],
+        ["DKIM", "Selector validates for the From domain"],
+        ["From on reply", "Matches the address that received the thread"],
+        ["No conflict", "One clear outbound story per domain"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Can I send as any address on a domain?",
+        a: "You send as mailboxes (and aliases) you create in Flap for domains you control — not arbitrary spoofing of domains you do not own.",
+      },
+      {
+        q: "Do I need a different ESP per domain?",
+        a: "Not for Flap mailbox send. Each connected domain is authenticated via SES. Heavy product transactional volume may still use a separate ESP by design.",
+      },
+      {
+        q: "Where is the product page?",
+        a: "Start at /email-for-multiple-domains or /multiple-domains-one-inbox.",
+      },
+    ],
+    related: [
+      { href: "/how-to-manage-email-for-multiple-domains", label: "How to manage multi-domain email" },
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/blog/mx-spf-dmarc-setup-checklist", label: "MX/SPF/DMARC checklist" },
+      { href: "/tools/spf-checker", label: "SPF checker" },
+      { href: "/migrate", label: "Migrate to Flap" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+
+  "/google-workspace-multiple-domains": {
+    path: "/google-workspace-multiple-domains",
+    primaryIntent: "Education: how Google Workspace handles multiple domains vs Flap’s model",
+    title: "Google Workspace multiple domains — when Flap fits better | Flap",
+    description:
+      "Understand Google Workspace multi-domain and alias options vs Flap’s one-inbox model for founders running separate product brands.",
+    h1: "Google Workspace and multiple domains",
+    definition:
+      "Google Workspace can attach secondary domains and aliases inside an organization. That works well for one company with many names. Flap targets a different job: many product brands in one inbox without a suite environment per launch.",
+    lede: "Searching “Google Workspace multiple domains” usually means either (1) how to add domains inside Workspace, or (2) whether Workspace is the right unit of cost for a portfolio of startups. This page answers both honestly — without inventing Workspace pricing you should re-verify at publish time.",
+    updated: UPDATED,
+    sections: [
+      {
+        heading: "What Workspace multi-domain is good at",
+        body: "Inside one organization, Workspace secondary domains and aliases let people@company.com and people@brand.com share an admin surface. That is excellent when brands are facets of one company that also needs Docs, Drive, and Meet.",
+      },
+      {
+        heading: "Where the model stretches for serial founders",
+        body: "When each launch is a separate brand (or a separate Workspace customer), cost and admin scale with environments × seats. Domain aliases inside one org do not match how many indie founders actually launch — separate products, separate legal entities, shared human operator.",
+      },
+      {
+        heading: "Flap’s alternative framing",
+        body: "Flap is not a Workspace clone. It is multi-domain email infrastructure and inbox: connect domains, receive centrally, reply as the receiving identity. Use /flap-vs-google-workspace for a head-to-head and /tools/google-workspace-cost-calculator for illustrative savings math.",
+      },
+      {
+        heading: "Hybrid is allowed",
+        body: "Keep the main company on Workspace. Put experimental or secondary product domains on Flap. Each domain should have one clear inbound MX story — do not stack conflicting providers.",
+      },
+    ],
+    table: {
+      caption: "Multi-domain job → better default",
+      headers: ["Job", "Often better with"],
+      rows: [
+        ["One company, many domain names, need Docs/Meet", "Google Workspace"],
+        ["Many product brands, one operator, email-first", "Flap"],
+        ["Low-stakes forwards only", "Forwarding tools"],
+        ["Full Microsoft stack", "Microsoft 365"],
+      ],
+    },
+    faqs: [
+      {
+        q: "Is Flap cheaper than Workspace?",
+        a: "It depends on seats, how many environments you stand up, region, and taxes. Flap’s wedge is multi-domain simplicity — use the cost calculator for illustrations, not guarantees.",
+      },
+      {
+        q: "Can I migrate from Workspace?",
+        a: "Point DNS after verifying in Flap; export history separately. See /migrate — no automatic Gmail/IMAP importer is claimed today.",
+      },
+      {
+        q: "Where is the comparison page?",
+        a: "/flap-vs-google-workspace and /google-workspace-alternative.",
+      },
+    ],
+    related: [
+      { href: "/flap-vs-google-workspace", label: "Flap vs Google Workspace" },
+      { href: "/google-workspace-alternative", label: "Workspace alternative" },
+      { href: "/blog/cost-of-google-workspace-multiple-domains", label: "Blog: Workspace cost across domains" },
+      { href: "/tools/google-workspace-cost-calculator", label: "Cost calculator" },
+      { href: "/email-for-multiple-domains", label: "Email for multiple domains" },
+      { href: "/signup", label: "Start free" },
+    ],
+  },
+
   "/cloudflare-email-routing-alternative": {
     path: "/cloudflare-email-routing-alternative",
     title: "Cloudflare Email Routing alternative with a real reply inbox | Flap",

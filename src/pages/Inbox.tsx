@@ -16,6 +16,7 @@ import {
   type Template,
 } from "../lib/api";
 import { extractEmail, fmtDate, initials, quoteHtml, senderName } from "../lib/format";
+import { resolveReplyFromAddress } from "../../shared/security-guards";
 import { waitForClerkToken } from "../lib/clerk";
 import { go } from "../lib/nav";
 import AppShell from "../components/AppShell";
@@ -634,11 +635,7 @@ export default function Inbox({ composeOpen }: { composeOpen?: boolean }) {
   }
 
   function replyFromAddress(msg: MailFull): string | undefined {
-    const mb = mailboxes.find((m) => m.id === msg.mailbox_id);
-    if (mb?.address) return mb.address;
-    const to = extractEmail(msg.to_addr);
-    if (to && mailboxes.some((m) => m.address === to)) return to;
-    return to || undefined;
+    return resolveReplyFromAddress(msg, mailboxes, extractEmail);
   }
 
   function reply(all = false) {

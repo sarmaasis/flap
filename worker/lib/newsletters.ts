@@ -367,7 +367,7 @@ export async function processQueuedNewsletterBlasts(env: Env): Promise<void> {
       if (!sendLimit.ok) break;
       const to = extractEmail(rawSub.email).toLowerCase();
       if (!EMAIL_RE.test(to)) continue;
-      if (await isAddressSuppressed(env.DB, to)) {
+      if (await isAddressSuppressed(env.DB, blast.user_id, to)) {
         await unsubscribeNewsletterEmail(env.DB, to, now);
         continue;
       }

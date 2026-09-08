@@ -57,12 +57,14 @@ export const FOR_PAGES: HubPage[] = [
   {
     path: "/for/agencies",
     title: "For agencies | Flap",
-    description: "Client domains, Team seats, and shared inboxes for small agencies.",
+    description:
+      "Client domains in one Flap org: Team seats, shared inboxes, and correct reply-from — without a Workspace per client.",
     h1: "Email for agencies",
     body: [
-      "Hold many client brands in one org (up to your plan domain limit).",
-      "Team plan unlocks unlimited seats and shared inboxes.",
-      "Honest deliverability dashboards per domain on SES.",
+      "Hold many client brands in one workspace (up to your plan domain limit) instead of a suite environment per client.",
+      "Team plan unlocks unlimited seats and shared inboxes so operators can triage client mail together.",
+      "Reply as the client domain that received the thread — the core multi-domain workflow, not an afterthought.",
+      "Honest deliverability dashboards per domain on Amazon SES. Client portals and one-click domain transfer are not marketed as shipped today.",
     ],
   },
   {

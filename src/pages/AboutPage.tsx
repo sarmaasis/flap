@@ -72,8 +72,8 @@ export default function AboutPage() {
           <h2 className="text-xl font-semibold text-[var(--fg)]">What Flap is</h2>
           <p>
             Flap hosts custom-domain email so you can send and receive as you@yourstartup.com across
-            every project domain from one inbox. It is email infrastructure — not Docs, Drive, Meet,
-            or Calendar.
+            every project domain from one inbox. It is multi-domain email infrastructure — not a full
+            Docs / Drive / Meet productivity suite.
           </p>
           <p>
             <strong className="text-[var(--fg)]">Who it is for:</strong> {TARGET_CUSTOMER}

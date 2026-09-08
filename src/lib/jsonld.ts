@@ -20,6 +20,8 @@ export function organizationLd(): Record<string, unknown> {
     "@type": "Organization",
     "@id": ORGANIZATION.id,
     name: ORGANIZATION.name,
+    alternateName: ORGANIZATION.alternateName,
+    description: ORGANIZATION.description,
     url: ORGANIZATION.url,
     email: ORGANIZATION.email,
     logo: {
@@ -60,6 +62,7 @@ export function softwareApplicationLd(): Record<string, unknown> {
     "@type": "SoftwareApplication",
     "@id": SOFTWARE_APP.id,
     name: PRODUCT_NAME,
+    alternateName: ORGANIZATION.alternateName,
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: SITE_URL,

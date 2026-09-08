@@ -52,11 +52,12 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     const id = c.req.param("id");
-    await c.env.DB.prepare("DELETE FROM message_labels WHERE label_id = ?").bind(id).run();
+    // Ownership first — never wipe message_labels for a label the workspace does not own.
     const res = await c.env.DB.prepare("DELETE FROM labels WHERE id = ? AND user_id = ?")
       .bind(id, ctx.workspaceId)
       .run();
     if (!res.meta.changes) return c.json({ error: "Label not found." }, 404);
+    await c.env.DB.prepare("DELETE FROM message_labels WHERE label_id = ?").bind(id).run();
     return c.json({ ok: true });
   });
 
@@ -315,9 +316,10 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const byKind: Record<string, number> = {};
     for (const row of counts.results ?? []) byKind[row.kind] = Number(row.n) || 0;
     const suppressed = await c.env.DB.prepare(
-      "SELECT COUNT(*) AS n FROM mail_suppressions WHERE expires_at IS NULL OR expires_at > ?",
+      `SELECT COUNT(*) AS n FROM mail_suppressions
+       WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)`,
     )
-      .bind(Date.now())
+      .bind(ctx.workspaceId, Date.now())
       .first<{ n: number }>();
     const bounce = (byKind.bounce || 0) + (byKind.soft_bounce || 0);
     const complaint = byKind.complaint || 0;
@@ -336,19 +338,20 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const access = mailboxAccessClause(ctx);
     const id = c.req.param("id");
     const row = await c.env.DB.prepare(
-      "SELECT id, folder, scheduled_at FROM messages WHERE id = ? AND user_id = ?",
+      `SELECT id, folder, scheduled_at FROM messages WHERE id = ? AND user_id = ?${access.sql}`,
     )
-      .bind(id, ctx.workspaceId)
+      .bind(id, ctx.workspaceId, ...access.binds)
       .first<{ id: string; folder: string; scheduled_at: number | null }>();
     if (!row || row.folder !== "scheduled") {
       return c.json({ error: "Message already sent or not found." }, 404);
     }
     await c.env.DB.prepare(
-      "UPDATE messages SET folder = 'drafts', scheduled_at = NULL WHERE id = ? AND user_id = ?",
+      `UPDATE messages SET folder = 'drafts', scheduled_at = NULL WHERE id = ? AND user_id = ?${access.sql}`,
     )
-      .bind(id, ctx.workspaceId)
+      .bind(id, ctx.workspaceId, ...access.binds)
       .run();
     return c.json({ ok: true, draft: true, id });
   });
@@ -361,8 +364,11 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const rows = await c.env.DB.prepare(
       `SELECT id, email, reason, source, provider_message_id, created_at, expires_at
        FROM mail_suppressions
+       WHERE user_id = ?
        ORDER BY created_at DESC LIMIT 500`,
-    ).all();
+    )
+      .bind(ctx.workspaceId)
+      .all();
     return c.json({ suppressions: rows.results ?? [] });
   });
 
@@ -371,7 +377,16 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
     if (!ctx.canManageSettings) return c.json({ error: "Only owners and admins can edit suppressions." }, 403);
-    await c.env.DB.prepare("DELETE FROM mail_suppressions WHERE id = ?").bind(c.req.param("id")).run();
+    const id = c.req.param("id");
+    const owned = await c.env.DB.prepare(
+      `SELECT id FROM mail_suppressions WHERE id = ? AND user_id = ?`,
+    )
+      .bind(id, ctx.workspaceId)
+      .first<{ id: string }>();
+    if (!owned) return c.json({ error: "Suppression not found." }, 404);
+    await c.env.DB.prepare("DELETE FROM mail_suppressions WHERE id = ? AND user_id = ?")
+      .bind(id, ctx.workspaceId)
+      .run();
     return c.json({ ok: true });
   });
 
@@ -382,22 +397,24 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const domains = await c.env.DB.prepare(
       `SELECT id, name, color, muted_until, mail_provider, provider_state, provider_region,
               identity_verified_at, mx_verified_at, inbound_rule_ready_at, receiving_ready_at, sending_ready_at,
-              last_provider_check_at, last_provider_error
+              last_provider_check_at, last_provider_error,
+              last_inbound_error, last_inbound_error_at, last_inbound_provider_message_id
        FROM domains WHERE user_id = ? ORDER BY created_at ASC`,
     )
       .bind(ctx.workspaceId)
       .all();
     const suppressions = await c.env.DB.prepare(
-      "SELECT count(*) AS n FROM mail_suppressions WHERE expires_at IS NULL OR expires_at > ?",
+      `SELECT COUNT(*) AS n FROM mail_suppressions
+       WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)`,
     )
-      .bind(nowMs())
+      .bind(ctx.workspaceId, nowMs())
       .first<{ n: number }>();
     const bounceRows = await c.env.DB.prepare(
-      `SELECT reason, count(*) AS n FROM mail_suppressions
-       WHERE expires_at IS NULL OR expires_at > ?
+      `SELECT reason, COUNT(*) AS n FROM mail_suppressions
+       WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)
        GROUP BY reason`,
     )
-      .bind(nowMs())
+      .bind(ctx.workspaceId, nowMs())
       .all<{ reason: string; n: number }>();
     const byReason: Record<string, number> = {};
     for (const row of bounceRows.results ?? []) byReason[row.reason] = Number(row.n) || 0;

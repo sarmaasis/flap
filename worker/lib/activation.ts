@@ -116,6 +116,13 @@ export async function getActivationState(db: D1Database, userId: string) {
 export async function afterDomainAdded(db: D1Database, userId: string): Promise<void> {
   await maybeQualifyReferral(db, userId);
   await trackServerEvent(db, "domain_added", { userId });
+  const count = await db
+    .prepare("SELECT COUNT(*) AS n FROM domains WHERE user_id = ?")
+    .bind(userId)
+    .first<{ n: number }>();
+  if (Number(count?.n ?? 0) === 2) {
+    await trackOncePerUser(db, userId, "second_domain_added");
+  }
 }
 
 /** Called when authenticated DNS check reports MX+SPF ready. */

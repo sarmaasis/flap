@@ -1,17 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
-  Bot,
-  Calendar,
   Check,
-  Copy,
   Inbox,
   Lock,
   Mail,
-  Newspaper,
-  Sparkles,
-  Star,
-  Terminal,
   Users,
   Zap,
 } from "lucide-react";
@@ -20,18 +13,31 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "..
 import { Button } from "../components/ui/button";
 import { CREDIBILITY, MARKETING, SITE_URL } from "../content/marketing";
 import { FOR_PAGES as HUB_FOR, VS_PAGES } from "../content/hubs";
-import { API_SEND } from "../content/api-docs";
 import { api } from "../lib/api";
 import { track, trackOnce } from "../lib/analytics";
 import { go } from "../lib/nav";
 import { captureReferralFromUrl, faqPageLd, setJsonLd, setPageMeta } from "../lib/seo";
 import { PLANS } from "../../shared/plans";
+import { FOUNDER } from "../../shared/product-facts";
 import { cn } from "../lib/utils";
 
-const MAILBOX_CARDS = [
-  { initials: "HE", address: "hello@studio.example", role: "Active", tone: "active" as const },
-  { initials: "SU", address: "support@launch.example", role: "Shared", tone: "shared" as const },
-  { initials: "API", address: "api@ship.example", role: "API", tone: "api" as const },
+const HERO_ADDRESSES = [
+  "hello@product1.example",
+  "support@product2.example",
+  "billing@agency.example",
+];
+
+const HOW_STEPS = [
+  { step: "1", title: "Add domain", body: "Enter the domain you already own. Flap provisions mail identity for it." },
+  { step: "2", title: "Add DNS", body: "Publish the MX, SPF, and DKIM records Flap shows — at any registrar." },
+  { step: "3", title: "Verify", body: "Click Check DNS. Precise errors when something is wrong; no vague failures." },
+  { step: "4", title: "Receive & send", body: "Create hello@ / support@, then mail yourself to confirm the loop." },
+];
+
+const INBOX_ROWS = [
+  { domain: "product-one.com", name: "Stripe", subject: "Invoice issue", addr: "support@product-one.com" },
+  { domain: "agency.co", name: "John Smith", subject: "New project inquiry", addr: "hello@agency.co" },
+  { domain: "product-two.dev", name: "Sarah", subject: "Support request", addr: "support@product-two.dev" },
 ];
 
 const STATS = [
@@ -40,157 +46,112 @@ const STATS = [
     suffix: "$",
     prefix: true,
     label: "Solo starts",
-    body: `${PLANS.solo.limits.mailboxes} mailboxes. Same stack as Pro and Team.`,
+    body: `${PLANS.solo.limits.mailboxes} mailboxes · up to ${PLANS.solo.limits.domains} domains.`,
   },
   {
-    value: "50",
-    suffix: "+",
-    label: "Domains",
-    body: "Included on every paid plan. Mailbox count is the capacity dial.",
+    value: String(PLANS.solo.limits.domains),
+    suffix: "",
+    label: "Domains on paid plans",
+    body: "Mailbox count and seats are the upgrade dial — not another Workspace per launch.",
   },
   {
-    value: "5",
-    suffix: "-in-1",
-    label: "One subscription",
-    body: "Webmail, newsletters, bookings, calendar, and an email API.",
+    value: "1",
+    suffix: "",
+    label: "Inbox",
+    body: "Every connected domain lands in one place with readable identity.",
   },
   {
     value: "0",
     suffix: "",
     label: "Ads or scanning",
-    body: "Customer mail on Amazon SES. App on Cloudflare.",
+    body: MARKETING.architecture_line,
   },
 ];
 
-const INBOX_FEATURES = [
-  {
-    title: "Many domains, one place",
-    body: `Up to ${PLANS.solo.limits.domains} custom domains on every paid plan. Read and reply as each brand.`,
-  },
-  {
-    title: "Shared inboxes when you grow",
-    body: "Pro and Team add seats and shared mailboxes so support@ is a team surface, not a forwarding hack.",
-  },
-  {
-    title: "Identity stays visible",
-    body: "Domain chips and from-address clarity so you never reply as the wrong brand.",
-  },
-];
-
-const CALENDAR_FEATURES = [
-  {
-    title: "Week calendar in the same app",
-    body: "Events live next to mail, not a separate suite you forget to open.",
-  },
-  {
-    title: "Booking pages on your domain",
-    body: "Share a booking link that matches your brand, not a generic scheduler subdomain.",
-  },
-  {
-    title: "CalDAV-friendly contacts",
-    body: "Keep people and schedules in the same workspace as your aliases.",
-  },
-];
-
-const NEWSLETTER_FEATURES = [
-  {
-    title: "Send from your domain",
-    body: "Newsletters use the same custom-domain reputation as your day-to-day mail.",
-  },
-  {
-    title: "Capped, intentional blasts",
-    body: "Plan limits keep volume honest. Built for launches, not cold outbound.",
-  },
-  {
-    title: "Drafts beside the inbox",
-    body: "Write and review in the same product you already open for support mail.",
-  },
-];
-
-const AI_FEATURES = [
-  {
-    title: "Ask your inbox in plain language",
-    body: "Summarize threads and draft replies without leaving Flap.",
-  },
-  {
-    title: "Confirm before send",
-    body: "AI never silently delivers. You approve every outbound message.",
-  },
-  {
-    title: "MCP for agents",
-    body: "List domains and draft with confirm. Tools built for agent workflows.",
-  },
-];
-
-const CAPABILITIES = [
+const ADJACENT = [
   {
     icon: Mail,
-    title: "Works with any client",
-    body: "Webmail first. Keep your DNS at any registrar. Flap gives you the MX/SPF/DKIM to publish.",
-  },
-  {
-    icon: Calendar,
-    title: "CalDAV & CardDAV ready",
-    body: "Calendars, bookings, and contacts sit beside mail so scheduling is not a bolt-on.",
+    title: "Transactional API",
+    body: "Once a domain is connected, send via API keys, webhooks, and thin SDKs.",
   },
   {
     icon: Inbox,
-    title: "Storage that scales with you",
-    body: "Mailbox and send caps grow with Solo, Pro, Team, and Scale. No surprise seat taxes.",
-  },
-  {
-    icon: Users,
-    title: "Team access when you need it",
-    body: "Shared inboxes and seats on Pro and Team. Free and Solo stay solo-friendly.",
+    title: "Newsletters & bookings",
+    body: "Launch notes and booking pages on the same custom-domain stack as hello@.",
   },
   {
     icon: Zap,
-    title: "Automations & webhooks",
-    body: "React to mail.received, send via API keys, and wire thin TypeScript or Python SDKs.",
+    title: "AI drafts (confirm first)",
+    body: "Summarize and draft in-product. Flap never silently sends.",
+  },
+  {
+    icon: Users,
+    title: "Teams when you need them",
+    body: "Pro and Team add seats and shared mailboxes. Free and Solo stay founder-friendly.",
   },
   {
     icon: Lock,
-    title: "Privacy by architecture",
-    body: MARKETING.architecture_line,
+    title: "Export & leave",
+    body: "JSON backup and .mbox downloads anytime. Being easy to leave is a trust feature.",
   },
 ];
 
 const FAQS = [
   {
-    q: "What is custom-domain email and why does Flap use it?",
-    a: "Custom-domain email means sending and receiving as you@yourdomain.com instead of a generic Gmail or Outlook address. Flap hosts real mailboxes on your own domain, so every project has a professional identity without a separate Google Workspace account per launch.",
+    q: "Can I use multiple domains in one inbox?",
+    a: `Yes. Free includes ${PLANS.free.limits.domains} domains to prove MX. Solo, Pro, Team, and Scale each include up to ${PLANS.solo.limits.domains} custom domains in one Flap inbox. Filter by domain or mailbox when you need focus.`,
   },
   {
-    q: "Who is Flap for?",
-    a: "Indie hackers, serial founders, micro-SaaS builders, freelancers, and small studios who own multiple domains and do not want a separate Google Workspace (or similar) subscription for every project.",
+    q: "When I reply, which email address does Flap send from?",
+    a: "Reply uses the mailbox that received the message (the inbound recipient). Compose shows that From address before you send. You can change it; the change does not silently stick to unrelated threads.",
   },
   {
-    q: "Is Flap just cheap business email?",
-    a: "No. Flap is built around one inbox for many startup domains, with fast setup and multiple sender identities. It does not compete solely on price with full productivity suites. It also includes AI drafts, newsletters, booking pages, a transactional API, and a calendar.",
+    q: "Does Flap replace Google Workspace?",
+    a: "For custom-domain email across many projects, yes — that is the core job. Flap is not a Docs/Drive/Meet suite. If you need full Google collaboration tools, keep Workspace for that and use Flap for multi-domain mail.",
   },
   {
-    q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains} domains to prove MX before you pay. Solo, Pro, and Team each include up to ${PLANS.solo.limits.domains} custom domains. Referrals can add permanent bonus domain slots.`,
+    q: "Can I bring an existing domain?",
+    a: "Yes. Keep DNS at Cloudflare, Namecheap, Porkbun, GoDaddy, Route 53, Vercel, or anywhere else. Add the domain in Flap, publish the records shown, then verify.",
   },
   {
-    q: "Do you support teams and shared inboxes?",
-    a: "Pro adds up to 5 seats. Team unlocks unlimited seats, shared mailboxes (e.g. support@, hello@), and delegation. Free and Solo are designed for solo founders.",
+    q: "Will changing MX records affect my website?",
+    a: "No. MX only controls where email is delivered. Your website A/AAAA/CNAME records are separate. Change MX only when you are ready for Flap to receive mail for that domain.",
   },
   {
-    q: "How does DNS and email delivery work?",
-    a: "Customer mail runs on Amazon SES. The Flap app runs on Cloudflare. Your DNS stays at any registrar: Cloudflare, Namecheap, Porkbun, GoDaddy, Route 53, and more. You publish MX/SPF/DKIM records Flap shows you, then click Check DNS.",
+    q: "Can I migrate my old email?",
+    a: "Flap does not auto-import IMAP or full mailboxes today. Export from your old provider if needed, switch MX after you verify the domain and test send/receive, and use Settings for ongoing .mbox / JSON export. See /migrate for the cutover narrative.",
+  },
+  {
+    q: "Can I export my email if I leave?",
+    a: "Yes. Settings includes JSON workspace backup and per-mailbox .mbox download. Paid accounts keep an export window after cancel. No lock-in.",
+  },
+  {
+    q: "Does Flap use Amazon SES?",
+    a: "Yes. Customer mail (inbound and outbound) runs on Amazon SES. The Flap app runs on Cloudflare. Your DNS stays at any registrar.",
+  },
+  {
+    q: "Why wouldn't I use SES directly?",
+    a: "SES is the mail pipe. Flap is the product layer: domain onboarding, mailboxes, inbox UI, threading, correct reply-from identity, aliases, shared workflows, and an application API. See /why-not-amazon-ses.",
+  },
+  {
+    q: "Can teammates access individual mailboxes?",
+    a: "Pro adds up to 5 seats. Team unlocks many seats plus shared mailboxes (e.g. support@, hello@). Free and Solo are designed for solo founders.",
+  },
+  {
+    q: "Can I use Flap for transactional email?",
+    a: "Yes on Solo and above: API keys, POST /api/v1/send, webhooks, and TypeScript/Python SDKs. Same verified domains as your inbox.",
+  },
+  {
+    q: "Does Flap support newsletters?",
+    a: "Yes on paid plans, with plan caps for intentional launches — not cold outbound. Sends use your connected custom domains.",
+  },
+  {
+    q: "What happens if DNS verification fails?",
+    a: "Flap shows which record failed and why (wrong value, conflicting MX, missing DKIM, and similar). Fix at your DNS host, wait for propagation, then Check DNS again.",
   },
   {
     q: "Does Flap support IMAP and SMTP?",
-    a: "Not yet. Use the web app and PWA. IMAP/SMTP client access is planned but not yet available.",
-  },
-  {
-    q: "Can I send transactional email via API?",
-    a: "Yes. Solo and above include API keys for transactional sends. POST to /api/v1/send with a Bearer key. TypeScript and Python SDKs plus a thin CLI are available.",
-  },
-  {
-    q: "Can I export my data?",
-    a: "Yes. Settings includes JSON backup, .mbox mailbox download, and workspace restore. Export anytime. No lock-in.",
+    a: "Not yet. Use the web app and PWA. IMAP/SMTP client access is planned but not available.",
   },
 ];
 
@@ -199,44 +160,23 @@ const COMPARISON_LINKS = [
   ...HUB_FOR.slice(0, 2).map((p) => ({ path: p.path, label: p.h1, body: p.description })),
 ];
 
-const API_SAMPLES = {
-  typescript: `const res = await fetch("https://useflap.online/api/v1/send", {
-  method: "POST",
-  headers: {
-    Authorization: "Bearer flap_YOUR_KEY",
-    "Content-Type": "application/json",
+const PLAN_TEASERS = [
+  {
+    id: "solo",
+    who: "Solo founder",
+    why: "Up to 50 domains, 3 mailboxes, API included — capacity without a suite per project.",
   },
-  body: JSON.stringify({
-    to: "customer@example.com",
-    subject: "Thanks for signing up",
-    text: "Welcome to the product.",
-    from: "hello@yourdomain.com",
-  }),
-});`,
-  python: `import requests
-
-requests.post(
-  "https://useflap.online/api/v1/send",
-  headers={"Authorization": "Bearer flap_YOUR_KEY"},
-  json={
-    "to": "customer@example.com",
-    "subject": "Thanks for signing up",
-    "text": "Welcome to the product.",
-    "from": "hello@yourdomain.com",
+  {
+    id: "pro",
+    who: "Small team",
+    why: "More mailboxes, up to 5 seats, shared inboxes when support@ needs a team.",
   },
-)`,
-  curl: `curl -X POST https://useflap.online/api/v1/send \\
-  -H "Authorization: Bearer flap_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "to": "customer@example.com",
-    "subject": "Thanks for signing up",
-    "text": "Welcome to the product.",
-    "from": "hello@yourdomain.com"
-  }'`,
-} as const;
-
-type ApiTab = keyof typeof API_SAMPLES;
+  {
+    id: "team",
+    who: "Studio / agency",
+    why: "Higher mailbox and seat capacity for client domains in one account.",
+  },
+] as const;
 
 function AccentPeriod() {
   return <span className="text-[var(--accent)]">.</span>;
@@ -320,23 +260,8 @@ function ProductFrame({
   );
 }
 
-function FeatureTrio({ items }: { items: Array<{ title: string; body: string }> }) {
-  return (
-    <div className="mt-12 grid gap-6 md:grid-cols-3">
-      {items.map((item) => (
-        <div key={item.title} className="pt-1">
-          <h3 className="text-base font-bold leading-normal">{item.title}</h3>
-          <p className="mt-2 text-sm leading-[1.55] text-[var(--foreground-muted)]">{item.body}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function Landing() {
   const [auth, setAuth] = useState<"loading" | "setup" | "guest" | "user">("loading");
-  const [apiTab, setApiTab] = useState<ApiTab>("typescript");
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     captureReferralFromUrl();
@@ -358,6 +283,7 @@ export default function Landing() {
     });
     setJsonLd("flap-faq", faqPageLd(FAQS));
     trackOnce("landing", "landing_view");
+    trackOnce("homepage", "homepage_view");
     Promise.all([
       api.setupStatus().catch(() => ({ needs_setup: false })),
       api.me().then((me) => me.user.email_verified !== false).catch(() => false),
@@ -371,44 +297,36 @@ export default function Landing() {
   }, []);
 
   const primaryHref = auth === "setup" ? "/setup" : auth === "user" ? "/app" : "/signup";
-  const primaryLabel = auth === "setup" ? "Create your workspace" : auth === "user" ? "Open inbox" : "Start free";
-  const heroCta = auth === "guest" || auth === "loading" ? "Try free" : primaryLabel;
+  const primaryLabel =
+    auth === "setup" ? "Create your workspace" : auth === "user" ? "Open inbox" : "Connect your first domain";
+  const heroCta = primaryLabel;
 
   const onPrimary = (source: string) => {
     track("signup_clicked", { source });
+    track("cta_connect_domain", { source });
     go(primaryHref);
-  };
-
-  const copySample = async () => {
-    try {
-      await navigator.clipboard.writeText(API_SAMPLES[apiTab]);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      /* ignore */
-    }
   };
 
   return (
     <MarketingShell primaryHref={primaryHref} primaryLabel={auth === "guest" || auth === "loading" ? "Get started" : primaryLabel}>
+      {/* §1 Hero */}
       <Band tone="light" className="pt-[120px] md:pt-[148px] landing-hero-band">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
           <div>
             <p className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
-              Custom-domain email for every project you ship.
+              Multi-domain email for founders
             </p>
-            <h1 className="mt-4 max-w-[14ch] text-[clamp(40px,5vw,56px)] font-extrabold leading-[1.05] tracking-[-1.4px] text-[var(--foreground)]">
+            <h1 className="mt-4 max-w-[18ch] text-[clamp(40px,5vw,56px)] font-extrabold leading-[1.05] tracking-[-1.4px] text-[var(--foreground)]">
+              One inbox for every{" "}
               <span className="inline box-decoration-clone rounded-[0.15em] bg-[rgba(var(--accent-rgb),0.18)] px-[0.12em] py-[0.04em] font-[family-name:var(--font-serif)] font-normal italic">
-                Every project.
+                product you build
               </span>
-              <br />
-              One calm inbox
               <AccentPeriod />
             </h1>
             <p className="mt-6 max-w-[520px] text-lg leading-[1.6] text-[var(--foreground-muted)]">
-              {MARKETING.hero_subheadline}{" "}
-              <strong className="font-semibold text-[var(--foreground)]">From ${PLANS.solo.price_monthly}/mo.</strong>
+              {MARKETING.hero_subheadline}
             </p>
+            <p className="mt-3 max-w-[520px] text-sm font-medium text-[var(--foreground)]">{MARKETING.secondary_line}</p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Button size="pill" className="h-11 rounded-full px-7 text-sm font-semibold" asChild>
                 <a
@@ -422,65 +340,64 @@ export default function Landing() {
                   <ArrowRight />
                 </a>
               </Button>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface-raised)] px-3.5 py-2 text-[13px] font-medium text-[var(--foreground-muted)]">
-                <Star className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" aria-hidden />
-                Free plan includes real mailboxes
-              </span>
+              <Button
+                size="pill"
+                variant="outline"
+                className="h-11 rounded-full px-6 text-sm font-semibold"
+                asChild
+              >
+                <a
+                  href="/demo"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    go("/demo");
+                  }}
+                >
+                  Try interactive demo
+                </a>
+              </Button>
             </div>
             <p className="mt-5 text-sm text-[var(--foreground-muted)]">
-              Start free with real custom-domain mailboxes. Upgrade as your projects grow. Up to 50 domains on every paid plan.
+              Free plan includes real mailboxes. From ${PLANS.solo.price_monthly}/mo · up to {PLANS.solo.limits.domains}{" "}
+              domains on paid plans.
             </p>
           </div>
 
-          <div className="relative flex min-h-[360px] items-center" aria-label="Example of Flap mailboxes and API">
+          <div className="relative" aria-label="Many domains into one inbox with correct reply identity">
             <div
               className="pointer-events-none absolute top-[8%] right-[-8%] bottom-[-12%] left-[-8%] bg-[radial-gradient(circle_at_50%_40%,rgba(var(--accent-rgb),0.16),transparent_65%)] blur-[28px]"
               aria-hidden
             />
-            <div className="relative flex w-full flex-col gap-2.5">
-              {MAILBOX_CARDS.map((card) => (
+            <div className="relative flex flex-col gap-3">
+              {HERO_ADDRESSES.map((addr) => (
                 <div
-                  className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-3.5 py-3 shadow-[var(--shadow)]"
-                  key={card.address}
+                  key={addr}
+                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-4 py-3 font-[family-name:var(--font-mono)] text-sm font-semibold shadow-[var(--shadow)]"
                 >
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--accent-dim)] font-[family-name:var(--font-mono)] text-[11px] font-bold text-[var(--accent-text)]">
-                    {card.initials}
-                  </span>
-                  <div>
-                    <strong className="block text-sm font-semibold tracking-[-0.01em]">{card.address}</strong>
-                    <small className="text-xs text-[var(--foreground-muted)]">Mailbox on your domain</small>
-                  </div>
-                  <span
-                    className={cn(
-                      "ml-auto rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                      card.tone === "active" && "bg-[var(--accent-dim)] text-[var(--accent-text)]",
-                      card.tone === "shared" &&
-                        "bg-[color-mix(in_srgb,var(--chart-expansion)_12%,transparent)] text-[var(--chart-expansion)]",
-                      card.tone === "api" &&
-                        "bg-[color-mix(in_srgb,var(--chart-new)_12%,transparent)] text-[var(--success-text)]",
-                    )}
-                  >
-                    {card.role}
-                  </span>
+                  {addr}
                 </div>
               ))}
-              <div className="mt-1 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[var(--landing-dark)] px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs leading-[1.55] text-[var(--landing-dark-fg)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)]">
-                <div className="mb-2.5 flex items-center gap-2 text-[11px] text-[var(--landing-dark-muted)]">
-                  <Terminal className="h-3.5 w-3.5" aria-hidden />
-                  <span>POST {API_SEND.path}</span>
-                </div>
-                <pre className="m-0 whitespace-pre-wrap break-words">{`{
-  "to": "customer@example.com",
-  "subject": "Thanks for signing up",
-  "from": "hello@yourdomain.com"
-}`}</pre>
+              <div className="flex items-center justify-center py-1 text-xs font-semibold tracking-[0.14em] text-[var(--foreground-muted)] uppercase">
+                ↓ One inbox
+              </div>
+              <div className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[var(--landing-dark)] px-4 py-4 text-[var(--landing-dark-fg)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)]">
+                <p className="text-[11px] font-semibold tracking-[0.08em] text-[var(--landing-dark-muted)] uppercase">
+                  Reply to support@product2.example
+                </p>
+                <p className="mt-2 text-sm font-semibold">
+                  From <span className="text-[var(--accent)]">support@product2.example</span>
+                  <span className="ml-2 text-[var(--success-text)]">✓</span>
+                </p>
+                <p className="mt-1.5 text-xs text-[var(--landing-dark-muted)]">
+                  Automatically selected from the address that received the message.
+                </p>
               </div>
             </div>
           </div>
         </div>
       </Band>
 
-      <Band tone="light">
+      <Band tone="light" className="!py-12 md:!py-16">
         <div className="grid grid-cols-2 gap-6 border-y border-[var(--line)] py-8 md:grid-cols-4 md:gap-0 md:[&>*+*]:border-l md:[&>*+*]:border-[var(--line)] md:[&>*+*]:pl-6 md:[&>*:not(:last-child)]:pr-6">
           {STATS.map((s) => (
             <div key={s.label}>
@@ -504,200 +421,132 @@ export default function Landing() {
         </div>
       </Band>
 
-      <Band tone="dark" id="features">
+      {/* §2 Problem */}
+      <Band tone="dark" id="problem">
         <div className="max-w-2xl">
-          <SectionHeading>Custom-domain email across all your projects</SectionHeading>
-          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">{MARKETING.architecture_line}</p>
-        </div>
-        <ProductFrame title="Inbox · All domains" dark>
-          <div className="py-2 pb-3">
-            {[
-              { name: "Alex Chen", subject: "The next chapter starts here", addr: "hello@studio.example", unread: true },
-              { name: "Jamie Lee", subject: "A small update. A big milestone.", addr: "team@launch.example", unread: true },
-              { name: "Morgan Reed", subject: "Thanks for the quick reply", addr: "support@studio.example", unread: false },
-            ].map((row) => (
-              <div
-                key={row.addr}
-                className={cn("grid gap-1 border-b border-[var(--line)] px-5 py-3.5", row.unread && "shadow-[inset_3px_0_var(--accent)]")}
-              >
-                <strong className="text-[13px] font-semibold">{row.name}</strong>
-                <span className="text-[13px]">{row.subject}</span>
-                <em className="font-[family-name:var(--font-mono)] text-[11px] not-italic text-[var(--foreground-faint)]">{row.addr}</em>
-              </div>
-            ))}
-          </div>
-        </ProductFrame>
-        <FeatureTrio items={INBOX_FEATURES} />
-      </Band>
-
-      <Band tone="light" id="proof">
-        <div className="mb-10 max-w-2xl">
-          <p className="mb-3 text-xs font-semibold tracking-[1.2px] text-[var(--accent)] uppercase">Built to be trusted</p>
-          <SectionHeading>Email you can trust with your brand</SectionHeading>
+          <SectionHeading>Five domains shouldn&apos;t mean five inboxes</SectionHeading>
           <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-            Your domain, your conversations, your data. Honest architecture, no invented reviews.
+            Portfolio founders and studios accumulate domains faster than headcount. A Workspace (or similar) seat per
+            launch is the wrong unit of cost — and forwarding into personal Gmail breaks brand identity on reply.
           </p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {CREDIBILITY.map((c) => (
-            <blockquote key={c.title} className="m-0 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-[22px] py-5">
-              <div className="mb-3 flex gap-0.5" aria-hidden>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" />
-                ))}
-              </div>
-              <p className="text-[13px] leading-[1.55] text-[var(--foreground)]">&ldquo;{c.body}&rdquo;</p>
-              <footer className="mt-3.5 text-[13px] font-semibold">
-                <strong>{c.title}</strong>
-              </footer>
-            </blockquote>
-          ))}
         </div>
       </Band>
 
-      <Band tone="dark" id="calendar">
+      {/* §3 Signature workflow */}
+      <Band tone="light" id="reply-from">
         <div className="max-w-2xl">
-          <SectionHeading>Calendar and bookings, same subscription</SectionHeading>
+          <SectionHeading>Reply from the address that received the mail</SectionHeading>
           <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-            Week views, booking pages, and mail share one Flap workspace, not three add-on silos.
+            Customers email support@product-a.com. Flap selects that mailbox as From when you reply — so you do not
+            answer Product A as Product B.
           </p>
         </div>
-        <ProductFrame title="Calendar · This week" dark>
-          <div className="grid min-h-[180px] grid-cols-3 gap-2 p-4 md:grid-cols-5">
-            {["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => (
-              <div
-                key={d}
-                className="min-h-[140px] rounded-[10px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface-raised)_80%,transparent)] px-2 py-2.5"
-              >
-                <span className="mb-2.5 block text-[11px] font-semibold tracking-[0.06em] text-[var(--foreground-faint)] uppercase">{d}</span>
-                {d === "Tue" ? (
-                  <div className="mt-1.5 rounded-lg border-l-[3px] border-[var(--cal-blue-border)] bg-[color-mix(in_srgb,var(--cal-blue-border)_22%,transparent)] px-2 py-2 text-[11px] font-semibold text-[var(--landing-dark-fg)]">
-                    Demo call
-                  </div>
-                ) : null}
-                {d === "Wed" ? (
-                  <div className="mt-1.5 rounded-lg border-l-[3px] border-[var(--cal-green-border)] bg-[color-mix(in_srgb,var(--cal-green-border)_22%,transparent)] px-2 py-2 text-[11px] font-semibold text-[var(--landing-dark-fg)]">
-                    Launch check
-                  </div>
-                ) : null}
-                {d === "Thu" ? (
-                  <div className="mt-1.5 rounded-lg border-l-[3px] border-[var(--cal-amber-border)] bg-[color-mix(in_srgb,var(--cal-amber-border)_22%,transparent)] px-2 py-2 text-[11px] font-semibold text-[var(--landing-dark-fg)]">
-                    Booking open
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </ProductFrame>
-        <FeatureTrio items={CALENDAR_FEATURES} />
-      </Band>
-
-      <Band tone="light" id="newsletters">
-        <div className="max-w-2xl">
-          <SectionHeading>Newsletters from your domain</SectionHeading>
-          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-            Launch notes and product updates go out on the same custom-domain stack as hello@.
-          </p>
-        </div>
-        <ProductFrame title="Newsletters · Drafts">
-          <div className="mx-4 mt-3 mb-5 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
-            <Sparkles className="h-4 w-4 text-[var(--accent)]" aria-hidden />
-            <div>
-              <strong className="block text-sm">Ship week notes</strong>
-              <p className="mt-0.5 mb-0 text-xs text-[var(--foreground-muted)]">From newsletter@yourdomain.com · Draft</p>
+        <ProductFrame title="Compose · Reply">
+          <div className="space-y-3 px-5 py-5">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+              <p className="text-[11px] font-semibold tracking-[0.08em] text-[var(--foreground-faint)] uppercase">
+                Incoming
+              </p>
+              <p className="mt-1 font-[family-name:var(--font-mono)] text-sm font-semibold">To: support@product-a.com</p>
             </div>
-            <Newspaper className="ml-auto h-4 w-4 text-[var(--foreground-faint)]" aria-hidden />
-          </div>
-        </ProductFrame>
-        <FeatureTrio items={NEWSLETTER_FEATURES} />
-      </Band>
-
-      <Band tone="dark" id="ai">
-        <div className="max-w-2xl">
-          <SectionHeading>AI email assistant: confirm before send</SectionHeading>
-          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-            Summarize threads, draft replies in your voice, and approve every outbound message before it goes.
-          </p>
-        </div>
-        <ProductFrame title="AI assistant" dark>
-          <div className="flex flex-col gap-3 px-5 pt-4 pb-6">
-            <div className="max-w-[85%] self-end rounded-[14px] bg-[var(--accent)] px-3.5 py-3 text-[13px] leading-normal text-[var(--accent-fg)]">
-              Summarize unread support@ from today
-            </div>
-            <div className="max-w-[85%] self-start rounded-[14px] border border-[var(--line)] bg-[var(--surface-hover)] px-3.5 py-3 text-[13px] leading-normal">
-              <Bot className="mb-2 h-4 w-4" aria-hidden />
-              Three threads need a reply. Draft ready. Confirm to send.
-            </div>
-          </div>
-        </ProductFrame>
-        <FeatureTrio items={AI_FEATURES} />
-      </Band>
-
-      <Band tone="light" id="developers">
-        <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
-          <div>
-            <div className="max-w-xl">
-              <SectionHeading>Transactional email API for developers</SectionHeading>
-              <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-                Send transactional email with API keys, receive webhooks on mail.received, and use thin SDKs plus a CLI.
+            <div className="rounded-xl border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] px-4 py-3 shadow-[inset_3px_0_var(--accent)]">
+              <p className="text-[11px] font-semibold tracking-[0.08em] text-[var(--foreground-faint)] uppercase">
+                Sending as
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                Ashish &lt;support@product-a.com&gt; <span className="text-[var(--success-text)]">✓</span>
+              </p>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Automatically selected because this message was sent to support@product-a.com. Change anytime for this
+                reply.
               </p>
             </div>
-            <ul className="mt-8 space-y-3">
-              {[
-                `POST ${API_SEND.path} with Bearer API keys`,
-                "Inbound webhooks with signature verification",
-                "TypeScript & Python SDKs plus MCP confirm-before-send",
-              ].map((item) => (
-                <li key={item} className="flex gap-3 text-sm text-[var(--foreground-muted)] md:text-[15px]">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" aria-hidden />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            <Button variant="outline" className="mt-8 rounded-full" onClick={() => go("/docs/api")}>
-              Read API docs
-              <ArrowRight />
-            </Button>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[var(--landing-dark)] text-[var(--landing-dark-fg)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)]">
-            <div className="flex flex-wrap items-center gap-1 border-b border-[rgba(255,255,255,0.08)] px-3 py-2.5">
-              {(Object.keys(API_SAMPLES) as ApiTab[]).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={cn(
-                    "cursor-pointer rounded-full border-0 bg-transparent px-2.5 py-1.5 text-xs font-medium text-[var(--landing-dark-muted)]",
-                    apiTab === tab && "bg-[rgba(255,255,255,0.08)] text-[var(--landing-dark-fg)]",
-                  )}
-                  onClick={() => setApiTab(tab)}
-                >
-                  {tab === "typescript" ? "TypeScript" : tab === "python" ? "Python" : "cURL"}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full border-0 bg-transparent px-2.5 py-1.5 text-xs font-medium text-[var(--landing-dark-muted)]"
-                onClick={() => void copySample()}
-                aria-label="Copy sample"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <pre className="m-0 overflow-x-auto px-[18px] pt-4 pb-5 font-[family-name:var(--font-mono)] text-xs leading-[1.55] whitespace-pre">
-              {API_SAMPLES[apiTab]}
-            </pre>
+        </ProductFrame>
+      </Band>
+
+      {/* §4 How it works */}
+      <Band tone="dark" id="how-it-works">
+        <div className="max-w-2xl">
+          <SectionHeading>Connect a domain in minutes</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Flap is the product. Amazon SES is the mail pipe — you never have to treat SES as the user-facing setup
+            experience.
+          </p>
+        </div>
+        <ol className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {HOW_STEPS.map((s) => (
+            <li key={s.step} className="list-none">
+              <span className="font-[family-name:var(--font-mono)] text-xs font-bold text-[var(--accent)]">{s.step}</span>
+              <h3 className="mt-2 text-base font-bold">{s.title}</h3>
+              <p className="mt-2 text-sm leading-[1.55] text-[var(--foreground-muted)]">{s.body}</p>
+            </li>
+          ))}
+        </ol>
+      </Band>
+
+      {/* §5 Portfolio inbox */}
+      <Band tone="light" id="inbox">
+        <div className="max-w-2xl">
+          <SectionHeading>One inbox. Domain context stays visible</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Domain labels and mailbox filters keep every project readable — not just colored avatars.
+          </p>
+        </div>
+        <ProductFrame title="Inbox · All domains">
+          <div className="py-2 pb-3">
+            {INBOX_ROWS.map((row) => (
+              <div key={row.addr} className="grid gap-1 border-b border-[var(--line)] px-5 py-3.5 md:grid-cols-[140px_1fr]">
+                <span className="font-[family-name:var(--font-mono)] text-[11px] font-semibold text-[var(--accent-text)]">
+                  [{row.domain}]
+                </span>
+                <div>
+                  <strong className="text-[13px] font-semibold">{row.name}</strong>
+                  <span className="mt-0.5 block text-[13px]">{row.subject}</span>
+                  <em className="font-[family-name:var(--font-mono)] text-[11px] not-italic text-[var(--foreground-faint)]">
+                    {row.addr}
+                  </em>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ProductFrame>
+      </Band>
+
+      {/* §6–7 Use cases */}
+      <Band tone="compare" id="who">
+        <div className="mb-10 max-w-2xl">
+          <SectionHeading>Built for portfolio founders and agencies</SectionHeading>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-[22px] py-6">
+            <h3 className="text-lg font-bold">Founders with side projects</h3>
+            <p className="mt-3 text-sm leading-[1.55] text-[var(--foreground-muted)]">
+              Multiple SaaS domains, one operational email home. Launch another product without another email
+              subscription.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-[22px] py-6">
+            <h3 className="text-lg font-bold">Agencies & studios</h3>
+            <p className="mt-3 text-sm leading-[1.55] text-[var(--foreground-muted)]">
+              Client domains and shared support@ in one account when you grow into Pro or Team — without a suite seat
+              tax per client.
+            </p>
           </div>
         </div>
       </Band>
 
-      <Band tone="light" id="capabilities">
+      {/* §8 More than webmail (secondary) */}
+      <Band tone="light" id="more">
         <div className="mb-10 max-w-2xl">
-          <SectionHeading>Everything in one email subscription</SectionHeading>
-          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">{MARKETING.key_features.slice(0, 3).join(" · ")}.</p>
+          <SectionHeading>Once domains are connected</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Adjacent tools reinforce the inbox — they are not the headline. Transactional mail, newsletters, bookings,
+            calendar, automation, and AI drafts sit on the same verified domains.
+          </p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CAPABILITIES.map((cap) => (
+          {ADJACENT.map((cap) => (
             <div key={cap.title} className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-[22px] py-5">
               <div className="mb-3.5 grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-dim)] text-[var(--accent)]">
                 <cap.icon className="h-5 w-5" aria-hidden />
@@ -709,6 +558,127 @@ export default function Landing() {
         </div>
       </Band>
 
+      {/* §9 Pricing clarity */}
+      <Band tone="dark" id="pricing">
+        <div className="mb-10 max-w-2xl">
+          <SectionHeading>Upgrade for capacity, not a different product</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Every paid plan includes up to {PLANS.solo.limits.domains} domains. You upgrade for mailboxes, seats, and
+            send volume — the reason is unmistakable.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {PLAN_TEASERS.map((p) => (
+            <div key={p.id} className="rounded-2xl border border-[var(--landing-dark-line)] bg-[var(--landing-dark-raised)] px-5 py-5">
+              <p className="text-xs font-semibold tracking-[0.1em] text-[var(--accent)] uppercase">{PLANS[p.id].name}</p>
+              <h3 className="mt-2 text-base font-bold">{p.who}</h3>
+              <p className="mt-2 text-sm leading-[1.55] text-[var(--foreground-muted)]">{p.why}</p>
+              <p className="mt-4 text-2xl font-extrabold">
+                ${PLANS[p.id].price_monthly}
+                <span className="text-sm font-normal text-[var(--foreground-muted)]">/mo</span>
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button
+            className="rounded-full"
+            onClick={() => {
+              track("content_to_pricing", { source: "landing_pricing" });
+              go("/pricing");
+            }}
+          >
+            See full pricing
+            <ArrowRight />
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-full border-[var(--landing-dark-line)] bg-transparent text-[var(--landing-dark-fg)] hover:bg-[var(--landing-dark-raised)]"
+            onClick={() => go("/tools/google-workspace-cost-calculator")}
+          >
+            Workspace cost calculator
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-full border-[var(--landing-dark-line)] bg-transparent text-[var(--landing-dark-fg)] hover:bg-[var(--landing-dark-raised)]"
+            onClick={() => go("/migrate")}
+          >
+            Migration guide
+          </Button>
+        </div>
+      </Band>
+
+      {/* §10 Trust */}
+      <Band tone="light" id="trust">
+        <div className="mb-10 max-w-2xl">
+          <p className="mb-3 text-xs font-semibold tracking-[1.2px] text-[var(--accent)] uppercase">Trust</p>
+          <SectionHeading>Architecture you can verify</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Honest infrastructure, public status, export, and founder identity — no invented reviews or fake metrics.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {CREDIBILITY.slice(0, 3).map((c) => (
+            <div key={c.title} className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-[22px] py-5">
+              <h3 className="text-[15px] font-bold">{c.title}</h3>
+              <p className="mt-2 text-[13px] leading-[1.55] text-[var(--foreground-muted)]">{c.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          {[
+            { href: "/security", label: "Security" },
+            { href: "/status", label: "Status" },
+            { href: "/docs", label: "Docs" },
+            { href: "/about", label: "About" },
+            { href: "/why-not-amazon-ses", label: "Why not SES alone?" },
+            { href: "/privacy", label: "Privacy" },
+            { href: "/terms", label: "Terms" },
+          ].map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                go(l.href);
+              }}
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
+      </Band>
+
+      {/* Founder */}
+      <Band tone="compare" id="founder">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold tracking-[1.2px] text-[var(--accent)] uppercase">Founder</p>
+          <h2 className="mt-3 text-[clamp(28px,3.5vw,40px)] font-extrabold tracking-[-0.03em]">
+            Built by {FOUNDER.name}
+            <AccentPeriod />
+          </h2>
+          <p className="mt-4 text-base leading-[1.6] text-[var(--foreground-muted)]">
+            Flap exists because serial founders accumulate domains faster than headcount. Support and security reports go
+            to the same operator — not a faceless ticket queue.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button variant="outline" className="rounded-full" onClick={() => go("/about")}>
+              About Flap
+            </Button>
+            <a
+              className="text-sm font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
+              href={FOUNDER.xUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              @{FOUNDER.xHandle} on X
+            </a>
+          </div>
+        </div>
+      </Band>
+
+      {/* §11 FAQ */}
       <Band tone="light" id="faq">
         <div className="mx-auto max-w-3xl">
           <SectionHeading className="mb-8">Questions</SectionHeading>
@@ -725,8 +695,10 @@ export default function Landing() {
 
       <Band tone="compare" id="compare">
         <div className="mb-10 max-w-2xl">
-          <SectionHeading>Compare Flap to Workspace and alternatives</SectionHeading>
-          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">Honest comparison pages for founders choosing custom-domain email hosting.</p>
+          <SectionHeading>Compare Flap honestly</SectionHeading>
+          <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
+            Comparison pages for founders choosing custom-domain email — no fabricated competitor prices.
+          </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {COMPARISON_LINKS.map((link) => (
@@ -744,42 +716,30 @@ export default function Landing() {
             </a>
           ))}
         </div>
-        <p className="mt-8 text-sm text-[var(--foreground-muted)]">
-          See all{" "}
-          <a
-            className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
-            href="/vs"
-            onClick={(e) => {
-              e.preventDefault();
-              go("/vs");
-            }}
-          >
-            comparisons
-          </a>{" "}
-          and{" "}
-          <a
-            className="font-medium text-[var(--accent-text)] underline-offset-2 hover:underline"
-            href="/for"
-            onClick={(e) => {
-              e.preventDefault();
-              go("/for");
-            }}
-          >
-            use cases
-          </a>
-          .
-        </p>
       </Band>
 
+      {/* Final CTA */}
       <Band tone="accent">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-[clamp(32px,4vw,48px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-[var(--accent-fg)]">
-            Custom-domain email, set up in minutes
+            Connect your first domain
             <span className="text-[var(--accent-fg)]">.</span>
           </h2>
           <p className="mt-4 text-base text-[color-mix(in_srgb,var(--accent-fg)_80%,transparent)] md:text-lg">
-            Add a domain, publish MX/SPF/DKIM, and receive your first email. Usually takes a few minutes. From ${PLANS.solo.price_monthly}/month. Free plan includes real mailboxes.
+            Add a domain, publish DNS, verify, and receive your first email. Free includes real mailboxes.
           </p>
+          <ul className="mx-auto mt-6 flex max-w-md flex-col gap-2 text-left text-sm text-[color-mix(in_srgb,var(--accent-fg)_85%,transparent)]">
+            {[
+              "Many domains → one inbox",
+              "Replies use the receiving address",
+              "No separate email account per project",
+            ].map((t) => (
+              <li key={t} className="flex gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                {t}
+              </li>
+            ))}
+          </ul>
           <Button
             size="pill"
             className="mt-8 h-11 rounded-full bg-[var(--surface)] px-8 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--surface)] hover:opacity-95"

@@ -1,6 +1,7 @@
 import { assertWithinLimit, getEffectivePlan } from "./billing";
 import { randomId, nowMs } from "./ids";
 import { EMAIL_RE, extractEmail } from "./mailutil";
+import { mailboxAccessSql } from "../../shared/security-guards";
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -96,14 +97,7 @@ export function mailboxAccessClause(
   ctx: WorkspaceCtx,
   column = "mailbox_id",
 ): { sql: string; binds: unknown[] } {
-  if (ctx.mailboxIds === null) {
-    return { sql: "", binds: [] };
-  }
-  if (ctx.mailboxIds.length === 0) {
-    return { sql: ` AND 1 = 0`, binds: [] };
-  }
-  const placeholders = ctx.mailboxIds.map(() => "?").join(", ");
-  return { sql: ` AND ${column} IN (${placeholders})`, binds: [...ctx.mailboxIds] };
+  return mailboxAccessSql({ mailboxIds: ctx.mailboxIds }, column);
 }
 
 export async function listAccessibleMailboxes(db: D1Database, ctx: WorkspaceCtx) {

@@ -23,6 +23,8 @@ import {
   revokeMailboxMember,
   setMailboxShared,
 } from "./team";
+import { isAddressSuppressed } from "./suppressions";
+import { domainIsSendingReady } from "../../shared/ses-dns";
 
 type App = { Bindings: Env };
 
@@ -417,15 +419,56 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
   const bcc = message.bcc_addr ? parseRecipients(message.bcc_addr) : [];
   const recipients = [...new Set([...to, ...cc, ...bcc])];
   if (!recipients.length) return "No valid recipients.";
+
+  for (const addr of recipients) {
+    if (message.user_id && (await isAddressSuppressed(env.DB, message.user_id, addr))) {
+      return `${addr} is on the suppression list (bounce or complaint).`;
+    }
+  }
+
   const attachments = await loadAttachmentContents(env, message.id);
   const envelopeFrom = extractEmail(message.from_addr) || message.from_addr;
   const domain = envelopeFrom.split("@")[1] || "flap.local";
 
-  const domainRow = await env.DB.prepare(
-    "SELECT mail_provider, sending_ready_at, provider_state FROM domains WHERE lower(name) = ? LIMIT 1",
-  )
-    .bind(domain.toLowerCase())
-    .first<{ mail_provider: string | null; sending_ready_at: number | null; provider_state: string | null }>();
+  // Scope domain lookup to the message owner — never pick another tenant's domain row by name alone.
+  const domainRow = message.user_id
+    ? await env.DB.prepare(
+        `SELECT mail_provider, provider_state, identity_verified_at, mx_verified_at,
+                inbound_rule_ready_at, receiving_ready_at, sending_ready_at
+         FROM domains WHERE user_id = ? AND lower(name) = ? LIMIT 1`,
+      )
+        .bind(message.user_id, domain.toLowerCase())
+        .first<{
+          mail_provider: string | null;
+          provider_state: string | null;
+          identity_verified_at: number | null;
+          mx_verified_at: number | null;
+          inbound_rule_ready_at: number | null;
+          receiving_ready_at: number | null;
+          sending_ready_at: number | null;
+        }>()
+    : await env.DB.prepare(
+        `SELECT mail_provider, provider_state, identity_verified_at, mx_verified_at,
+                inbound_rule_ready_at, receiving_ready_at, sending_ready_at
+         FROM domains WHERE lower(name) = ? LIMIT 1`,
+      )
+        .bind(domain.toLowerCase())
+        .first<{
+          mail_provider: string | null;
+          provider_state: string | null;
+          identity_verified_at: number | null;
+          mx_verified_at: number | null;
+          inbound_rule_ready_at: number | null;
+          receiving_ready_at: number | null;
+          sending_ready_at: number | null;
+        }>();
+
+  if (!domainRow || !domainIsSendingReady(domainRow)) {
+    return `Finish sending setup for ${domain} before sending from this address.`;
+  }
+  if (/SUSPENDED|FAILED/i.test(domainRow.provider_state || "")) {
+    return `Domain ${domain} is suspended and cannot send.`;
+  }
 
   let text = message.text_body;
   let html = message.html_body || undefined;
@@ -457,7 +500,7 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
       envelopeFrom,
       recipients,
       rawMime: raw,
-      mailProvider: domainRow?.mail_provider || "ses",
+      mailProvider: domainRow.mail_provider || "ses",
     });
     if (result.messageId) {
       await env.DB.prepare("UPDATE messages SET provider_message_id = ? WHERE id = ?")
@@ -479,19 +522,32 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export async function flushScheduled(env: Env): Promise<{ flushed: number; failed: Array<{ id: string; error: string }> }> {
+export async function flushScheduled(
+  env: Env,
+  opts?: { userId?: string },
+): Promise<{ flushed: number; failed: Array<{ id: string; error: string }> }> {
   const now = nowMs();
   const failed: Array<{ id: string; error: string }> = [];
   let flushed = 0;
-  const due = await env.DB.prepare(
-    `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
-     FROM messages
-     WHERE folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
-     ORDER BY scheduled_at ASC
-     LIMIT 15`,
-  )
-    .bind(now)
-    .all<StoredMessage & { user_id: string }>();
+  const due = opts?.userId
+    ? await env.DB.prepare(
+        `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
+         FROM messages
+         WHERE user_id = ? AND folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
+         ORDER BY scheduled_at ASC
+         LIMIT 15`,
+      )
+        .bind(opts.userId, now)
+        .all<StoredMessage & { user_id: string }>()
+    : await env.DB.prepare(
+        `SELECT id, user_id, mailbox_id, from_addr, to_addr, cc_addr, bcc_addr, subject, text_body, html_body, in_reply_to
+         FROM messages
+         WHERE folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
+         ORDER BY scheduled_at ASC
+         LIMIT 15`,
+      )
+        .bind(now)
+        .all<StoredMessage & { user_id: string }>();
   for (const message of due.results ?? []) {
     const sendLimit = await assertSendRoom(env.DB, message.user_id);
     if (!sendLimit.ok) {
@@ -682,8 +738,11 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
     const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
-    // Eagerly flush due undo-send / scheduled messages so delivery does not wait on cron alone.
-    const flush = await flushScheduled(c.env).catch(() => ({ flushed: 0, failed: [] as Array<{ id: string; error: string }> }));
+    // Eagerly flush this workspace's undo-send / scheduled messages only (never other tenants).
+    const flush = await flushScheduled(c.env, { userId: ctx.workspaceId }).catch(() => ({
+      flushed: 0,
+      failed: [] as Array<{ id: string; error: string }>,
+    }));
     const [counts, domain_unread] = await Promise.all([
       folderCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
       domainUnreadCounts(c.env.DB, ctx.workspaceId, ctx.mailboxIds),
@@ -699,7 +758,8 @@ export function registerWorkspaceRoutes(app: Hono<App>) {
   app.post("/api/mail/flush-outbox", async (c) => {
     const user = await requireUser(c);
     if (user instanceof Response) return user;
-    const flush = await flushScheduled(c.env);
+    const ctx = await resolveWorkspace(c.env.DB, user.id, getCookie(c, "flap_ws"));
+    const flush = await flushScheduled(c.env, { userId: ctx.workspaceId });
     return c.json(flush);
   });
 

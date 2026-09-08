@@ -1,13 +1,18 @@
 # Flap
 
-> Flap (useflap.online) is hosted custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain to one inbox and send as you@yourstartup.com - without a separate Google Workspace (or similar) for each launch. Flap is email infrastructure, not a full productivity suite.
+> Flap (useflap.online) is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, reply from the correct sender identity, and skip a separate Google Workspace (or similar) for each launch.
 
-Flap is email infrastructure, not a full productivity suite. It does not replace Docs, Drive, Meet, or Calendar. Inbound: DNS → Amazon SES inbound → Flap ingest. Outbound: Flap Compose → Amazon SES SendRawEmail. DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path. Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.
+Flap is multi-domain email infrastructure and inbox for founders — not a full Docs/Drive/Meet suite. Inbound: DNS → Amazon SES inbound → Flap ingest. Outbound: Flap Compose → Amazon SES SendRawEmail. DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path. Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.
 
 ## Product
 
-- [Home](https://useflap.online/): Product overview, features, FAQ, and pricing section
+- [Home](https://useflap.online/): One inbox for every product you build — positioning, FAQ, pricing
 - [Pricing](https://useflap.online/pricing): Free $0 (2 mailboxes), Solo $6/mo (3 mailboxes), Pro $12/mo (6 mailboxes), Team $29/mo (12 mailboxes), Scale $2.5/mailbox/mo. Annual = 10× monthly.
+- [Migrate](https://useflap.online/migrate): DNS-first cutover narrative (mbox/JSON export; no auto IMAP import)
+- [Why not Amazon SES](https://useflap.online/why-not-amazon-ses): SES is the pipe; Flap is the product layer
+- [Interactive demo](https://useflap.online/demo): No-signup reply-from walkthrough (fake domains; nothing sent)
+- [Changelog](https://useflap.online/changelog): Product updates with real dates
+- [Security](https://useflap.online/security): Architecture, export, auth — no invented certifications
 - [About](https://useflap.online/about): What Flap is, who operates it, infrastructure overview
 - [Signup](https://useflap.online/signup): Create a Flap account
 - [Support](https://useflap.online/support): support@useflap.online
@@ -19,12 +24,19 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 
 ## SEO landings
 
+- [Email for multiple domains — without a suite per brand](https://useflap.online/email-for-multiple-domains): Run professional email across every domain you own from one Flap inbox. Receive centrally, reply from the correct address, skip a Workspace per project.
 - [Google Workspace alternative for multi-domain founders](https://useflap.online/google-workspace-alternative): Flap is a Google Workspace alternative for founders who need custom-domain email on many projects - one inbox, domain-first pricing, no suite per launch.
 - [Email hosting for multiple domains - one inbox](https://useflap.online/email-hosting-for-multiple-domains): Host email for many domains in one inbox with Flap. Domain-first plans for indie hackers and studios juggling side projects.
 - [Custom domain email that is actually an inbox](https://useflap.online/custom-domain-email): Get you@yourdomain.com with a real Flap inbox - aliases, send, and DNS guidance. Custom domain email without a Google Workspace per project.
 - [Email for indie hackers who keep shipping](https://useflap.online/email-for-indie-hackers): Professional email for every side project domain. Flap gives indie hackers one inbox across launches - no per-project Workspace tax.
+- [Email for founders who run more than one product](https://useflap.online/email-for-founders): Founder email across every product domain — one Flap inbox, correct reply-from identity, no Workspace account per launch.
 - [Email for every side project - without another subscription](https://useflap.online/email-for-side-projects): Launch another domain without another email subscription. Flap is one inbox for all your side projects’ custom-domain email.
 - [Multiple domains. One inbox.](https://useflap.online/multiple-domains-one-inbox): Connect every startup domain to a single Flap inbox. Send and receive as each brand identity - one inbox for every startup you build.
+- [How to manage email for multiple domains](https://useflap.online/how-to-manage-email-for-multiple-domains): A practical playbook for managing email across many domains: inventory, DNS, one inbox vs many suites, reply identity, and when to use Flap.
+- [Email for multiple SaaS products](https://useflap.online/email-for-multiple-saas-products): Run hello@ and support@ across every SaaS product domain from one Flap inbox. Correct reply-from identity without a Workspace per launch.
+- [Email for venture studios](https://useflap.online/email-for-venture-studios): Operate email across venture studio and portfolio company domains from one Flap inbox. Correct sender identity without a suite per company.
+- [How to send email from multiple domains](https://useflap.online/how-to-send-email-from-multiple-domains): Practical guide to sending as addresses on many domains: SPF/DKIM per domain, reply-from identity, and when a multi-domain inbox beats aliases or forwards.
+- [Google Workspace and multiple domains](https://useflap.online/google-workspace-multiple-domains): Understand Google Workspace multi-domain and alias options vs Flap’s one-inbox model for founders running separate product brands.
 
 ## Comparisons
 

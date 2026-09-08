@@ -18,6 +18,10 @@ import DocsApiPage from '../src/pages/DocsApiPage';
 import GuidesIndexPage from '../src/pages/GuidesIndexPage';
 import AboutPage from '../src/pages/AboutPage';
 import SecurityPage from '../src/pages/SecurityPage';
+import MigratePage from '../src/pages/MigratePage';
+import WhyNotSesPage from '../src/pages/WhyNotSesPage';
+import DemoPage from '../src/pages/DemoPage';
+import ChangelogPage from '../src/pages/ChangelogPage';
 import SupportPage from '../src/pages/SupportPage';
 import StatusPage from '../src/pages/StatusPage';
 import HubPage from '../src/pages/HubPage';
@@ -31,7 +35,9 @@ const staticPages: Record<string, ComponentType> = {
   '/docs': DocsIndexPage, '/docs/getting-started': DocsGettingStartedPage,
   '/docs/concepts': DocsConceptsPage, '/docs/webhooks': DocsWebhooksPage,
   '/docs/api': DocsApiPage, '/guides': GuidesIndexPage, '/about': AboutPage,
-  '/security': SecurityPage, '/support': SupportPage, '/status': StatusPage,
+  '/security': SecurityPage, '/migrate': MigratePage, '/why-not-amazon-ses': WhyNotSesPage,
+  '/demo': DemoPage, '/changelog': ChangelogPage,
+  '/support': SupportPage, '/status': StatusPage,
 };
 export function renderPublicPage(path: string): string {
   let element;

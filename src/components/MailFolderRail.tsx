@@ -121,39 +121,63 @@ export default function MailFolderRail({
       </nav>
 
       {showDomains ? (
-        <nav className="flex flex-col gap-0.5 border-[var(--line)] max-lg:hidden lg:border-t lg:pt-2" aria-label="Domains">
-          <span className={folderSection}>Domains</span>
-          <button
-            type="button"
-            className={folderBtn(!domainFilter)}
-            onClick={() => onDomainFilter!("")}
-          >
-            <span>All domains</span>
-          </button>
-          {domains!.map((d) => {
-            const unread = domainUnread?.[d.id] ?? 0;
-            const active = domainFilter === d.id;
-            return (
-              <button
-                key={d.id}
-                type="button"
-                className={folderBtn(active)}
-                onClick={() => onDomainFilter!(d.id)}
-                style={d.color ? ({ ["--domain-color"]: d.color } as CSSProperties) : undefined}
-              >
-                <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                    aria-hidden
-                    style={d.color ? { background: d.color } : undefined}
-                  />
-                  {d.name}
-                </span>
-                {unread > 0 ? <span className="shrink-0 text-xs tabular-nums text-[var(--foreground-faint)]">{unread}</span> : null}
-              </button>
-            );
-          })}
-        </nav>
+        <>
+          <nav className="flex flex-col gap-0.5 border-[var(--line)] max-lg:hidden lg:border-t lg:pt-2" aria-label="Domains">
+            <span className={folderSection}>Domains</span>
+            <button
+              type="button"
+              className={folderBtn(!domainFilter)}
+              onClick={() => onDomainFilter!("")}
+            >
+              <span>All domains</span>
+            </button>
+            {domains!.map((d) => {
+              const unread = domainUnread?.[d.id] ?? 0;
+              const active = domainFilter === d.id;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  className={folderBtn(active)}
+                  onClick={() => onDomainFilter!(d.id)}
+                  style={d.color ? ({ ["--domain-color"]: d.color } as CSSProperties) : undefined}
+                >
+                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                      aria-hidden
+                      style={d.color ? { background: d.color } : undefined}
+                    />
+                    {d.name}
+                  </span>
+                  {unread > 0 ? <span className="shrink-0 text-xs tabular-nums text-[var(--foreground-faint)]">{unread}</span> : null}
+                </button>
+              );
+            })}
+          </nav>
+          <label className="flex flex-col gap-1 border-t border-[var(--line)] px-0.5 pt-2 lg:hidden">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--foreground-faint)]">
+              Domain
+            </span>
+            <select
+              className="h-9 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-2.5 text-[13px] font-medium text-[var(--foreground)]"
+              aria-label="Filter by domain"
+              value={domainFilter || ""}
+              onChange={(e) => onDomainFilter!(e.target.value)}
+            >
+              <option value="">All domains</option>
+              {domains!.map((d) => {
+                const unread = domainUnread?.[d.id] ?? 0;
+                return (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                    {unread > 0 ? ` (${unread})` : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        </>
       ) : null}
     </aside>
   );

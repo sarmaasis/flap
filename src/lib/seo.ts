@@ -50,7 +50,7 @@ export function setPageMeta(opts: {
   upsertMeta("property", "og:description", opts.description);
   upsertMeta("property", "og:url", url);
   upsertMeta("property", "og:type", ogType);
-  upsertMeta("property", "og:site_name", "Flap");
+  upsertMeta("property", "og:site_name", "Flap Email");
   upsertMeta("property", "og:image", imageUrl);
   upsertMeta("property", "og:image:width", "1200");
   upsertMeta("property", "og:image:height", "630");
