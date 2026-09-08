@@ -159,7 +159,7 @@ export default function MailboxesAppPage() {
           </p>
           <form
             onSubmit={(e) => void addMailbox(e)}
-            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+            className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
           >
             <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor="mb-local" className="block h-4 leading-4">
@@ -218,48 +218,81 @@ export default function MailboxesAppPage() {
       ) : null}
 
       {!loading && mailboxes.length > 0 ? (
-        <div className="mailboxes-table-wrap overflow-x-auto rounded-2xl border border-[var(--line)]">
-          <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-[var(--line)] bg-[var(--surface-hover)] text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--foreground-faint)]">
-                <th className="px-4 py-3">Address</th>
-                <th className="px-4 py-3">From name</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {mailboxes.map((m) => (
-                <tr key={m.id} className="border-b border-[var(--line)] last:border-0">
-                  <td className="px-4 py-3 font-medium text-[var(--foreground)]">{m.address}</td>
-                  <td className="px-4 py-3">
-                    <Input
-                      defaultValue={m.display_name ?? ""}
-                      aria-label={`Display name for ${m.address}`}
-                      className="max-w-xs"
-                      onBlur={(e) => void saveDisplayName(m.id, e.target.value, m.display_name ?? "")}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-[var(--foreground-muted)]">
+        <div className="rounded-2xl border border-[var(--line)]">
+          {/* ── Mobile card list (hidden sm+) ── */}
+          <ul className="divide-y divide-[var(--line)] sm:hidden">
+            {mailboxes.map((m) => (
+              <li key={m.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <span className="break-all text-sm font-semibold text-[var(--foreground)]">{m.address}</span>
+                  <span className="shrink-0 rounded-full bg-[var(--surface-hover)] px-2 py-0.5 text-[11px] text-[var(--foreground-muted)]">
                     {m.is_shared ? "Shared" : "Private"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="danger"
-                      onClick={() => void removeMailbox(m.address, m.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Remove
-                    </Button>
-                  </td>
+                  </span>
+                </div>
+                <Input
+                  defaultValue={m.display_name ?? ""}
+                  aria-label={`Display name for ${m.address}`}
+                  placeholder="From name (optional)"
+                  onBlur={(e) => void saveDisplayName(m.id, e.target.value, m.display_name ?? "")}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void removeMailbox(m.address, m.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {/* ── Desktop table (hidden on mobile) ── */}
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--line)] bg-[var(--surface-hover)] text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--foreground-faint)]">
+                  <th className="px-4 py-3">Address</th>
+                  <th className="px-4 py-3">From name</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {mailboxes.map((m) => (
+                  <tr key={m.id} className="border-b border-[var(--line)] last:border-0">
+                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">{m.address}</td>
+                    <td className="px-4 py-3">
+                      <Input
+                        defaultValue={m.display_name ?? ""}
+                        aria-label={`Display name for ${m.address}`}
+                        className="max-w-xs"
+                        onBlur={(e) => void saveDisplayName(m.id, e.target.value, m.display_name ?? "")}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-[var(--foreground-muted)]">
+                      {m.is_shared ? "Shared" : "Private"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        onClick={() => void removeMailbox(m.address, m.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
     </AppFeaturePage>

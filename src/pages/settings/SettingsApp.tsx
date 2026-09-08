@@ -1247,7 +1247,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               ) : null}
               {domains.length > 0 || domainEntryMode === "have" ? (
               <>
-              <form className="row-form" onSubmit={addDomain}>
+              <form className="row-form flex-wrap" onSubmit={addDomain}>
                 <label className="sr-only" htmlFor="domain-name">Domain name</label>
                 <input id="domain-name" placeholder="example.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} required />
                 <Button size="sm" type="submit">Add domain</Button>
@@ -1283,142 +1283,220 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 </p>
               ) : null}
               {domains.length ? (
-                <div className="table-wrap">
-                  <table className="table domains-table">
-                    <thead>
-                      <tr>
-                        <th>Domain</th>
-                        <th>Status</th>
-                        <th>Catch-all</th>
-                        <th><span className="sr-only">Actions</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {domains.map((d) => {
-                        const receivingReady = Boolean(d.receiving_ready_at);
-                        const sendingReady = Boolean(d.sending_ready_at);
-                        const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
-                        const muted = Boolean(d.muted_until && d.muted_until > Date.now());
-                        const selected = domainId === d.id;
-                        const statusLabel =
-                          receivingReady && sendingReady
-                            ? "Ready"
-                            : receivingReady
-                              ? "Receiving ready"
-                              : "Setup required";
-                        return (
-                          <tr
-                            key={d.id}
-                            className={selected ? "is-selected" : undefined}
-                            onClick={() => selectDomain(d.id)}
-                            style={{ cursor: "pointer" }}
-                            aria-selected={selected}
-                          >
-                            <td>
-                              <button
-                                className={`text-button${selected ? " selected" : ""}`}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  selectDomain(d.id);
-                                }}
-                              >
-                                <span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />
-                                {d.name}
+                <>
+                  {/* ── Mobile card list (hidden sm+) ── */}
+                  <ul className="mt-2 divide-y divide-[var(--line)] rounded-2xl border border-[var(--line)] sm:hidden">
+                    {domains.map((d) => {
+                      const receivingReady = Boolean(d.receiving_ready_at);
+                      const sendingReady = Boolean(d.sending_ready_at);
+                      const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
+                      const muted = Boolean(d.muted_until && d.muted_until > Date.now());
+                      const selected = domainId === d.id;
+                      const statusLabel = receivingReady && sendingReady ? "Ready" : receivingReady ? "Receiving" : "Setup needed";
+                      return (
+                        <li
+                          key={d.id}
+                          className={`flex flex-col gap-2 px-4 py-3${selected ? " bg-[color-mix(in_srgb,var(--cta)_6%,var(--surface))]" : ""}`}
+                          onClick={() => selectDomain(d.id)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {/* Row 1: name + status */}
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              className={`text-button${selected ? " selected" : ""} flex min-w-0 items-center gap-1.5 truncate`}
+                              onClick={(e) => { e.stopPropagation(); selectDomain(d.id); }}
+                            >
+                              <span className="domain-swatch shrink-0" style={{ background: d.color || "#737168" }} aria-hidden />
+                              <span className="truncate">{d.name}</span>
+                            </button>
+                            <span className={`shrink-0 ${receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}`}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          {muted ? <div className="muted text-xs">Muted</div> : null}
+                          {legacy ? (
+                            <div className="muted text-xs">
+                              Legacy setup ·{" "}
+                              <button type="button" className="text-button" onClick={(e) => { e.stopPropagation(); void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed.")); }}>
+                                Switch to current mail path
                               </button>
-                              {muted ? <div className="muted" style={{ fontSize: 12 }}>Muted</div> : null}
-                              {legacy ? (
-                                <div className="muted" style={{ fontSize: 12 }}>
-                                  Legacy setup
-                                  {" · "}
-                                  <button
+                            </div>
+                          ) : null}
+                          {/* Row 2: catch-all */}
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <label className="text-xs text-[var(--foreground-muted)]" htmlFor={`ca-mob-${d.id}`}>Catch-all</label>
+                            <select
+                              id={`ca-mob-${d.id}`}
+                              className="min-w-0 flex-1 rounded border border-[var(--line)] bg-[var(--surface-input)] px-2 py-1 text-xs"
+                              value={d.catch_all_mailbox_id ?? ""}
+                              onChange={(e) => {
+                                const value = e.target.value || null;
+                                void api.updateDomain(d.id, { catch_all_mailbox_id: value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
+                              }}
+                            >
+                              <option value="">Off</option>
+                              {mailboxes.filter((m) => m.domain_id === d.id).map((m) => (
+                                <option key={m.id} value={m.id}>{m.address}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {/* Row 3: actions */}
+                          <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <DomainColorPicker
+                              color={d.color}
+                              label={`Color for ${d.name}`}
+                              onChange={(hex) => { void api.updateDomain(d.id, { color: hex }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update color.")); }}
+                            />
+                            <Button size="sm" variant="ghost" type="button" onClick={() => { void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => { setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days.`); return refresh(); }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute.")); }}>
+                              {muted ? "Unmute" : "Mute"}
+                            </Button>
+                            <Button size="sm" variant="danger" type="button" onClick={() => { if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) { void api.deleteDomain(d.id).then(async () => { if (domainId === d.id) { stopDnsPoll(); setDnsStatus(null); setDns(null); setDomainId(""); } await refresh(); }); } }}>
+                              Remove
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {/* ── Desktop table (hidden on mobile) ── */}
+                  <div className="table-wrap hidden sm:block">
+                    <table className="table domains-table">
+                      <thead>
+                        <tr>
+                          <th>Domain</th>
+                          <th>Status</th>
+                          <th>Catch-all</th>
+                          <th><span className="sr-only">Actions</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {domains.map((d) => {
+                          const receivingReady = Boolean(d.receiving_ready_at);
+                          const sendingReady = Boolean(d.sending_ready_at);
+                          const legacy = (d.mail_provider || "").toLowerCase() === "mailgun" || (d.mail_provider || "").toLowerCase() === "cloudflare";
+                          const muted = Boolean(d.muted_until && d.muted_until > Date.now());
+                          const selected = domainId === d.id;
+                          const statusLabel =
+                            receivingReady && sendingReady
+                              ? "Ready"
+                              : receivingReady
+                                ? "Receiving ready"
+                                : "Setup required";
+                          return (
+                            <tr
+                              key={d.id}
+                              className={selected ? "is-selected" : undefined}
+                              onClick={() => selectDomain(d.id)}
+                              style={{ cursor: "pointer" }}
+                              aria-selected={selected}
+                            >
+                              <td>
+                                <button
+                                  className={`text-button${selected ? " selected" : ""}`}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    selectDomain(d.id);
+                                  }}
+                                >
+                                  <span className="domain-swatch" style={{ background: d.color || "#737168" }} aria-hidden />
+                                  {d.name}
+                                </button>
+                                {muted ? <div className="muted" style={{ fontSize: 12 }}>Muted</div> : null}
+                                {legacy ? (
+                                  <div className="muted" style={{ fontSize: 12 }}>
+                                    Legacy setup
+                                    {" · "}
+                                    <button
+                                      type="button"
+                                      className="text-button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed."));
+                                      }}
+                                    >
+                                      Switch to current mail path
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </td>
+                              <td>
+                                <span className={receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}>
+                                  {statusLabel}
+                                </span>
+                              </td>
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <select
+                                  value={d.catch_all_mailbox_id ?? ""}
+                                  onChange={(e) => {
+                                    const value = e.target.value || null;
+                                    void api.updateDomain(d.id, { catch_all_mailbox_id: value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
+                                  }}
+                                  aria-label={`Catch-all for ${d.name}`}
+                                >
+                                  <option value="">Off</option>
+                                  {mailboxes.filter((m) => m.domain_id === d.id).map((m) => (
+                                    <option key={m.id} value={m.id}>{m.address}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  <DomainColorPicker
+                                    color={d.color}
+                                    label={`Color for ${d.name}`}
+                                    onChange={(hex) => {
+                                      void api
+                                        .updateDomain(d.id, { color: hex })
+                                        .then(refresh)
+                                        .catch((ex) =>
+                                          setErr(ex instanceof Error ? ex.message : "Could not update color."),
+                                        );
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
                                     type="button"
-                                    className="text-button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void api.migrateDomainSes(d.id).then(() => refresh()).catch((ex) => setErr(ex instanceof Error ? ex.message : "Migration failed."));
+                                    onClick={() => {
+                                      void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
+                                        setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days.`);
+                                        return refresh();
+                                      }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute."));
                                     }}
                                   >
-                                    Switch to current mail path
-                                  </button>
+                                    {muted ? "Unmute" : "Mute"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) {
+                                        void api.deleteDomain(d.id).then(async () => {
+                                          if (domainId === d.id) {
+                                            stopDnsPoll();
+                                            setDnsStatus(null);
+                                            setDns(null);
+                                            setDomainId("");
+                                          }
+                                          await refresh();
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    Remove
+                                  </Button>
                                 </div>
-                              ) : null}
-                            </td>
-                            <td>
-                              <span className={receivingReady && sendingReady ? "status-pill ok" : "status-pill warn"}>
-                                {statusLabel}
-                              </span>
-                            </td>
-                            <td onClick={(e) => e.stopPropagation()}>
-                              <select
-                                value={d.catch_all_mailbox_id ?? ""}
-                                onChange={(e) => {
-                                  const value = e.target.value || null;
-                                  void api.updateDomain(d.id, { catch_all_mailbox_id: value }).then(refresh).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update catch-all."));
-                                }}
-                                aria-label={`Catch-all for ${d.name}`}
-                              >
-                                <option value="">Off</option>
-                                {mailboxes.filter((m) => m.domain_id === d.id).map((m) => (
-                                  <option key={m.id} value={m.id}>{m.address}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td onClick={(e) => e.stopPropagation()}>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <DomainColorPicker
-                                  color={d.color}
-                                  label={`Color for ${d.name}`}
-                                  onChange={(hex) => {
-                                    void api
-                                      .updateDomain(d.id, { color: hex })
-                                      .then(refresh)
-                                      .catch((ex) =>
-                                        setErr(ex instanceof Error ? ex.message : "Could not update color."),
-                                      );
-                                  }}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  type="button"
-                                  onClick={() => {
-                                    void api.updateDomain(d.id, { muted_days: muted ? 0 : 7 }).then(() => {
-                                      setNotice(muted ? `${d.name} unmuted.` : `${d.name} muted for 7 days — new mail goes to Archive.`);
-                                      return refresh();
-                                    }).catch((ex) => setErr(ex instanceof Error ? ex.message : "Could not update mute."));
-                                  }}
-                                >
-                                  {muted ? "Unmute" : "Mute"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  type="button"
-                                  onClick={() => {
-                                    if (window.confirm(`Remove ${d.name} and its mailboxes? Existing messages will remain.`)) {
-                                      void api.deleteDomain(d.id).then(async () => {
-                                        if (domainId === d.id) {
-                                          stopDnsPoll();
-                                          setDnsStatus(null);
-                                          setDns(null);
-                                          setDomainId("");
-                                        }
-                                        await refresh();
-                                      });
-                                    }
-                                  }}
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               ) : setupLoading || domainEntryMode === "choose" || domainEntryMode === "need" ? null : (
                 <p className="empty-state">Enter your domain above to start receiving mail.</p>
               )}
