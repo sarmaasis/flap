@@ -218,7 +218,7 @@ export default function MailboxesAppPage() {
       ) : null}
 
       {!loading && mailboxes.length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-[var(--line)]">
+        <div className="mailboxes-table-wrap overflow-x-auto rounded-2xl border border-[var(--line)]">
           <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--line)] bg-[var(--surface-hover)] text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--foreground-faint)]">

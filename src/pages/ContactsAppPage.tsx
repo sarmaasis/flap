@@ -138,7 +138,7 @@ export default function ContactsAppPage() {
             <li key={c.id}>
               <div className="min-w-0">
                 <strong className="block truncate">{c.name || c.email}</strong>
-                {c.name ? <span className="muted text-sm">{c.email}</span> : null}
+                {c.name ? <span className="contact-list-email muted text-sm">{c.email}</span> : null}
               </div>
               <Button
                 size="sm"

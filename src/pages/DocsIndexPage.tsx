@@ -55,15 +55,15 @@ const cards = [
 export default function DocsIndexPage() {
   useEffect(() => {
     setPageMeta({
-      title: "Docs | Flap",
-      description: "Developer documentation for Flap domains, send API, and inbound webhooks.",
+      title: "Custom-domain email docs: API, DNS setup and webhooks | Flap",
+      description: "Developer documentation for Flap: publish DNS for your custom domain, send transactional email via REST API, receive inbound webhooks, and manage mailboxes.",
       path: PATH,
     });
     setJsonLd(
       "docs-index",
       webPageLd({
-        title: "Docs | Flap",
-        description: "Flap developer documentation index.",
+        title: "Custom-domain email docs: API, DNS setup and webhooks | Flap",
+        description: "Flap developer documentation: custom-domain email setup, send API, and inbound webhook reference.",
         path: PATH,
       }),
     );

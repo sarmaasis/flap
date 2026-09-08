@@ -41,15 +41,15 @@ const SECTIONS = [
 export default function SecurityPage() {
   useEffect(() => {
     setPageMeta({
-      title: "Security | Flap",
+      title: "Security & privacy | Flap custom-domain email",
       description:
-        "How Flap handles privacy, export, TLS, and mail infrastructure. Amazon SES for your domains. Cloudflare for the app.",
+        "How Flap protects your email: TLS in transit, per-domain DKIM isolation, JSON export, Amazon SES mail delivery, and Cloudflare app hosting. No ads, no inbox scanning.",
       path: PATH,
     });
     setJsonLd("security-page", [
       webPageLd({
-        title: "Security | Flap",
-        description: "Honest security and privacy commitments for Flap custom-domain email.",
+        title: "Security & privacy | Flap custom-domain email",
+        description: "Honest security and privacy commitments for Flap custom-domain email hosting.",
         path: PATH,
         dateModified: UPDATED,
       }),

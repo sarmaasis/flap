@@ -34,7 +34,7 @@ const FAQS = [
   },
   {
     q: "Do plans share the same features?",
-    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes — not the product surface. Free lets you try real mailboxes before choosing a paid plan.",
+    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes, not the product surface. Free lets you try real mailboxes before choosing a paid plan.",
   },
   {
     q: "Do you support IMAP/SMTP today?",
@@ -52,8 +52,8 @@ export default function PricingPage() {
 
   useEffect(() => {
     setPageMeta({
-      title: "Pricing | Flap - custom-domain email for multi-domain founders",
-      description: `Free $0, Solo $${PLANS.solo.price_monthly}/mo, Pro $${PLANS.pro.price_monthly}/mo (highlighted), Team $${PLANS.team.price_monthly}/mo, Scale $${PLANS.scale.price_monthly}/mailbox. Annual = 10× monthly.`,
+      title: "Email hosting pricing | Flap: from $6/month, free plan available",
+      description: `Custom-domain email hosting plans: Free $0 forever, Solo $${PLANS.solo.price_monthly}/mo (3 mailboxes, 50 domains), Pro $${PLANS.pro.price_monthly}/mo (6 mailboxes, 5 seats), Team $${PLANS.team.price_monthly}/mo. Annual billing = 2 months free. No per-domain seat tax.`,
       path: PATH,
     });
     setJsonLd("pricing-page", [
@@ -79,11 +79,11 @@ export default function PricingPage() {
       <article className="flap-pricing mx-auto max-w-6xl px-5 pb-24 pt-10 md:px-8 md:pt-14">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cta)]">Pricing</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-          Room for your next big idea.
+          Transparent email hosting pricing.
         </h1>
         <LastUpdated date={UPDATED} />
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)]">
-          Start free, then choose the space your team needs. Paid plans include up to {PLANS.solo.limits.domains} custom domains, with plans from ${PLANS.solo.price_monthly}/month.
+          Start free with real custom-domain mailboxes. No credit card required. Paid plans include up to {PLANS.solo.limits.domains} custom domains, AI assistant, newsletters, calendar, booking pages, and a transactional email API. From ${PLANS.solo.price_monthly}/month.
         </p>
 
         <div
@@ -200,7 +200,7 @@ export default function PricingPage() {
         <section className="mt-12 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
           <h2 className="text-xl font-semibold">The essentials, already included.</h2>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            Plans change capacity — not the product. Solo through Scale share these tools (IMAP/SMTP not included yet).
+            Plans change capacity, not the product. Solo through Scale share these tools (IMAP/SMTP not included yet).
           </p>
           <ul className="mt-5 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2 lg:grid-cols-3">
             {SHARED_STACK_FEATURES.map((f) => (

@@ -1,4 +1,4 @@
-/** Central plan catalog — used by Worker quotas and marketing UI. */
+/** Central plan catalog: used by Worker quotas and marketing UI. */
 
 export type PlanId = "free" | "solo" | "pro" | "team" | "scale";
 
@@ -49,7 +49,7 @@ export const SCALE_UNIT_MONTHLY = 2.5;
 export const SCALE_UNIT_YEARLY = 25;
 
 /**
- * Paid plans share the same product surface — capacity differs.
+ * Paid plans share the same product surface. Capacity differs.
  * IMAP/SMTP not included yet (webmail + API).
  */
 export const SHARED_STACK_FEATURES = [
@@ -74,7 +74,7 @@ export const SHARED_STACK_FEATURES = [
  * Shipmail: Free=$0/0 mailboxes + card trial; Solo $4 / Pro $9 / Team $29 / Scale $2.50.
  * Flap: Free forever with 2 real mailboxes (conversion wedge); Solo $6 / Pro $12 / Team $29 / Scale $2.50.
  * Stack COGS: Cloudflare Workers/D1/R2 + Amazon SES (~$0.10/1k sends) + Clerk.
- * Shipmail Solo $4 / 20k sends leaves ~$2 SES headroom before CF/Clerk/support — too tight for Flap Free wedge.
+ * Shipmail Solo $4 / 20k sends leaves ~$2 SES headroom before CF/Clerk/support, too tight for Flap Free wedge.
  * Solo $6 / Pro $12 balances acquisition vs margin; Team/Scale stickers match Shipmail where capacity is similar.
  */
 export const PRICING_RATIONALE =
@@ -103,7 +103,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Free",
     price_monthly: 0,
     price_yearly: 0,
-    blurb: "Real mailboxes on two domains. Prove MX before you pay — no card required.",
+    blurb: "Real mailboxes on two domains. Prove MX before you pay. No credit card required.",
     features: [
       "2 custom domains",
       "2 mailboxes",
@@ -136,7 +136,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Solo",
     price_monthly: 6,
     price_yearly: yearlyPriceFromMonthly(6),
-    blurb: "Individuals and personal brands. Priced above $4 clones to leave room for SES + Free tier.",
+    blurb: "One person, one inbox, up to 50 domains. The lowest-cost way to cover every project.",
     features: [
       "3 mailboxes",
       "15 GB storage per mailbox",
@@ -167,7 +167,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Pro",
     price_monthly: 12,
     price_yearly: yearlyPriceFromMonthly(12),
-    blurb: "Growing businesses — more mailboxes than a $9/4-box plan at a sustainable rate.",
+    blurb: "Small teams: shared inboxes, up to 5 seats, and 6 mailboxes across 50 domains.",
     features: [
       "6 mailboxes",
       "15 GB storage per mailbox",
@@ -199,7 +199,7 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Team",
     price_monthly: 29,
     price_yearly: yearlyPriceFromMonthly(29),
-    blurb: "Studios and agencies — matches Shipmail Team capacity where our costs look similar.",
+    blurb: "Studios and agencies: unlimited seats, 12 mailboxes, and 50 domains in one account.",
     features: [
       "12 mailboxes",
       "25 GB storage per mailbox",
