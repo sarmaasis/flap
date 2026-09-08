@@ -157,9 +157,14 @@ export default function MailboxesAppPage() {
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
             Creates <span className="font-[family-name:var(--font-mono)] text-[var(--foreground)]">{previewAddress}</span>
           </p>
-          <form onSubmit={(e) => void addMailbox(e)} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_minmax(10rem,14rem)_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="mb-local">Local part</Label>
+          <form
+            onSubmit={(e) => void addMailbox(e)}
+            className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+          >
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label htmlFor="mb-local" className="block h-4 leading-4">
+                Local part
+              </Label>
               <Input
                 id="mb-local"
                 value={localPart}
@@ -171,8 +176,10 @@ export default function MailboxesAppPage() {
                 title="Letters, numbers, dots, plus, underscore, hyphen"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="mb-display">Display name</Label>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label htmlFor="mb-display" className="block h-4 leading-4">
+                Display name
+              </Label>
               <Input
                 id="mb-display"
                 value={displayName}
@@ -180,10 +187,13 @@ export default function MailboxesAppPage() {
                 placeholder="Optional"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Domain</Label>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label className="block h-4 leading-4">Domain</Label>
               <Select value={domainId} onValueChange={setDomainId}>
-                <SelectTrigger aria-label="Domain" className="w-full">
+                <SelectTrigger
+                  aria-label="Domain"
+                  className="h-9 w-full rounded-[10px] border-[var(--line-strong)] bg-[var(--surface-input)] text-[var(--foreground)] focus:ring-0 focus-visible:border-[var(--accent)] focus-visible:shadow-[var(--focus-ring)]"
+                >
                   <SelectValue placeholder="Select domain" />
                 </SelectTrigger>
                 <SelectContent>
@@ -195,7 +205,7 @@ export default function MailboxesAppPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" disabled={busy || !domainId} className="sm:mb-0.5">
+            <Button type="submit" disabled={busy || !domainId} className="h-9 shrink-0">
               <Plus className="h-4 w-4" />
               {busy ? "Adding…" : "Add mailbox"}
             </Button>
