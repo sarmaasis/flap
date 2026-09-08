@@ -9,6 +9,7 @@ export function buildRawMime(opts: {
   attachments?: Array<{ filename: string; contentType: string; content: Uint8Array }>;
   messageId?: string;
   inReplyTo?: string;
+  listUnsubscribe?: string;
 }): string {
   const date = new Date().toUTCString();
   const messageId = opts.messageId ?? `<${crypto.randomUUID()}@flap.local>`;
@@ -21,6 +22,13 @@ export function buildRawMime(opts: {
     `Date: ${date}`,
     `Message-ID: ${messageId}`,
     ...(opts.inReplyTo ? [`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.inReplyTo}`] : []),
+    ...(opts.listUnsubscribe
+      ? [
+          `List-Unsubscribe: <${opts.listUnsubscribe}>`,
+          "List-Unsubscribe-Post: List-Unsubscribe=One-Click",
+          "Precedence: bulk",
+        ]
+      : []),
     "MIME-Version: 1.0",
   ];
 

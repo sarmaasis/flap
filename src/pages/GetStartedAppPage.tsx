@@ -101,7 +101,7 @@ const ITEMS: ChecklistItem[] = [
     id: "newsletters",
     group: "Automate your replies",
     label: "Draft a newsletter",
-    help: "Audiences and queued sends are MVP — domain required.",
+    help: "Audience, drafts, scheduled sends, and a public signup page — domain required.",
     href: "/app/newsletters",
     cta: "Open newsletters",
     icon: Megaphone,

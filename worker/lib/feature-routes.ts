@@ -14,6 +14,7 @@ import { registerPrefsExtraRoutes } from "./prefs-extra";
 import { registerSavedViewRoutes } from "./saved-views";
 import { registerCalDavRoutes } from "./caldav";
 import { registerStudioChannelRoutes } from "./studio-channels";
+import { registerNewsletterRoutes } from "./newsletters";
 
 export function registerFeatureRoutes(app: Hono<AppEnv>) {
   registerSavedViewRoutes(app);
@@ -26,5 +27,6 @@ export function registerFeatureRoutes(app: Hono<AppEnv>) {
   registerPrefsExtraRoutes(app);
   registerOnboardingToolRoutes(app);
   registerStudioChannelRoutes(app);
+  registerNewsletterRoutes(app);
   registerCalDavRoutes(app);
 }

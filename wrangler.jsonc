@@ -73,7 +73,9 @@
 			"/research",
 			"/research/*",
 			"/book",
-			"/book/*"
+			"/book/*",
+			"/n",
+			"/n/*"
 		]
 	},
 	// InboxHub: WebSocket hibernation fan-out (idle connections do not accrue DO duration).

@@ -12,7 +12,7 @@ import {
   recipientsFieldValid,
 } from "./lib/mailutil";
 import { dispatchStoredMessage, flushScheduled, loadSettings, normalizeMessageId, registerWorkspaceRoutes, touchContact } from "./lib/workspace";
-import { processQueuedNewsletterBlasts } from "./lib/studio-channels";
+import { processQueuedNewsletterBlasts } from "./lib/newsletters";
 import { assertWithinLimit, assertSendRoom, assertStorageRoom, getEffectivePlan, messageStorageBytes, recordOutboundSend, registerBillingRoutes } from "./lib/billing";
 import { registerDnsToolRoutes } from "./lib/dns-tools";
 import { registerGrowthRoutes } from "./lib/growth";
@@ -178,6 +178,8 @@ app.get("/about", (c) => servePrerenderOrSpa(c));
 app.get("/pricing", (c) => servePrerenderOrSpa(c));
 app.get("/book/*", (c) => servePrerenderOrSpa(c));
 app.get("/book", (c) => servePrerenderOrSpa(c));
+app.get("/n/*", (c) => serveSpaShell(c));
+app.get("/n", (c) => serveSpaShell(c));
 app.get("/research/*", (c) => servePrerenderOrSpa(c));
 app.get("/research", (c) => servePrerenderOrSpa(c));
 app.get("/vs/*", (c) => servePrerenderOrSpa(c));

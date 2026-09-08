@@ -48,6 +48,7 @@ const GetStartedAppPage = lazy(() => import("./pages/GetStartedAppPage"));
 const CalendarAppPage = lazy(() => import("./pages/CalendarAppPage"));
 const AiAssistantPage = lazy(() => import("./pages/AiAssistantPage"));
 const NewslettersAppPage = lazy(() => import("./pages/NewslettersAppPage"));
+const NewsletterPublicPage = lazy(() => import("./pages/NewsletterPublicPage"));
 const BookingsAppPage = lazy(() => import("./pages/BookingsAppPage"));
 const MailboxesAppPage = lazy(() => import("./pages/MailboxesAppPage"));
 const AnalyticsAppPage = lazy(() => import("./pages/AnalyticsAppPage"));
@@ -231,6 +232,9 @@ export default function App() {
   }
   if (path === "/research" || path.startsWith("/research/")) {
     return <Screen><ResearchPage path={path} /></Screen>;
+  }
+  if (path.startsWith("/n/")) {
+    return <Screen><NewsletterPublicPage path={path} /></Screen>;
   }
   if (path.startsWith("/book/") || path === "/book") {
     return <Screen><BookingPage path={path} /></Screen>;

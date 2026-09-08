@@ -28,7 +28,7 @@ export const tw = {
   appFeatureCard:
     "rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] px-4 py-4 shadow-none md:px-6 md:py-5",
   rowForm:
-    "my-2 flex flex-wrap items-center gap-1.5 [&>input]:h-9 [&>input]:min-w-0 [&>input]:flex-1 [&>select]:h-9 [&>select]:min-w-0 [&>select]:flex-1 [&>button]:h-9 [&>button]:w-auto [&>button]:shrink-0 [&>textarea]:min-w-0 [&>textarea]:flex-1 max-md:[&>input]:min-w-full max-md:[&>select]:min-w-full",
+    "my-2 flex flex-wrap items-center gap-1.5 [&>input]:h-9 [&>input]:min-w-0 [&>input]:flex-1 [&>select]:h-9 [&>select]:min-w-0 [&>select]:flex-1 [&>button]:h-9 [&>button]:w-auto [&>button]:shrink-0 [&>textarea]:min-w-0 [&>textarea]:flex-1 max-md:[&>input]:min-h-11 max-md:[&>input]:min-w-full max-md:[&>input]:text-base max-md:[&>select]:min-h-11 max-md:[&>select]:min-w-full max-md:[&>select]:text-base max-md:[&>button]:min-h-11 max-md:[&>button]:w-full",
   sectionHeading: "mb-2.5 flex flex-wrap items-start justify-between gap-3",
   mailToast:
     "fixed right-[18px] bottom-[18px] z-[80] flex max-w-[min(360px,calc(100vw-32px))] items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-overlay)] px-3.5 py-3 text-[13px] text-[var(--foreground)] shadow-lg [&_strong]:mb-0.5 [&_strong]:block [&_span]:text-[var(--foreground-muted)]",
@@ -53,7 +53,7 @@ export const tw = {
   featureEmptyChip:
     "shrink-0 rounded-md bg-[var(--accent-dim)] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--accent-text)] uppercase",
   appFeatureList:
-    "m-0 grid list-none gap-2 p-0 [&_li]:flex [&_li]:flex-wrap [&_li]:items-center [&_li]:justify-between [&_li]:gap-2 [&_li]:rounded-xl [&_li]:border [&_li]:border-[var(--line)] [&_li]:bg-[var(--surface-raised)] [&_li]:px-3.5 [&_li]:py-3",
+    "m-0 grid list-none gap-2 p-0 [&_li]:flex [&_li]:min-w-0 [&_li]:flex-col [&_li]:items-stretch [&_li]:gap-2 [&_li]:rounded-xl [&_li]:border [&_li]:border-[var(--line)] [&_li]:bg-[var(--surface-raised)] [&_li]:px-3.5 [&_li]:py-3 sm:[&_li]:flex-row sm:[&_li]:flex-wrap sm:[&_li]:items-center sm:[&_li]:justify-between",
   skeletonStack: "px-0 py-1",
   featureEmptyCal: "grid grid-cols-7 gap-1",
   featureEmptyDay: "aspect-square rounded-md bg-[var(--surface-hover)]",

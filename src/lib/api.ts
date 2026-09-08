@@ -10,6 +10,27 @@ export type Mailbox = {
   is_shared?: number;
   access_role?: string;
 };
+export type NewsletterSettings = {
+  user_id: string;
+  from_name: string;
+  physical_address: string;
+  mailbox_id: string;
+  public_slug: string;
+  double_opt_in: number;
+  updated_at: number;
+};
+export type NewsletterBlast = {
+  id: string;
+  subject: string;
+  status: string;
+  capped_count: number;
+  created_at: number;
+  mailbox_id?: string;
+  scheduled_at?: number | null;
+  from_name?: string;
+  domain_id?: string;
+};
+export type NewsletterBlastDetail = NewsletterBlast & { html_body: string };
 export type Domain = {
   id: string;
   name: string;
@@ -564,25 +585,67 @@ export const api = {
   authProviders: () => req<{ google: boolean; github: boolean }>("/api/auth/providers"),
   newsletters: () =>
     req<{
-      items: Array<{ id: string; subject: string; status: string; capped_count: number; created_at: number }>;
+      items: NewsletterBlast[];
+      settings: NewsletterSettings;
+      mailboxes: Array<{ id: string; address: string; display_name: string; domain_id: string }>;
       caps: { sends_per_month: number; subscribers: number };
       audience_count?: number;
-      note?: string;
+      pending_count?: number;
+      subscriber_total?: number;
+      plan_ok?: boolean;
+      plan_id?: string;
+      signup_url?: string;
     }>("/api/newsletters"),
-  createNewsletter: (body: { subject: string; html_body?: string; domain_id?: string; queue?: boolean }) =>
-    req<{ item: { id: string; subject: string; status: string } }>("/api/newsletters", {
+  newsletter: (id: string) => req<{ item: NewsletterBlastDetail }>(`/api/newsletters/${id}`),
+  saveNewsletterSettings: (body: {
+    from_name?: string;
+    physical_address?: string;
+    mailbox_id?: string;
+    public_slug?: string;
+    double_opt_in?: boolean;
+  }) =>
+    req<{ settings: NewsletterSettings; signup_url: string }>("/api/newsletters/settings", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  createNewsletter: (body: {
+    subject: string;
+    html_body?: string;
+    domain_id?: string;
+    mailbox_id?: string;
+    from_name?: string;
+    queue?: boolean;
+    scheduled_at?: number | null;
+  }) =>
+    req<{ item: { id: string; subject: string; status: string; scheduled_at?: number | null } }>("/api/newsletters", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  queueNewsletter: (id: string) =>
-    req<{ ok: boolean; status: string }>(`/api/newsletters/${id}/queue`, { method: "POST", body: "{}" }),
+  updateNewsletter: (
+    id: string,
+    body: { subject: string; html_body?: string; mailbox_id?: string; from_name?: string; scheduled_at?: number | null },
+  ) =>
+    req<{ ok: boolean; item: { id: string; subject: string; status: string; scheduled_at?: number | null } }>(
+      `/api/newsletters/${id}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ),
+  deleteNewsletter: (id: string) => req<{ ok: boolean }>(`/api/newsletters/${id}`, { method: "DELETE" }),
+  queueNewsletter: (id: string, body?: { scheduled_at?: number | null }) =>
+    req<{ ok: boolean; status: string; scheduled_at?: number | null }>(`/api/newsletters/${id}/queue`, {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    }),
   newsletterSubscribers: () =>
     req<{
       subscribers: Array<{ id: string; email: string; name: string; status: string; created_at: number }>;
-      note?: string;
     }>("/api/newsletters/subscribers"),
-  addNewsletterSubscriber: (body: { email: string; name?: string }) =>
+  addNewsletterSubscriber: (body: { email: string; name?: string; consented?: boolean }) =>
     req<{ subscriber: { id: string; email: string; name: string; status: string } }>("/api/newsletters/subscribers", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  importNewsletterSubscribers: (body: { csv: string; consented?: boolean }) =>
+    req<{ imported: number; skipped: number; status: string }>("/api/newsletters/subscribers/import", {
       method: "POST",
       body: JSON.stringify(body),
     }),

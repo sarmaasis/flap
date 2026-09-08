@@ -283,6 +283,16 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
           providerMessageId: event.mail?.messageId || "",
           now,
         });
+        if (reason !== "soft_bounce") {
+          await c.env.DB.prepare(
+            `UPDATE newsletter_subscribers
+             SET status = 'unsubscribed', unsubscribed_at = ?
+             WHERE email = ? AND status != 'unsubscribed'`,
+          )
+            .bind(now, email)
+            .run()
+            .catch(() => undefined);
+        }
       }
       await trackServerEvent(c.env.DB, "ses_bounce_received", {
         props: { count: event.bounce?.bouncedRecipients?.length ?? 0 },
@@ -307,6 +317,14 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
           providerMessageId: event.mail?.messageId || "",
           now,
         });
+        await c.env.DB.prepare(
+          `UPDATE newsletter_subscribers
+           SET status = 'unsubscribed', unsubscribed_at = ?
+           WHERE email = ? AND status != 'unsubscribed'`,
+        )
+          .bind(now, email)
+          .run()
+          .catch(() => undefined);
       }
       await trackServerEvent(c.env.DB, "ses_complaint_received", {
         props: { count: event.complaint?.complainedRecipients?.length ?? 0 },
