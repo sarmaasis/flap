@@ -191,9 +191,20 @@ export default function MarketingShell({ children, primaryHref = "/signup", prim
                   {link.label}
                 </a>
               ))}
+              <a
+                href={primaryHref}
+                className="marketing-mobile-cta"
+                onClick={(e) => {
+                  e.preventDefault();
+                  track("signup_clicked", { source: "mobile_nav" });
+                  go(primaryHref);
+                }}
+              >
+                {primaryLabel}
+              </a>
             </nav>
           </details>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 landing-nav-cta-desktop">
             <Button
               size="pill"
               variant={navOverDark ? "inverse" : "primary"}

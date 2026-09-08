@@ -10,16 +10,16 @@ const PATH = "/guides";
 export default function GuidesIndexPage() {
   useEffect(() => {
     setPageMeta({
-      title: "DNS setup guides | Flap",
+      title: "Custom-domain email DNS setup guides: Cloudflare, Namecheap, GoDaddy and more | Flap",
       description:
-        "Publish Amazon SES MX/SPF/DKIM for Flap at Cloudflare, Namecheap, Porkbun, GoDaddy, Vercel, Squarespace, or Route 53.",
+        "Step-by-step guides to publish Amazon SES MX/SPF/DKIM for Flap at Cloudflare, Namecheap, Porkbun, GoDaddy, Vercel, Squarespace, and Route 53.",
       path: PATH,
     });
     setJsonLd(
       "guides-index",
       webPageLd({
-        title: "DNS setup guides | Flap",
-        description: "Registrar DNS guides for Flap custom-domain email.",
+        title: "Custom-domain email DNS setup guides | Flap",
+        description: "Registrar-specific DNS guides for Flap custom-domain email: MX, SPF, and DKIM setup.",
         path: PATH,
       }),
     );
@@ -51,7 +51,7 @@ export default function GuidesIndexPage() {
       >
         <DocsCallout type="tip" title="Copy from Flap">
           Always paste live MX/SPF/DKIM values from Settings → Domains. Guides explain where to click in each
-          registrar — not invent records.
+          registrar, not invent records.
         </DocsCallout>
 
         <h2 id="providers">Pick your DNS host</h2>

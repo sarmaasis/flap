@@ -5,20 +5,20 @@ export const SUPPORT_EMAIL = "support@useflap.online";
 
 export const MARKETING = {
   product_name: "Flap",
-  one_line: "Modern email for your business.",
+  one_line: "Custom-domain email for every project you ship.",
   short_description:
-    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents — on your own domain.",
+    "Custom-domain email for indie hackers, serial founders, and agencies. One inbox for all your domains. Webmail, shared inboxes, AI assistant, newsletters, booking pages, and a transactional API.",
   long_description:
-    "Flap is custom-domain email for indie hackers, serial founders, and small studios. Connect every project domain, send as you@yourstartup.com, and keep webmail, calendar, newsletters, bookings, and an agent API in one subscription.",
-  primary_tagline: "Modern email for your business.",
+    "Flap is custom-domain email hosting for indie hackers, serial founders, and small studios. Connect every project domain, send and receive as you@yourstartup.com, and keep webmail, calendar, newsletters, bookings, AI assistant, and a developer API in one subscription. From $6/mo. Free plan includes real mailboxes.",
+  primary_tagline: "Custom-domain email for every project you ship.",
   founder_tagline: "Email infrastructure for people who keep launching things.",
-  product_hunt_tagline: "Modern email for your business",
+  product_hunt_tagline: "One inbox for every domain you own, without a Workspace per project",
   hero_subheadline:
-    "Inboxes, calendars, newsletters, bookings, an AI assistant, and an API for your agents. Everything on your own domain.",
-  microcopy: "Same stack on every plan. Pick how many mailboxes you need.",
-  seo_title: "Flap - Modern email for your business",
+    "Shared inboxes, AI-assisted replies, newsletters, booking pages, and a transactional API, all on your own custom domain.",
+  microcopy: "Same features on every paid plan. Pick how many mailboxes you need.",
+  seo_title: "Flap: Custom-domain email for every project you ship",
   seo_description:
-    "Custom-domain email with webmail, calendar, newsletters, bookings, AI assistant, and API. From $6/mo. Free includes real mailboxes.",
+    "Custom-domain email hosting for founders with multiple projects. Shared inboxes, AI assistant, newsletters, calendar, and transactional email API, all on your own domain. Free plan includes real mailboxes. From $6/mo.",
   key_features: [
     "Webmail across every domain",
     "Calendars & booking pages",

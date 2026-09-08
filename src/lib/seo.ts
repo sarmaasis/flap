@@ -1,4 +1,5 @@
 import { MARKETING, SITE_URL } from "../content/marketing";
+import { PLANS } from "../../shared/plans";
 import { getRegistryEntry } from "../content/seo-registry";
 import {
   articleLd,
@@ -117,7 +118,7 @@ export function softwareApplicationLdLegacy() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      description: "Free plan available; paid plans from $7/month",
+      description: `Free plan available; paid plans from $${PLANS.solo.price_monthly}/month`,
     },
     publisher: {
       "@type": "Organization",

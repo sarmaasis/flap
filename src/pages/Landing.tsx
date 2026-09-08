@@ -80,7 +80,7 @@ const INBOX_FEATURES = [
 const CALENDAR_FEATURES = [
   {
     title: "Week calendar in the same app",
-    body: "Events live next to mail — not a separate suite you forget to open.",
+    body: "Events live next to mail, not a separate suite you forget to open.",
   },
   {
     title: "Booking pages on your domain",
@@ -99,7 +99,7 @@ const NEWSLETTER_FEATURES = [
   },
   {
     title: "Capped, intentional blasts",
-    body: "Plan limits keep volume honest — built for launches, not cold outbound.",
+    body: "Plan limits keep volume honest. Built for launches, not cold outbound.",
   },
   {
     title: "Drafts beside the inbox",
@@ -118,7 +118,7 @@ const AI_FEATURES = [
   },
   {
     title: "MCP for agents",
-    body: "List domains and draft with confirm — tools built for agent workflows.",
+    body: "List domains and draft with confirm. Tools built for agent workflows.",
   },
 ];
 
@@ -126,7 +126,7 @@ const CAPABILITIES = [
   {
     icon: Mail,
     title: "Works with any client",
-    body: "Webmail first. Keep your DNS at any registrar — Flap gives you the MX/SPF/DKIM to publish.",
+    body: "Webmail first. Keep your DNS at any registrar. Flap gives you the MX/SPF/DKIM to publish.",
   },
   {
     icon: Calendar,
@@ -136,7 +136,7 @@ const CAPABILITIES = [
   {
     icon: Inbox,
     title: "Storage that scales with you",
-    body: "Mailbox and send caps grow with Solo, Pro, Team, and Scale — not a surprise seat tax.",
+    body: "Mailbox and send caps grow with Solo, Pro, Team, and Scale. No surprise seat taxes.",
   },
   {
     icon: Users,
@@ -157,28 +157,40 @@ const CAPABILITIES = [
 
 const FAQS = [
   {
+    q: "What is custom-domain email and why does Flap use it?",
+    a: "Custom-domain email means sending and receiving as you@yourdomain.com instead of a generic Gmail or Outlook address. Flap hosts real mailboxes on your own domain, so every project has a professional identity without a separate Google Workspace account per launch.",
+  },
+  {
     q: "Who is Flap for?",
-    a: "Indie hackers, serial founders, micro-SaaS builders, and small studios who own multiple domains and do not want a separate Google Workspace (or similar) for every project.",
+    a: "Indie hackers, serial founders, micro-SaaS builders, freelancers, and small studios who own multiple domains and do not want a separate Google Workspace (or similar) subscription for every project.",
   },
   {
     q: "Is Flap just cheap business email?",
-    a: "No. The product is built around one inbox for many startup domains - fast setup and multiple identities - not competing solely on price with full productivity suites.",
+    a: "No. Flap is built around one inbox for many startup domains, with fast setup and multiple sender identities. It does not compete solely on price with full productivity suites. It also includes AI drafts, newsletters, booking pages, a transactional API, and a calendar.",
   },
   {
     q: "How many domains can I connect?",
-    a: `Free includes ${PLANS.free.limits.domains}, Solo ${PLANS.solo.limits.domains}, Pro ${PLANS.pro.limits.domains}, Team ${PLANS.team.limits.domains}. Referrals can add bonus domain slots permanently.`,
+    a: `Free includes ${PLANS.free.limits.domains} domains to prove MX before you pay. Solo, Pro, and Team each include up to ${PLANS.solo.limits.domains} custom domains. Referrals can add permanent bonus domain slots.`,
   },
   {
-    q: "Do you support teams?",
-    a: "Pro adds seats. Team unlocks unlimited seats, shared mailboxes, and delegation. Free and Solo stay solo-friendly.",
+    q: "Do you support teams and shared inboxes?",
+    a: "Pro adds up to 5 seats. Team unlocks unlimited seats, shared mailboxes (e.g. support@, hello@), and delegation. Free and Solo are designed for solo founders.",
   },
   {
-    q: "How does DNS / delivery work?",
-    a: "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar - add the MX/SPF/DKIM Flap shows, create a mailbox, then Check DNS.",
+    q: "How does DNS and email delivery work?",
+    a: "Customer mail runs on Amazon SES. The Flap app runs on Cloudflare. Your DNS stays at any registrar: Cloudflare, Namecheap, Porkbun, GoDaddy, Route 53, and more. You publish MX/SPF/DKIM records Flap shows you, then click Check DNS.",
+  },
+  {
+    q: "Does Flap support IMAP and SMTP?",
+    a: "Not yet. Use the web app and PWA. IMAP/SMTP client access is planned but not yet available.",
+  },
+  {
+    q: "Can I send transactional email via API?",
+    a: "Yes. Solo and above include API keys for transactional sends. POST to /api/v1/send with a Bearer key. TypeScript and Python SDKs plus a thin CLI are available.",
   },
   {
     q: "Can I export my data?",
-    a: "Yes. Settings includes JSON backup, .mbox mailbox download, and restore for workspace data.",
+    a: "Yes. Settings includes JSON backup, .mbox mailbox download, and workspace restore. Export anytime. No lock-in.",
   },
 ];
 
@@ -365,9 +377,9 @@ export default function Landing() {
       <Band tone="light" className="landing-hero-band">
         <div className="landing-hero grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
           <div className="landing-hero-copy">
-            <p className="flap-eyebrow">A little less switching. A lot more focus.</p>
+            <p className="flap-eyebrow">Custom-domain email for every project you ship.</p>
             <h1 className="landing-h1">
-              <span className="landing-hero-mark">Every project</span>
+              <span className="landing-hero-mark">Every project.</span>
               <br />
               One calm inbox
               <AccentPeriod />
@@ -391,11 +403,11 @@ export default function Landing() {
               </Button>
               <span className="landing-rating-chip">
                 <Star className="h-3.5 w-3.5 fill-[var(--accent)] text-[var(--accent)]" aria-hidden />
-                Free includes real mailboxes
+                Free plan includes real mailboxes
               </span>
             </div>
             <p className="mt-5 text-sm text-[var(--foreground-muted)]">
-              Start with real mailboxes for free. Add room as your projects grow.
+              Start free with real custom-domain mailboxes. Upgrade as your projects grow. Up to 50 domains on every paid plan.
             </p>
           </div>
 
@@ -454,7 +466,7 @@ export default function Landing() {
 
       <Band tone="dark" id="features">
         <div className="landing-section-head max-w-2xl">
-          <SectionHeading>All your email in one place</SectionHeading>
+          <SectionHeading>Custom-domain email across all your projects</SectionHeading>
           <p className="landing-section-lede">{MARKETING.architecture_line}</p>
         </div>
         <ProductFrame title="Inbox · All domains" dark>
@@ -478,9 +490,9 @@ export default function Landing() {
       <Band tone="light" id="proof">
         <div className="landing-section-head mb-10 max-w-2xl">
           <p className="landing-eyebrow-accent">Built to be trusted</p>
-          <SectionHeading>Know what goes into your email</SectionHeading>
+          <SectionHeading>Email you can trust with your brand</SectionHeading>
           <p className="landing-section-lede">
-            Your domain, your conversations, your choice — credibility before invented reviews.
+            Your domain, your conversations, your data. Honest architecture, no invented reviews.
           </p>
         </div>
         <div className="landing-testimonial-grid">
@@ -504,7 +516,7 @@ export default function Landing() {
         <div className="landing-section-head max-w-2xl">
           <SectionHeading>Calendar and bookings, same subscription</SectionHeading>
           <p className="landing-section-lede">
-            Week views, booking pages, and mail share one Flap workspace — not three add-on silos.
+            Week views, booking pages, and mail share one Flap workspace, not three add-on silos.
           </p>
         </div>
         <ProductFrame title="Calendar · This week" dark>
@@ -544,9 +556,9 @@ export default function Landing() {
 
       <Band tone="dark" id="ai">
         <div className="landing-section-head max-w-2xl">
-          <SectionHeading>AI that waits for your OK</SectionHeading>
+          <SectionHeading>AI email assistant: confirm before send</SectionHeading>
           <p className="landing-section-lede">
-            Ask your inbox, draft in your voice, and confirm before anything sends.
+            Summarize threads, draft replies in your voice, and approve every outbound message before it goes.
           </p>
         </div>
         <ProductFrame title="AI assistant" dark>
@@ -554,7 +566,7 @@ export default function Landing() {
             <div className="landing-mock-ai-bubble user">Summarize unread support@ from today</div>
             <div className="landing-mock-ai-bubble bot">
               <Bot className="mb-2 h-4 w-4" aria-hidden />
-              Three threads need a reply. Draft ready — confirm to send.
+              Three threads need a reply. Draft ready. Confirm to send.
             </div>
           </div>
         </ProductFrame>
@@ -565,9 +577,9 @@ export default function Landing() {
         <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
           <div>
             <div className="landing-section-head max-w-xl">
-              <SectionHeading>Built for developers</SectionHeading>
+              <SectionHeading>Transactional email API for developers</SectionHeading>
               <p className="landing-section-lede">
-                Send transactional mail with API keys, react to mail.received, and use thin SDKs plus a CLI.
+                Send transactional email with API keys, receive webhooks on mail.received, and use thin SDKs plus a CLI.
               </p>
             </div>
             <ul className="mt-8 space-y-3">
@@ -611,7 +623,7 @@ export default function Landing() {
 
       <Band tone="light" id="capabilities">
         <div className="landing-section-head mb-10 max-w-2xl">
-          <SectionHeading>Everything in one stack</SectionHeading>
+          <SectionHeading>Everything in one email subscription</SectionHeading>
           <p className="landing-section-lede">{MARKETING.key_features.slice(0, 3).join(" · ")}.</p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -643,8 +655,8 @@ export default function Landing() {
 
       <Band tone="compare" id="compare">
         <div className="landing-section-head mb-10 max-w-2xl">
-          <SectionHeading>Compare and find your fit</SectionHeading>
-          <p className="landing-section-lede">Honest /vs and /for pages for founders choosing multi-domain email.</p>
+          <SectionHeading>Compare Flap to Workspace and alternatives</SectionHeading>
+          <p className="landing-section-lede">Honest comparison pages for founders choosing custom-domain email hosting.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {COMPARISON_LINKS.map((link) => (
@@ -692,12 +704,11 @@ export default function Landing() {
       <Band tone="accent" className="landing-final-cta">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="landing-cta-h2">
-            Your email, set up in minutes
+            Custom-domain email, set up in minutes
             <span className="text-[var(--accent-fg)]">.</span>
           </h2>
           <p className="mt-4 text-base text-[color-mix(in_srgb,var(--accent-fg)_80%,transparent)] md:text-lg">
-            First receive usually takes a few minutes depending on DNS. From ${PLANS.solo.price_monthly}/month. Free
-            includes real mailboxes.
+            Add a domain, publish MX/SPF/DKIM, and receive your first email. Usually takes a few minutes. From ${PLANS.solo.price_monthly}/month. Free plan includes real mailboxes.
           </p>
           <Button
             size="pill"

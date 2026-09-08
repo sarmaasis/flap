@@ -1652,6 +1652,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                         <p className="dns-step-help">
                           Set Type + Host, paste Value, then click Check setup.
                         </p>
+                        <div className="dns-table-wrap">
                         <table className="dns-table">
                           <thead>
                             <tr>
@@ -1695,6 +1696,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                             ))}
                           </tbody>
                         </table>
+                        </div>
                         <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
                           Extra addresses never need new DNS — add them under Mailboxes.
                         </p>

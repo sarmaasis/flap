@@ -427,22 +427,25 @@ export default function CalendarAppPage() {
               ]}
             />
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSyncOpen(true);
-              void loadTokens();
-            }}
-          >
-            <KeyRound className="h-4 w-4" />
-            CalDAV
-          </Button>
-          <Button variant="secondary" onClick={() => go("/app/bookings")}>
-            Booking pages
-          </Button>
+          <div className="hidden sm:contents">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSyncOpen(true);
+                void loadTokens();
+              }}
+            >
+              <KeyRound className="h-4 w-4" />
+              CalDAV
+            </Button>
+            <Button variant="secondary" onClick={() => go("/app/bookings")}>
+              Booking pages
+            </Button>
+          </div>
           <Button onClick={() => openCreate()}>
             <Plus className="h-4 w-4" />
-            New event
+            <span className="hidden sm:inline">New event</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </>
       }

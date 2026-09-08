@@ -5466,3 +5466,223 @@ body { background: var(--surface); }
 @media (max-width: 640px) {
   .get-started-progress-row { flex-direction: column; }
 }
+
+/* ─────────────────────────────────────────────────────────
+   MOBILE POLISH — applied across all app + marketing pages
+   ───────────────────────────────────────────────────────── */
+
+/* ── Folder chip rail: truncate long domain names ── */
+.mail-folder-nav .mail-folder-btn,
+.mail-domain-nav .mail-folder-btn {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Message toolbar: wrap on very narrow screens ── */
+@media (max-width: 480px) {
+  .message-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .message-toolbar-primary { gap: 2px; }
+  .message-toolbar-sep { display: none; }
+}
+
+/* ── Compose: from-row wraps so identity pill + cc buttons don't overflow ── */
+.compose-from-row {
+  flex-wrap: wrap;
+}
+@media (max-width: 540px) {
+  .compose-from-pill { width: 100%; }
+  .compose-from-pill select { width: 100%; min-width: 0; }
+  .compose-from-locked { flex-wrap: wrap; }
+  .compose-field { grid-template-columns: 56px 1fr; }
+  .compose-float {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* ── app-feature: tighter card/tab padding on mobile ── */
+@media (max-width: 767px) {
+  .app-feature-tabs { padding: 0 16px; }
+  .app-feature-card { padding: 16px; }
+  .app-feature-empty { padding: 28px 16px; }
+  .app-feature-stats { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* ── Landing stats: single column under 480px ── */
+@media (max-width: 480px) {
+  .landing-stats { grid-template-columns: 1fr !important; }
+  .landing-stats > * + * { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 1.25rem; margin-top: 0; }
+}
+
+/* ── Landing footer: single column under 480px ── */
+@media (max-width: 480px) {
+  .landing-footer-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Calendar: week/month mobile min-width override ── */
+@media (max-width: 767px) {
+  /* Week stays scrollable but reduce min-width for large phones */
+  .cal-week-head,
+  .cal-week-grid { min-width: 500px; }
+  /* Month: shrink cell height to be less overwhelming */
+  .cal-month-day { height: 80px; padding: 8px; }
+  .cal-month-label { padding: 10px; font-size: 12px; }
+  /* Calendar actions: allow wrapping */
+  .cal-week { border-radius: 12px; }
+}
+@media (max-width: 480px) {
+  .cal-week-head,
+  .cal-week-grid { min-width: 420px; }
+  .cal-month { min-width: 420px; }
+  .cal-month-day { height: 64px; padding: 6px 4px; }
+  .cal-month-chip,
+  .cal-month-more { font-size: 9px; padding: 1px 3px; }
+}
+
+/* ── Analytics: chart and filter ── */
+@media (max-width: 767px) {
+  .seg-toggle {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .seg-toggle::-webkit-scrollbar { display: none; }
+}
+
+/* ── Mailboxes table: card layout on mobile ── */
+@media (max-width: 640px) {
+  .mailboxes-table-wrap { overflow-x: unset !important; border-radius: 16px; }
+  .mailboxes-table-wrap table { display: block; min-width: unset !important; }
+  .mailboxes-table-wrap thead { display: none; }
+  .mailboxes-table-wrap tbody { display: flex; flex-direction: column; gap: 1px; }
+  .mailboxes-table-wrap tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 2px 12px;
+    padding: 12px 14px;
+    background: var(--surface-raised);
+    border-radius: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .mailboxes-table-wrap tr:first-child { border-radius: 16px 16px 0 0; }
+  .mailboxes-table-wrap tr:last-child { border-bottom: 0; border-radius: 0 0 16px 16px; }
+  .mailboxes-table-wrap td { padding: 0 !important; border: 0 !important; display: block; }
+  /* address cell: full width top row */
+  .mailboxes-table-wrap td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: break-word;
+    word-break: break-all;
+  }
+  /* display name input: full width second row */
+  .mailboxes-table-wrap td:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .mailboxes-table-wrap td:nth-child(2) input {
+    max-width: 100% !important;
+    width: 100%;
+  }
+  /* type badge: top right */
+  .mailboxes-table-wrap td:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+    font-size: 12px;
+    color: var(--foreground-muted);
+  }
+  /* remove button: second row right */
+  .mailboxes-table-wrap td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: right;
+  }
+}
+
+/* ── Contacts: email overflow ── */
+.contact-list-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+@media (max-width: 480px) {
+  .contact-list-email { max-width: 120px; }
+}
+
+/* ── Bookings: created URL word-break ── */
+.booking-created-url {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* ── Marketing mobile menu: include CTA ── */
+.marketing-mobile-cta {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+  text-decoration: none;
+}
+.marketing-mobile-cta:hover { opacity: 0.9; }
+
+/* ── Settings DNS table scroll ── */
+.dns-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.dns-table-wrap table {
+  min-width: 540px;
+}
+
+/* ── Tablet 3-pane: softer breakpoint ── */
+@media (max-width: 900px) and (min-width: 768px) {
+  .workspace {
+    grid-template-columns: 136px minmax(220px, 260px) minmax(0, 1fr);
+  }
+  .mail-folder-pane { padding: 8px 4px 12px; }
+  .mail-folder-btn { font-size: 12px; padding: 5px 6px; }
+}
+
+/* ── MarketingShell: CTA always accessible on phones ── */
+@media (max-width: 639px) {
+  .landing-nav-cta-desktop { display: none !important; }
+}
+
+/* ── AppFeaturePage: preview address wraps ── */
+.app-feature-preview-addr {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Docs/Hub pages: table scroll wrapper ── */
+.docs-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+}
+.docs-table-wrap table {
+  min-width: 420px;
+}
+
