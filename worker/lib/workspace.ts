@@ -609,12 +609,18 @@ export async function flushScheduled(
       console.warn("Scheduled send blocked by monthly send quota", message.id, message.user_id);
       continue;
     }
+    const claim = await env.DB.prepare(
+      `UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0
+       WHERE id = ? AND folder = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ?`,
+    )
+      .bind(now, message.id, now)
+      .run();
+    if (!(claim.meta.changes ?? 0)) continue;
     const error = await dispatchStoredMessage(env, message);
     if (error) {
       console.warn("Scheduled send failed", message.id, error);
-      // Bounce back to drafts so the user can fix and retry — do not fake "Sent".
       await env.DB.prepare(
-        "UPDATE messages SET folder = 'drafts', scheduled_at = NULL, snippet = ? WHERE id = ?",
+        "UPDATE messages SET folder = 'drafts', snippet = ? WHERE id = ? AND folder = 'sent'",
       )
         .bind(`Send failed: ${error}`.slice(0, 160), message.id)
         .run()
@@ -622,9 +628,6 @@ export async function flushScheduled(
       failed.push({ id: message.id, error });
       continue;
     }
-    await env.DB.prepare("UPDATE messages SET folder = 'sent', scheduled_at = NULL, date_ms = ?, unread = 0 WHERE id = ?")
-      .bind(now, message.id)
-      .run();
     await recordOutboundSend(env.DB, message.user_id);
     await markFirstEmailSent(env.DB, message.user_id).catch(() => undefined);
     flushed += 1;

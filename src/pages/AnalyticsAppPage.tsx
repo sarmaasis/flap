@@ -83,16 +83,18 @@ function EventsTrendChart({ events }: { events: DeliveryEventLogRow[] }) {
     const bounce = Object.fromEntries(days.map((k) => [k, 0]));
     const complaint = Object.fromEntries(days.map((k) => [k, 0]));
     const soft = Object.fromEntries(days.map((k) => [k, 0]));
+    const delivered = Object.fromEntries(days.map((k) => [k, 0]));
     for (const ev of events) {
       const k = dayKey(ev.created_at);
       if (!(k in bounce)) continue;
       if (ev.kind === "complaint") complaint[k] += 1;
       else if (ev.kind === "soft_bounce") soft[k] += 1;
-      else bounce[k] += 1;
+      else if (ev.kind === "bounce" || ev.kind === "reject") bounce[k] += 1;
+      else if (ev.kind === "delivery" || ev.kind === "send") delivered[k] += 1;
     }
-    const totals = days.map((k) => bounce[k] + complaint[k] + soft[k]);
+    const totals = days.map((k) => bounce[k] + complaint[k] + soft[k] + delivered[k]);
     const max = Math.max(1, ...totals);
-    return { days, bounce, complaint, soft, max, totals };
+    return { days, bounce, complaint, soft, delivered, max, totals };
   }, [events]);
 
   const w = 560;
@@ -122,10 +124,12 @@ function EventsTrendChart({ events }: { events: DeliveryEventLogRow[] }) {
           const b = series.bounce[day];
           const c = series.complaint[day];
           const s = series.soft[day];
-          const total = b + c + s;
+          const d = series.delivered[day];
+          const total = b + c + s + d;
           const scale = (n: number) => (n / series.max) * innerH;
           let y = pad.t + innerH;
           const segments = [
+            { n: d, fill: "var(--chart-new)" },
             { n: b, fill: "var(--chart-churned)" },
             { n: s, fill: "var(--chart-contraction)" },
             { n: c, fill: "var(--chart-reactivation)" },
@@ -144,13 +148,16 @@ function EventsTrendChart({ events }: { events: DeliveryEventLogRow[] }) {
                 </text>
               ) : null}
               {total > 0 ? (
-                <title>{`${shortDay(day)}: ${total} event${total === 1 ? "" : "s"}`}</title>
+                <title>{`${shortDay(day)}: ${d} delivered/sent, ${b} bounce, ${s} soft, ${c} complaint`}</title>
               ) : null}
             </g>
           );
         })}
       </svg>
       <div className="mt-3 flex flex-wrap gap-4 text-xs text-[var(--foreground-muted)]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[var(--chart-new)]" /> Sent / delivered
+        </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-[var(--chart-churned)]" /> Bounce
         </span>

@@ -70,6 +70,7 @@ export default function Compose({
   const [attachments, setAttachments] = useState<{ filename: string; content_type: string; data: string }[]>([]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const sendingRef = useRef(false);
   const [status, setStatus] = useState("");
   const [scheduleAt, setScheduleAt] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
@@ -137,6 +138,7 @@ export default function Compose({
 
   async function submit(kind: "send" | "draft" | "schedule") {
     setErr("");
+    if (sendingRef.current) return;
     if (kind === "send" && sendableMailboxes.length === 0) {
       setErr("Finish sending setup for your domain before sending.");
       return;
@@ -164,6 +166,7 @@ export default function Compose({
         return;
       }
     }
+    sendingRef.current = true;
     setBusy(true);
     try {
       const scheduled_at = kind === "schedule" && scheduleAt ? new Date(scheduleAt).getTime() : null;
@@ -188,13 +191,14 @@ export default function Compose({
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Send failed.");
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   }
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (!dirtyRef.current || savingRef.current || busy) return;
+      if (!dirtyRef.current || savingRef.current || busy || sendingRef.current) return;
       if (!to.trim() && !subject.trim() && htmlToText(editorRef.current?.getHtml() ?? "").length < 2) return;
       savingRef.current = true;
       void api.send(payload(true))
