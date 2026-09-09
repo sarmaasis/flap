@@ -1971,17 +1971,32 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               <div className={tw.sectionHeading}><div><h2>Deliverability</h2><p>Domain sending readiness, bounces, and client access status.</p></div></div>
               {deliveryInfo ? (
                 <>
-                  <p className={tw.muted}>Active suppressions: {deliveryInfo.suppressions_active}
+                  <p className={tw.muted}>
+                    Flap suppression: {(deliveryInfo.flap_suppression
+                      ? (deliveryInfo.flap_suppression.active
+                        ? `${deliveryInfo.flap_suppression.active} active`
+                        : "Not suppressed")
+                      : `${deliveryInfo.suppressions_active} active`)}
                     {Object.keys(deliveryInfo.suppressions_by_reason).length
                       ? ` (${Object.entries(deliveryInfo.suppressions_by_reason).map(([k, v]) => `${k}: ${v}`).join(", ")})`
                       : ""}
                   </p>
+                  <p className={tw.muted} style={{ marginTop: 6 }}>
+                    Provider: {deliveryInfo.provider_suppression_note
+                      || "Delivery may still be subject to provider-level rejection."}
+                  </p>
+                  {deliveryInfo.send_status || deliveryInfo.outbound_access_status ? (
+                    <p className={tw.muted} style={{ marginTop: 6 }}>
+                      Workspace send: {deliveryInfo.send_status || "ACTIVE"} · outbound access: {deliveryInfo.outbound_access_status || "APPROVED"}
+                    </p>
+                  ) : null}
                   <div className="overflow-x-auto"><table className={settingsTable} style={{ marginTop: 12 }}>
-                    <thead><tr><th>Domain</th><th>Outbound ready</th><th>Inbound ready</th><th>Identity</th><th>MX</th><th>Last inbound</th><th>Last error</th></tr></thead>
+                    <thead><tr><th>Domain</th><th>Status</th><th>Outbound ready</th><th>Inbound ready</th><th>Identity</th><th>MX</th><th>Last inbound</th><th>Last error</th></tr></thead>
                     <tbody>
                       {(deliveryInfo.domains || []).map((d) => (
                         <tr key={d.id}>
                           <td><span className={tw.domainSwatch} style={{ background: d.color || "#737168" }} aria-hidden />{d.name}</td>
+                          <td className={tw.muted}>{d.lifecycle || "—"}</td>
                           <td>{d.sending_ready_at ? "✓" : "—"}</td>
                           <td>{d.receiving_ready_at ? "✓" : "—"}</td>
                           <td>{d.identity_verified_at ? "✓" : "—"}</td>
@@ -2068,7 +2083,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                     ))}
                   </tbody>
                 </table></div>
-              ) : <p className={tw.emptyState}>No suppressions.</p>}
+              ) : <p className={tw.emptyState}>No Flap suppressions. Amazon SES may still reject some recipients at the account level.</p>}
             </section>
           </div>
         ) : null}

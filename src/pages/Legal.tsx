@@ -58,6 +58,8 @@ function Footer() {
       <span className="flex flex-wrap gap-4">
         <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms</a>
         <a href="/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
+        <a href="/acceptable-use" onClick={(e) => { e.preventDefault(); go("/acceptable-use"); }}>Acceptable Use</a>
+        <a href="/abuse" onClick={(e) => { e.preventDefault(); go("/abuse"); }}>Abuse</a>
         <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing</a>
         <a href="mailto:support@useflap.online">Support</a>
       </span>
@@ -68,7 +70,7 @@ function Footer() {
 function TermsBody() {
   return (
     <>
-      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 4, 2026</p>
+      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 9, 2026</p>
       <p>
         These Terms of Service (“Terms”) govern your access to and use of Flap, the hosted custom-domain email
         product operated at useflap.online (the “Service”). By creating an account or using the Service, you agree
@@ -103,14 +105,21 @@ function TermsBody() {
       <p>You agree not to use Flap to:</p>
       <ul>
         <li>Send spam, phishing, malware, or unsolicited bulk email</li>
-        <li>Impersonate others or forge headers</li>
-        <li>Violate privacy, intellectual property, export, or other laws</li>
+        <li>Use purchased, scraped, harvested, or otherwise improperly obtained recipient lists</li>
+        <li>Impersonate others, forge headers, or send from domains you do not control</li>
+        <li>Violate privacy, intellectual property, export, anti-spam, or other laws</li>
         <li>Probe, disrupt, or overload the Service or related infrastructure</li>
         <li>Resell access except as expressly allowed in writing</li>
       </ul>
       <p>
-        We may suspend or terminate accounts that create abuse risk, legal risk, or material harm to other users
-        or providers.
+        You are responsible for domain authority, lawful recipient communications, account security, and compliance
+        with anti-spam and privacy laws. See{" "}
+        <a href="/acceptable-use" onClick={(e) => { e.preventDefault(); go("/acceptable-use"); }}>Acceptable Use</a>.
+      </p>
+      <p>
+        We may restrict sending, suspend a domain or workspace, investigate abuse, preserve necessary technical
+        logs where lawful, or terminate accounts that create abuse risk, legal risk, or material harm to other
+        users or providers.
       </p>
 
       <h2>5. Plans, limits, and billing</h2>
@@ -171,7 +180,7 @@ function TermsBody() {
 function PrivacyBody() {
   return (
     <>
-      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 4, 2026</p>
+      <p className="mb-5 text-[13px] text-[var(--foreground-muted)]">Last updated: September 9, 2026</p>
       <p>
         This Privacy Policy explains how Flap (“we”, “us”) collects, uses, and shares information when you use
         useflap.online and related APIs (the “Service”).
@@ -196,7 +205,8 @@ function PrivacyBody() {
         </li>
         <li>
           <strong>Technical data</strong> — IP address, user agent, timestamps, API usage, webhook delivery
-          attempts, and diagnostic logs needed to operate and secure the Service.
+          attempts, delivery-event metadata (provider message id, recipient, bounce/complaint kind — not message
+          bodies), and diagnostic logs needed to operate and secure the Service.
         </li>
         <li>
           <strong>Billing data</strong> — plan selection and payment events processed by Dodo Payments. We do not
@@ -232,6 +242,18 @@ function PrivacyBody() {
         We retain account and mailbox data while your account is active. After deletion or prolonged inactivity,
         we may remove data from active systems within a reasonable period, subject to backups, legal holds, and
         fraud/abuse logs. You can export JSON backups from Settings while your account is active.
+      </p>
+      <p>
+        Inbound raw MIME copies stored for ingest (Amazon S3) follow the deployed bucket lifecycle. The
+        infrastructure template default is 7 days (<code>RawMailRetentionDays</code>, configurable 1–90). Public
+        statements use the value actually deployed on the inbound stack, not a guarantee of a different window.
+        Canonical mail after ingest lives in Flap (Cloudflare D1/R2) according to your account. Attachments are
+        stored in R2 while the message exists. Delivery events are retained for operational monitoring (Settings
+        surfaces the last 30 days).
+      </p>
+      <p>
+        AI features are opt-in where offered. Drafts and summaries are not used to send mail without your
+        confirmation. We do not train advertising models on mailbox contents.
       </p>
 
       <h2>6. Security</h2>

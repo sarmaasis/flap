@@ -41,6 +41,16 @@ const cards = [
     body: "Domains, mailboxes, live vs test keys, plan limits.",
   },
   {
+    href: "/docs/domain-verification",
+    title: "How domain verification works",
+    body: "No send from unverified or foreign domains.",
+  },
+  {
+    href: "/docs/bounces-and-complaints",
+    title: "Bounces and complaints",
+    body: "Workspace-scoped suppressions and 72-hour soft bounces.",
+  },
+  {
     href: "/guides",
     title: "I need DNS at my registrar",
     body: "Cloudflare, Namecheap, Route 53, and more.",

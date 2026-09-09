@@ -40,6 +40,13 @@ const StatusPage = lazy(() => import("./pages/StatusPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const SecurityPage = lazy(() => import("./pages/SecurityPage"));
+const AcceptableUsePage = lazy(() => import("./pages/AcceptableUsePage"));
+const AbusePage = lazy(() => import("./pages/AbusePage"));
+const DocsDomainVerificationPage = lazy(() => import("./pages/DocsDomainVerificationPage"));
+const DocsDeliverabilityPage = lazy(() => import("./pages/DocsDeliverabilityPage"));
+const DocsBouncesPage = lazy(() => import("./pages/DocsBouncesPage"));
+const DocsSendingLimitsPage = lazy(() => import("./pages/DocsSendingLimitsPage"));
+const DocsAcceptableUsePage = lazy(() => import("./pages/DocsAcceptableUsePage"));
 const MigratePage = lazy(() => import("./pages/MigratePage"));
 const WhyNotSesPage = lazy(() => import("./pages/WhyNotSesPage"));
 const DemoPage = lazy(() => import("./pages/DemoPage"));
@@ -99,6 +106,8 @@ export default function App() {
   if (path.startsWith("/invite/")) return <Screen><InviteAccept /></Screen>;
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
+  if (path === "/acceptable-use") return <Screen><AcceptableUsePage /></Screen>;
+  if (path === "/abuse") return <Screen><AbusePage /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;
   if (path === "/app/settings" || path === "/settings/referrals") {
     return (
@@ -262,6 +271,11 @@ export default function App() {
   if (path === "/docs/concepts") return <Screen><DocsConceptsPage /></Screen>;
   if (path === "/docs/webhooks") return <Screen><DocsWebhooksPage /></Screen>;
   if (path === "/docs/api") return <Screen><DocsApiPage /></Screen>;
+  if (path === "/docs/domain-verification") return <Screen><DocsDomainVerificationPage /></Screen>;
+  if (path === "/docs/deliverability") return <Screen><DocsDeliverabilityPage /></Screen>;
+  if (path === "/docs/bounces-and-complaints") return <Screen><DocsBouncesPage /></Screen>;
+  if (path === "/docs/sending-limits") return <Screen><DocsSendingLimitsPage /></Screen>;
+  if (path === "/docs/acceptable-use") return <Screen><DocsAcceptableUsePage /></Screen>;
   if (path === "/guides") return <Screen><GuidesIndexPage /></Screen>;
   if (path === "/support") return <Screen><SupportPage /></Screen>;
   if (path === "/status") return <Screen><StatusPage /></Screen>;

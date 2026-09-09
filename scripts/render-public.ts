@@ -15,6 +15,13 @@ import DocsGettingStartedPage from '../src/pages/DocsGettingStartedPage';
 import DocsConceptsPage from '../src/pages/DocsConceptsPage';
 import DocsWebhooksPage from '../src/pages/DocsWebhooksPage';
 import DocsApiPage from '../src/pages/DocsApiPage';
+import DocsDomainVerificationPage from '../src/pages/DocsDomainVerificationPage';
+import DocsDeliverabilityPage from '../src/pages/DocsDeliverabilityPage';
+import DocsBouncesPage from '../src/pages/DocsBouncesPage';
+import DocsSendingLimitsPage from '../src/pages/DocsSendingLimitsPage';
+import DocsAcceptableUsePage from '../src/pages/DocsAcceptableUsePage';
+import AcceptableUsePage from '../src/pages/AcceptableUsePage';
+import AbusePage from '../src/pages/AbusePage';
 import GuidesIndexPage from '../src/pages/GuidesIndexPage';
 import AboutPage from '../src/pages/AboutPage';
 import SecurityPage from '../src/pages/SecurityPage';
@@ -34,7 +41,15 @@ const staticPages: Record<string, ComponentType> = {
   '/': Landing, '/pricing': PricingPage, '/blog': BlogIndex, '/tools': ToolsIndex,
   '/docs': DocsIndexPage, '/docs/getting-started': DocsGettingStartedPage,
   '/docs/concepts': DocsConceptsPage, '/docs/webhooks': DocsWebhooksPage,
-  '/docs/api': DocsApiPage, '/guides': GuidesIndexPage, '/about': AboutPage,
+  '/docs/api': DocsApiPage,
+  '/docs/domain-verification': DocsDomainVerificationPage,
+  '/docs/deliverability': DocsDeliverabilityPage,
+  '/docs/bounces-and-complaints': DocsBouncesPage,
+  '/docs/sending-limits': DocsSendingLimitsPage,
+  '/docs/acceptable-use': DocsAcceptableUsePage,
+  '/acceptable-use': AcceptableUsePage,
+  '/abuse': AbusePage,
+  '/guides': GuidesIndexPage, '/about': AboutPage,
   '/security': SecurityPage, '/migrate': MigratePage, '/why-not-amazon-ses': WhyNotSesPage,
   '/demo': DemoPage, '/changelog': ChangelogPage,
   '/support': SupportPage, '/status': StatusPage,

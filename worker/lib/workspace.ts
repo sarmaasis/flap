@@ -34,7 +34,11 @@ import { revokeClerkSessionsForFlapUser } from "./clerk";
 import { buildJsonExport, buildMboxExport, restoreWorkspaceBackup } from "./workspace-backup";
 import { postWorkspaceOperatorAlert } from "./workspace-notify";
 import { isAddressSuppressed } from "./suppressions";
-import { evaluateOutboundDomainPolicy } from "../../shared/outbound-send-policy";
+import {
+  evaluateOutboundDomainPolicy,
+  evaluateOutboundSenderIdentity,
+} from "../../shared/outbound-send-policy";
+import { workspaceSendDenied } from "./workspace-send";
 
 type App = { Bindings: Env };
 
@@ -298,6 +302,7 @@ export async function maybeForwardInbound(
   html: string,
 ): Promise<void> {
   if (!canSendMail(env) || !EMAIL_RE.test(forwardTo)) return;
+  if (await workspaceSendDenied(env.DB, userId)) return;
   const sendLimit = await assertSendRoom(env.DB, userId);
   if (!sendLimit.ok) {
     console.warn("Inbound forward blocked by monthly send quota", userId);
@@ -329,6 +334,7 @@ export async function maybeVacationReply(
   toAddress: string,
 ): Promise<void> {
   if (!canSendMail(env)) return;
+  if (await workspaceSendDenied(env.DB, userId)) return;
   const settings = await loadSettings(env.DB, userId);
   if (!settings.vacation_enabled || !settings.vacation_body.trim()) return;
   const email = extractEmail(toAddress);
@@ -435,6 +441,22 @@ export async function dispatchStoredMessage(env: Env, message: StoredMessage): P
     if (message.user_id && (await isAddressSuppressed(env.DB, message.user_id, addr))) {
       return `${addr} is on the suppression list (bounce or complaint).`;
     }
+  }
+
+  if (message.user_id) {
+    const wsFail = await workspaceSendDenied(env.DB, message.user_id);
+    if (wsFail) return wsFail;
+  }
+
+  if (message.mailbox_id && message.user_id) {
+    const mailbox = await env.DB.prepare("SELECT address FROM mailboxes WHERE id = ? AND user_id = ?")
+      .bind(message.mailbox_id, message.user_id)
+      .first<{ address: string }>();
+    const senderFail = evaluateOutboundSenderIdentity(
+      extractEmail(message.from_addr) || message.from_addr,
+      mailbox?.address,
+    );
+    if (senderFail) return senderFail.message;
   }
 
   const attachments = await loadAttachmentContents(env, message.id);

@@ -614,7 +614,9 @@ export default function Landing() {
           <p className="mb-3 text-xs font-semibold tracking-[1.2px] text-[var(--accent)] uppercase">Trust</p>
           <SectionHeading>Architecture you can verify</SectionHeading>
           <p className="mt-5 max-w-[540px] text-base leading-[1.6] text-[var(--foreground-muted)] md:text-lg">
-            Honest infrastructure, public status, export, and founder identity — no invented reviews or fake metrics.
+            Flap provides custom-domain business email for founders, agencies, and teams managing domains they own or
+            are authorized to operate. Every sending domain must be verified. Honest infrastructure — no invented
+            reviews or fake metrics.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -634,6 +636,8 @@ export default function Landing() {
             { href: "/why-not-amazon-ses", label: "Why not SES alone?" },
             { href: "/privacy", label: "Privacy" },
             { href: "/terms", label: "Terms" },
+            { href: "/acceptable-use", label: "Acceptable Use" },
+            { href: "/abuse", label: "Abuse" },
           ].map((l) => (
             <a
               key={l.href}

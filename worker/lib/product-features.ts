@@ -7,6 +7,9 @@ import { requireUser } from "./auth";
 import { getEffectivePlan } from "./billing";
 import { nowMs, randomId } from "./ids";
 import { mailboxAccessClause, resolveWorkspace } from "./team";
+import { writeAuditLog } from "./plan-guard";
+import { normalizeOperatorSendPatch, parseOperatorToken } from "./workspace-send";
+import { publicDomainLifecycle } from "../../shared/outbound-send-policy";
 
 type App = { Bindings: Env };
 
@@ -333,12 +336,29 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const complaint = byKind.complaint || 0;
     const delivery = byKind.delivery || 0;
     const denom = Math.max(1, bounce + complaint + delivery);
+    const ws = await c.env.DB.prepare(
+      "SELECT send_status, outbound_access_status, reputation_warning_at FROM users WHERE id = ?",
+    )
+      .bind(ctx.workspaceId)
+      .first<{ send_status: string | null; outbound_access_status: string | null; reputation_warning_at: number | null }>()
+      .catch(() => null);
     return c.json({
       window_days: 30,
       bounce_rate: bounce / denom,
       complaint_rate: complaint / denom,
       suppressed_count: Number(suppressed?.n) || 0,
-      counts: { bounce, complaint, delivery, soft_bounce: byKind.soft_bounce || 0 },
+      counts: {
+        bounce,
+        complaint,
+        delivery,
+        soft_bounce: byKind.soft_bounce || 0,
+        send: byKind.send || 0,
+        reject: byKind.reject || 0,
+      },
+      send_status: ws?.send_status || "ACTIVE",
+      outbound_access_status: ws?.outbound_access_status || "APPROVED",
+      reputation_warning_at: ws?.reputation_warning_at || null,
+      note: "Rates are workspace event counts, not a scored reputation product. SES account-level suppression may still apply.",
     });
   });
 
@@ -427,15 +447,74 @@ export function registerProductFeatureRoutes(app: Hono<App>) {
     const byReason: Record<string, number> = {};
     for (const row of bounceRows.results ?? []) byReason[row.reason] = Number(row.n) || 0;
 
+    const ws = await c.env.DB.prepare(
+      "SELECT send_status, outbound_access_status FROM users WHERE id = ?",
+    )
+      .bind(ctx.workspaceId)
+      .first<{ send_status: string | null; outbound_access_status: string | null }>()
+      .catch(() => null);
+
     return c.json({
-      domains: domains.results ?? [],
+      domains: (domains.results ?? []).map((d: Record<string, unknown>) => ({
+        ...d,
+        lifecycle: publicDomainLifecycle({
+          mail_provider: String(d.mail_provider || ""),
+          provider_state: d.provider_state == null ? null : String(d.provider_state),
+          identity_verified_at: (d.identity_verified_at as number | null) ?? null,
+          mx_verified_at: (d.mx_verified_at as number | null) ?? null,
+          inbound_rule_ready_at: (d.inbound_rule_ready_at as number | null) ?? null,
+          receiving_ready_at: (d.receiving_ready_at as number | null) ?? null,
+          sending_ready_at: (d.sending_ready_at as number | null) ?? null,
+        }),
+      })),
       suppressions_active: Number(suppressions?.n) || 0,
       suppressions_by_reason: byReason,
+      flap_suppression: {
+        active: Number(suppressions?.n) || 0,
+        note: "Workspace-scoped. Empty does not mean SES will accept the recipient.",
+      },
+      provider_suppression_note:
+        "Amazon SES may still reject addresses at the account level even when Flap has no local suppression.",
+      send_status: ws?.send_status || "ACTIVE",
+      outbound_access_status: ws?.outbound_access_status || "APPROVED",
       imap: {
         status: "deferred",
         note: "IMAP credentials path is scheduled for 2026-10-15. Use the web app and PWA until then.",
       },
     });
+  });
+
+  app.post("/api/ops/workspace-send", async (c) => {
+    if (!parseOperatorToken(c.req.header("authorization") || c.req.header("x-flap-operator-token"), c.env.FLAP_OPERATOR_TOKEN)) {
+      return c.json({ error: "Operator token required." }, 401);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as {
+      workspace_id?: string;
+      outbound_access_status?: string;
+      send_status?: string;
+    };
+    const workspaceId = (body.workspace_id || "").trim();
+    if (!workspaceId) return c.json({ error: "workspace_id required." }, 400);
+    const patch = normalizeOperatorSendPatch(body);
+    if ("error" in patch) return c.json({ error: patch.error }, 400);
+    const existing = await c.env.DB.prepare("SELECT id FROM users WHERE id = ?")
+      .bind(workspaceId)
+      .first<{ id: string }>();
+    if (!existing) return c.json({ error: "Workspace not found." }, 404);
+    if (patch.outbound_access_status) {
+      await c.env.DB.prepare("UPDATE users SET outbound_access_status = ? WHERE id = ?")
+        .bind(patch.outbound_access_status, workspaceId)
+        .run();
+    }
+    if (patch.send_status) {
+      await c.env.DB.prepare("UPDATE users SET send_status = ? WHERE id = ?")
+        .bind(patch.send_status, workspaceId)
+        .run();
+    }
+    await writeAuditLog(c.env.DB, workspaceId, "operator", "workspace.send_status", workspaceId, patch).catch(
+      () => undefined,
+    );
+    return c.json({ ok: true, workspace_id: workspaceId, ...patch });
   });
 }
 

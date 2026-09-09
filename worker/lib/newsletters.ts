@@ -13,7 +13,10 @@ import { buildRawMime } from "./mime";
 import { EMAIL_RE, extractEmail } from "./mailutil";
 import { appOrigin } from "./system-email";
 import { isAddressSuppressed } from "./inbound-webhook";
-import { evaluateOutboundDomainPolicy } from "../../shared/outbound-send-policy";
+import {
+  evaluateOutboundDomainPolicy,
+  evaluateOutboundWorkspacePolicy,
+} from "../../shared/outbound-send-policy";
 import { domainIsSendingReady } from "../../shared/ses-dns";
 
 const NEWSLETTER_BLAST_HARD_CAP = 500;
@@ -378,8 +381,13 @@ export async function processQueuedNewsletterBlasts(env: Env): Promise<void> {
             sending_ready_at: number | null;
           }>()
       : null;
+    const wsRow = await env.DB.prepare("SELECT send_status, outbound_access_status FROM users WHERE id = ?")
+      .bind(blast.user_id)
+      .first<{ send_status: string | null; outbound_access_status: string | null }>()
+      .catch(() => null);
+    const wsPolicy = evaluateOutboundWorkspacePolicy(wsRow);
     const domainPolicy = evaluateOutboundDomainPolicy(fromDomain || "unknown", domainRow);
-    if (domainPolicy || (domainRow && !domainIsSendingReady(domainRow))) {
+    if (wsPolicy || domainPolicy || (domainRow && !domainIsSendingReady(domainRow))) {
       await env.DB.prepare(
         "UPDATE newsletter_blasts SET status = 'failed', capped_count = 0 WHERE id = ?",
       )

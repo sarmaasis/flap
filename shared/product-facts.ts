@@ -60,7 +60,8 @@ export const MAIL_ARCHITECTURE = {
   inbound_provider: "Amazon SES",
   inbound_flow: "DNS → Amazon SES inbound → Flap ingest",
   outbound_provider: "Amazon SES",
-  outbound_flow: "Flap Compose → Amazon SES SendRawEmail",
+  outbound_flow:
+    "Authenticated Flap workspace → verified domain + send policy → Amazon SES → delivery/bounce/complaint events → Flap suppression pipeline",
   system_mail_provider: "Cloudflare Email Sending (SEB)",
   system_mail_note:
     "System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB - not customer SES config.",

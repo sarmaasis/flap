@@ -24,6 +24,11 @@ export const DOCS_NAV: DocsNavGroup[] = [
     title: "Guides",
     items: [
       { href: "/docs/webhooks", label: "Webhooks", description: "Events, signing, verify" },
+      { href: "/docs/domain-verification", label: "Domain verification", description: "Verified sending domains" },
+      { href: "/docs/deliverability", label: "Deliverability", description: "Events and suppressions" },
+      { href: "/docs/bounces-and-complaints", label: "Bounces and complaints", description: "Feedback handling" },
+      { href: "/docs/sending-limits", label: "Sending limits", description: "Plan and account caps" },
+      { href: "/docs/acceptable-use", label: "Acceptable use", description: "Anti-spam rules" },
       { href: "/guides", label: "DNS guides", description: "Registrar setup walkthroughs" },
     ],
   },
@@ -57,6 +62,11 @@ export const DOCS_PATHS = [
   "/docs/concepts",
   "/docs/webhooks",
   "/docs/api",
+  "/docs/domain-verification",
+  "/docs/deliverability",
+  "/docs/bounces-and-complaints",
+  "/docs/sending-limits",
+  "/docs/acceptable-use",
 ] as const;
 
 export const DOCS_FOOTER_LINKS: DocsNavItem[] = [

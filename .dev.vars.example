@@ -31,7 +31,10 @@ AWS_SES_REGION=us-east-1
 SES_INBOUND_WEBHOOK_SECRET=
 # Local only: allow unsigned SES inbound POSTs when secret unset
 # SES_INBOUND_ALLOW_UNSIGNED=true
+# Optional: restrict/suspend workspace sending (wrangler secret put FLAP_OPERATOR_TOKEN)
+# FLAP_OPERATOR_TOKEN=
 # Inbound webhook (production): https://useflap.online/api/inbound/ses
+# Events: https://useflap.online/api/inbound/ses/events
 
 # ─── Mailgun (legacy customer domains during migration only) ────────────────
 # Dashboard → API Security → API keys (Private API key)

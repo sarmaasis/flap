@@ -56,4 +56,6 @@ interface Env {
   SES_INBOUND_WEBHOOK_SECRET?: string;
   /** Dev only: allow unsigned SES inbound when secret unset. */
   SES_INBOUND_ALLOW_UNSIGNED?: string;
+  /** Optional operator token for POST /api/ops/workspace-send (never commit the real value). */
+  FLAP_OPERATOR_TOKEN?: string;
 }

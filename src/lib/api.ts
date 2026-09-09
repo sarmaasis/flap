@@ -53,6 +53,7 @@ export type Domain = {
   last_inbound_provider_message_id?: string | null;
   migration_from?: string | null;
   migration_state?: string | null;
+  lifecycle?: string | null;
 };
 export type CalendarAttendee = {
   email: string;
@@ -501,7 +502,11 @@ export const api = {
       bounce_rate: number;
       complaint_rate: number;
       suppressed_count: number;
-      counts: { bounce: number; complaint: number; delivery: number; soft_bounce: number };
+      counts: { bounce: number; complaint: number; delivery: number; soft_bounce: number; send?: number; reject?: number };
+      send_status?: string;
+      outbound_access_status?: string;
+      reputation_warning_at?: number | null;
+      note?: string;
     }>("/api/sending-reputation"),
   suppressions: () => req<{ suppressions: Suppression[] }>("/api/suppressions"),
   deleteSuppression: (id: string) => req<{ ok: boolean }>(`/api/suppressions/${id}`, { method: "DELETE" }),
@@ -510,6 +515,10 @@ export const api = {
       domains: Domain[];
       suppressions_active: number;
       suppressions_by_reason: Record<string, number>;
+      flap_suppression?: { active: number; note: string };
+      provider_suppression_note?: string;
+      send_status?: string;
+      outbound_access_status?: string;
       imap: { status: string; note: string };
     }>("/api/deliverability"),
   search: (q: string, signal?: AbortSignal, page?: { limit?: number; offset?: number }) => {

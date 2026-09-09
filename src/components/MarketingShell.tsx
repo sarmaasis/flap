@@ -87,6 +87,10 @@ const FOOTER_COLUMNS = [
       { href: `mailto:${SUPPORT_EMAIL}`, label: "Email support", external: true },
       { href: "/terms", label: "Terms" },
       { href: "/privacy", label: "Privacy" },
+      { href: "/acceptable-use", label: "Acceptable Use" },
+      { href: "/abuse", label: "Abuse" },
+      { href: "/status", label: "Status" },
+      { href: "/docs", label: "Docs" },
     ],
   },
 ] as const;

@@ -21,19 +21,31 @@ export const LEGAL_PAGES = [
     path: "/terms",
     title: "Terms of Service | Flap",
     description: "Terms of Service for Flap custom-domain email at useflap.online.",
-    lastmod: "2026-09-04",
+    lastmod: "2026-09-09",
   },
   {
     path: "/privacy",
     title: "Privacy Policy | Flap",
     description: "Privacy Policy for Flap - how we handle account and mailbox data.",
-    lastmod: "2026-09-04",
+    lastmod: "2026-09-09",
   },
   {
     path: "/billing-terms",
     title: "Billing Terms | Flap",
     description: "Billing Terms for Flap paid plans and renewals.",
     lastmod: "2026-09-04",
+  },
+  {
+    path: "/acceptable-use",
+    title: "Acceptable Use | Flap",
+    description: "Acceptable use and anti-spam rules for Flap custom-domain email.",
+    lastmod: "2026-09-09",
+  },
+  {
+    path: "/abuse",
+    title: "Report abuse | Flap",
+    description: "Report spam, phishing, or abusive sending involving Flap.",
+    lastmod: "2026-09-09",
   },
 ] as const;
 
@@ -225,6 +237,71 @@ export function buildSeoRegistry(): SeoRegistryEntry[] {
       indexable: true,
       sitemap: true,
       modified: "2026-09-08",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/domain-verification",
+      title: "Domain verification | Flap Docs",
+      description: "Every Flap sending domain must be verified before outbound email is enabled.",
+      h1: "Domain verification",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-09",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/deliverability",
+      title: "Deliverability | Flap Docs",
+      description: "SES delivery events, Flap suppressions, and provider-level rejection.",
+      h1: "Deliverability",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-09",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/bounces-and-complaints",
+      title: "Bounces and complaints | Flap Docs",
+      description: "How Flap processes bounce and complaint events per workspace.",
+      h1: "Bounces and complaints",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-09",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/sending-limits",
+      title: "Sending limits | Flap Docs",
+      description: "Sending limits depend on your plan and account status.",
+      h1: "Sending limits",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-09",
+    }),
+  );
+
+  out.push(
+    entry({
+      path: "/docs/acceptable-use",
+      title: "Acceptable use | Flap Docs",
+      description: "Acceptable use and anti-spam rules for Flap.",
+      h1: "Acceptable use",
+      pageType: "docs",
+      indexable: true,
+      sitemap: true,
+      modified: "2026-09-09",
     }),
   );
 

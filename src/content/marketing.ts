@@ -7,7 +7,7 @@ export const MARKETING = {
   product_name: "Flap",
   one_line: "One inbox for every product you build.",
   short_description:
-    "One inbox for every product you build. Connect multiple custom domains, receive everything in one place, and reply from the correct sender identity.",
+    "Custom-domain business email for founders, agencies, and teams managing domains they own or are authorized to operate. One inbox, verified sending domains, correct reply-from identity.",
   long_description:
     "Flap is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, preserve each brand’s sender identity on reply, and skip a separate Google Workspace (or similar) subscription per launch. From $6/mo. Free plan includes real mailboxes.",
   primary_tagline: "One inbox for every product you build.",

@@ -48,6 +48,10 @@ const FAQS = [
     q: "Can I use multiple domains?",
     a: `Yes. Every paid plan includes up to ${PLANS.solo.limits.domains} custom domains. Your plan limit is based on mailboxes and seats.`,
   },
+  {
+    q: "Are sending limits unlimited?",
+    a: "No. Sending limits depend on your plan and account status. Newsletters are for opt-in audiences and remain subject to caps and abuse policies.",
+  },
 ];
 
 export default function PricingPage() {

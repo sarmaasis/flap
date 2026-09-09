@@ -1,0 +1,37 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SesIdentityAndSend",
+      "Effect": "Allow",
+      "Action": [
+        "ses:VerifyDomainIdentity",
+        "ses:VerifyDomainDkim",
+        "ses:GetIdentityVerificationAttributes",
+        "ses:GetIdentityDkimAttributes",
+        "ses:SetIdentityDkimEnabled",
+        "ses:SendRawEmail",
+        "ses:DeleteIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SesReceiptRules",
+      "Effect": "Allow",
+      "Action": [
+        "ses:CreateReceiptRule",
+        "ses:DeleteReceiptRule"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SesAccountReadOnlyOps",
+      "Effect": "Allow",
+      "Action": [
+        "ses:GetSendQuota",
+        "ses:GetAccountSendingEnabled"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

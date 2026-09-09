@@ -5,6 +5,7 @@ import { buildRawMime } from "./mime";
 import { extractEmail, makeSnippet, parseRecipients, sha256Hex } from "./mailutil";
 import { assertSendRoom, assertStorageRoom, messageStorageBytes, recordOutboundSend } from "./billing";
 import { markFirstEmailSent } from "./activation";
+import { workspaceSendDenied } from "./workspace-send";
 
 export async function bumpCalendarSync(db: D1Database, userId: string): Promise<void> {
   const now = nowMs();
@@ -131,6 +132,8 @@ export async function sendCalendarMail(
   if (!canSendMail(env)) {
     return { ok: false, error: "Mail sending is not configured.", status: 501 };
   }
+  const denied = await workspaceSendDenied(env.DB, opts.workspaceId);
+  if (denied) return { ok: false, error: denied, status: 403 };
   const recipients = [...new Set(opts.to.flatMap((t) => parseRecipients(t)).map((e) => e.toLowerCase()))];
   if (!recipients.length) return { ok: false, error: "No valid invite recipients.", status: 400 };
 

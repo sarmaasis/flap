@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import { ingestRawEmail } from "../email";
 import { appOrigin } from "./system-email";
 import { verifyMailgunWebhook, verifySesInboundSignature } from "./mail-provider";
-import { nowMs, randomId } from "./ids";
 import { trackServerEvent } from "./analytics";
-import { isAllowedSnsSubscribeUrl, softBounceExpiresAt } from "../../shared/security-guards";
+import { isAllowedSnsSubscribeUrl } from "../../shared/security-guards";
 import { verifySnsEnvelopeIfPresent } from "./sns-verify";
+import { processSesConfigurationEvent } from "./ses-delivery";
 
 export { isAddressSuppressed } from "./suppressions";
 
@@ -284,206 +284,24 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
       event = parsed as typeof event;
     }
 
+    const result = await processSesConfigurationEvent(c.env.DB, event);
     const type = (event.notificationType || event.eventType || "").toLowerCase();
-    const now = nowMs();
-
     if (type.includes("bounce")) {
-      for (const r of event.bounce?.bouncedRecipients ?? []) {
-        const email = (r.emailAddress || "").trim().toLowerCase();
-        if (!email) continue;
-        const reason = event.bounce?.bounceType === "Transient" ? "soft_bounce" : "bounce";
-        const owner = await resolveOutboundOwner(c.env.DB, event.mail?.messageId);
-        // Workspace-scoped suppressions: only write when we can attribute the outbound send.
-        if (owner) {
-          await upsertSuppression(c.env.DB, {
-            userId: owner,
-            email,
-            reason,
-            source: "ses",
-            providerMessageId: event.mail?.messageId,
-            now,
-          });
-        }
-        await recordDeliveryEvent(c.env.DB, {
-          recipientEmail: email,
-          kind: reason === "soft_bounce" ? "soft_bounce" : "bounce",
-          provider: "ses",
-          providerMessageId: event.mail?.messageId || "",
-          now,
-        });
-        if (reason !== "soft_bounce" && owner) {
-          await c.env.DB.prepare(
-            `UPDATE newsletter_subscribers
-             SET status = 'unsubscribed', unsubscribed_at = ?
-             WHERE user_id = ? AND email = ? AND status != 'unsubscribed'`,
-          )
-            .bind(now, owner, email)
-            .run()
-            .catch(() => undefined);
-        }
-      }
       await trackServerEvent(c.env.DB, "ses_bounce_received", {
-        props: { count: event.bounce?.bouncedRecipients?.length ?? 0 },
+        props: { count: event.bounce?.bouncedRecipients?.length ?? 0, ...result },
       });
-    }
-
-    if (type.includes("complaint")) {
-      for (const r of event.complaint?.complainedRecipients ?? []) {
-        const email = (r.emailAddress || "").trim().toLowerCase();
-        if (!email) continue;
-        const owner = await resolveOutboundOwner(c.env.DB, event.mail?.messageId);
-        if (owner) {
-          await upsertSuppression(c.env.DB, {
-            userId: owner,
-            email,
-            reason: "complaint",
-            source: "ses",
-            providerMessageId: event.mail?.messageId,
-            now,
-          });
-        }
-        await recordDeliveryEvent(c.env.DB, {
-          recipientEmail: email,
-          kind: "complaint",
-          provider: "ses",
-          providerMessageId: event.mail?.messageId || "",
-          now,
-        });
-        if (owner) {
-          await c.env.DB.prepare(
-            `UPDATE newsletter_subscribers
-             SET status = 'unsubscribed', unsubscribed_at = ?
-             WHERE user_id = ? AND email = ? AND status != 'unsubscribed'`,
-          )
-            .bind(now, owner, email)
-            .run()
-            .catch(() => undefined);
-        }
-      }
+    } else if (type.includes("complaint")) {
       await trackServerEvent(c.env.DB, "ses_complaint_received", {
-        props: { count: event.complaint?.complainedRecipients?.length ?? 0 },
+        props: { count: event.complaint?.complainedRecipients?.length ?? 0, ...result },
+      });
+    } else {
+      await trackServerEvent(c.env.DB, "ses_delivery_event", {
+        props: { type, ...result },
       });
     }
 
-    return c.json({ ok: true });
+    return c.json({ ok: true, ...result });
   });
-}
-
-/** Resolve workspace owner from outbound SES message id (not bounce recipient domain). */
-async function resolveOutboundOwner(
-  db: D1Database,
-  providerMessageId?: string | null,
-): Promise<string | null> {
-  const mid = (providerMessageId || "").trim();
-  if (!mid) return null;
-  const row = await db
-    .prepare("SELECT user_id FROM messages WHERE provider_message_id = ? LIMIT 1")
-    .bind(mid)
-    .first<{ user_id: string }>();
-  return row?.user_id || null;
-}
-
-async function recordDeliveryEvent(
-  db: D1Database,
-  opts: {
-    recipientEmail: string;
-    kind: string;
-    provider: string;
-    providerMessageId: string;
-    now: number;
-  },
-): Promise<void> {
-  let userId = (await resolveOutboundOwner(db, opts.providerMessageId)) || "";
-  let domainId = "";
-  if (userId) {
-    const fromMsg = await db
-      .prepare(
-        `SELECT m.mailbox_id, mb.domain_id
-         FROM messages m
-         LEFT JOIN mailboxes mb ON mb.id = m.mailbox_id
-         WHERE m.provider_message_id = ? AND m.user_id = ?
-         LIMIT 1`,
-      )
-      .bind(opts.providerMessageId, userId)
-      .first<{ mailbox_id: string | null; domain_id: string | null }>();
-    domainId = fromMsg?.domain_id || "";
-  }
-  // Fallback: never attribute by bounce *recipient* domain (external addresses).
-  // Only attribute by Flap *sending* domain when From domain is known via message.
-  await db
-    .prepare(
-      `INSERT INTO delivery_event_log
-       (id, user_id, domain_id, recipient_email, kind, provider, provider_message_id, meta_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)`,
-    )
-    .bind(
-      randomId("deliv"),
-      userId,
-      domainId,
-      opts.recipientEmail,
-      opts.kind,
-      opts.provider,
-      opts.providerMessageId,
-      opts.now,
-    )
-    .run();
-
-  if (userId && domainId) {
-    const day = new Date(opts.now).toISOString().slice(0, 10);
-    const kind = opts.kind === "soft_bounce" ? "bounce" : opts.kind;
-    await db
-      .prepare(
-        `INSERT INTO deliverability_events (id, user_id, domain_id, kind, count, day, meta_json)
-         VALUES (?, ?, ?, ?, 1, ?, '')
-         ON CONFLICT(domain_id, kind, day) DO UPDATE SET count = count + 1`,
-      )
-      .bind(randomId("de"), userId, domainId, kind, day)
-      .run();
-  }
-}
-
-async function upsertSuppression(
-  db: D1Database,
-  opts: {
-    userId: string;
-    email: string;
-    reason: string;
-    source: string;
-    providerMessageId?: string;
-    now: number;
-  },
-): Promise<void> {
-  if (!opts.userId) return;
-  const expiresAt = opts.reason === "soft_bounce" ? softBounceExpiresAt(opts.now) : null;
-  const existing = await db
-    .prepare("SELECT id FROM mail_suppressions WHERE user_id = ? AND email = ?")
-    .bind(opts.userId, opts.email)
-    .first<{ id: string }>();
-  if (existing) {
-    await db
-      .prepare(
-        "UPDATE mail_suppressions SET reason = ?, source = ?, provider_message_id = ?, expires_at = ? WHERE id = ? AND user_id = ?",
-      )
-      .bind(opts.reason, opts.source, opts.providerMessageId || null, expiresAt, existing.id, opts.userId)
-      .run();
-    return;
-  }
-  await db
-    .prepare(
-      `INSERT INTO mail_suppressions (id, user_id, email, reason, source, provider_message_id, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      randomId("sup"),
-      opts.userId,
-      opts.email,
-      opts.reason,
-      opts.source,
-      opts.providerMessageId || null,
-      opts.now,
-      expiresAt,
-    )
-    .run();
 }
 
 function logInboundOutcome(meta: {

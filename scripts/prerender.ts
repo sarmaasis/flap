@@ -566,6 +566,58 @@ function buildPages(): Page[] {
   });
 
   pages.push({
+    path: "/docs/domain-verification",
+    title: "Domain verification | Flap Docs",
+    description: "Every Flap sending domain must be verified before outbound email is enabled.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Domain verification",
+      lede: "Flap does not allow arbitrary sender domains.",
+      sections: [{ heading: "Rule", body: "Add the domain, complete DNS verification, then send only from mailboxes on that domain." }],
+    }),
+  });
+  pages.push({
+    path: "/docs/deliverability",
+    title: "Deliverability | Flap Docs",
+    description: "SES delivery events, Flap suppressions, and provider-level rejection.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Deliverability",
+      lede: "Workspace-scoped delivery feedback. Empty Flap suppressions do not mean SES will accept every recipient.",
+    }),
+  });
+  pages.push({
+    path: "/docs/bounces-and-complaints",
+    title: "Bounces and complaints | Flap Docs",
+    description: "How Flap processes bounce and complaint events per workspace.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Bounces and complaints",
+      lede: "Hard bounces and complaints suppress on the sending workspace only. Soft bounces expire after 72 hours.",
+    }),
+  });
+  pages.push({
+    path: "/docs/sending-limits",
+    title: "Sending limits | Flap Docs",
+    description: "Sending limits depend on your plan and account status.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Sending limits",
+      lede: "Plan send caps and workspace or domain suspension are enforced server-side.",
+    }),
+  });
+  pages.push({
+    path: "/docs/acceptable-use",
+    title: "Acceptable use | Flap Docs",
+    description: "Acceptable use and anti-spam rules for Flap.",
+    bodyHtml: articleShell({
+      eyebrow: "Docs",
+      h1: "Acceptable use",
+      lede: "See /acceptable-use for the full policy. Purchased and scraped lists are prohibited.",
+    }),
+  });
+
+  pages.push({
     path: "/guides",
     title: "DNS setup guides | Flap",
     description: "Publish Amazon SES MX/SPF/DKIM for Flap at common DNS hosts.",

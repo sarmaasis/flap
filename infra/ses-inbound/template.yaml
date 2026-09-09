@@ -58,7 +58,9 @@ Resources:
             Resource: !Sub "${InboundBucket.Arn}/*"
             Condition:
               StringEquals:
-                aws:Referer: !Ref AWS::AccountId
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/${RuleSetName}:*"
 
   InboundQueue:
     Type: AWS::SQS::Queue
