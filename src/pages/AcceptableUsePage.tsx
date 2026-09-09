@@ -68,18 +68,18 @@ export default function AcceptableUsePage() {
             appropriately requested or consented to those messages.
           </p>
           <p className="mt-3 text-[var(--muted)]">
-            Flap processes bounce and complaint feedback when SES delivery events are delivered to the product
-            handler. Hard bounces and complaints create workspace-scoped suppressions. Soft bounces expire after 72
-            hours. We will suspend or restrict tenants whose sending threatens Amazon SES or Flap reputation.
+            Flap processes bounce and complaint feedback from Amazon SES. Hard bounces and complaints create
+            workspace-scoped suppressions. Soft bounces expire after 72 hours. We will suspend or restrict tenants
+            whose sending threatens Amazon SES or Flap reputation.
           </p>
         </section>
         <section className="mt-10">
           <h2 className="text-xl font-semibold">Opt-in and marketing mail</h2>
           <p className="mt-2 text-[var(--muted)]">
             Public newsletter signup forms require double opt-in (email confirmation) before the address is active.
-            Newsletter sends must include the customer&apos;s physical mailing address and an unsubscribe mechanism
-            (token link plus List-Unsubscribe). Mailbox replies and transactional application mail are not treated as
-            marketing lists.
+            Newsletter sends must include the customer&apos;s physical mailing address and a working unsubscribe
+            link (including one-click unsubscribe where the recipient&apos;s mail client supports it). Mailbox replies
+            and transactional application mail are not treated as marketing lists.
           </p>
         </section>
         <section className="mt-10">

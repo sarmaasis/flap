@@ -390,19 +390,19 @@ function buildPages(): Page[] {
         },
         {
           heading: "Not an open relay",
-          body: "Send requires an authenticated workspace, a domain that is sending-ready (MX/SPF/DKIM verification; outbound blocked until evaluateOutboundDomainPolicy passes), and a From address that matches a workspace mailbox. Custom MAIL FROM is not implemented.",
+          body: "Send requires an authenticated workspace, a domain with completed MX, SPF, and DKIM verification (outbound is not enabled until those checks pass), and a From address that matches a mailbox on that workspace. Customers are not asked to publish a separate MAIL FROM subdomain.",
         },
         {
           heading: "Bounces and complaints",
-          body: "Product code processes SES events at POST /api/inbound/ses/events. Sends attach an SES configuration set when the operator has configured one. Hard bounces and complaints create workspace-scoped suppressions (72-hour TTL for soft bounces). Flap suppressions are not the SES account-level list.",
+          body: "Amazon SES delivery notifications are processed by Flap and attributed to the workspace that sent the message. Hard bounces and complaints create workspace-scoped suppressions. Soft bounces expire after 72 hours. An empty Flap suppression list does not mean Amazon SES will accept every recipient at the account level.",
         },
         {
           heading: "Opt-out",
-          body: "Mailbox users do not need marketing unsubscribe. Newsletters include List-Unsubscribe, one-click unsubscribe, a token URL, and a required physical mailing address in the footer.",
+          body: "Mailbox users do not need a marketing unsubscribe header. Newsletters include a visible unsubscribe link, one-click unsubscribe where the mail client supports it, and a required physical mailing address in the footer.",
         },
         {
           heading: "Limits and abuse",
-          body: "Plan monthly send caps apply. Domains and workspaces can be suspended. Operators can disable outbound send (POST /api/ops/workspace-send). Report abuse at /abuse or support@useflap.online.",
+          body: "Plan monthly send caps apply. Flap can suspend a domain or workspace from sending if bounce or complaint rates, abuse, or policy violations threaten recipients or Amazon SES reputation. Report abuse at useflap.online/abuse or support@useflap.online.",
         },
         {
           heading: "Expected volume",
@@ -416,7 +416,7 @@ function buildPages(): Page[] {
         },
         {
           q: "How can recipients opt out?",
-          a: "Correspondence is mailbox mail. Marketing/newsletter mail includes List-Unsubscribe and a token unsubscribe link.",
+          a: "Correspondence is mailbox mail. Marketing and newsletter mail include a visible unsubscribe link and one-click unsubscribe where the recipient’s mail client supports it.",
         },
       ],
       ctaHref: "/acceptable-use",

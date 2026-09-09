@@ -121,18 +121,17 @@ export default function HowWeSendEmailPage() {
           <ul className="mt-3 list-disc space-y-2 pl-5 text-[var(--muted)]">
             <li>an authenticated Flap workspace;</li>
             <li>
-              a custom domain that has completed verification (MX, SPF, and SES Easy DKIM as shown in the DNS
-              wizard) and is marked sending-ready — outbound is blocked until{" "}
-              <code className="text-[var(--fg)]">evaluateOutboundDomainPolicy</code> / sending-ready checks pass;
+              a custom domain that has completed verification (MX, SPF, and DKIM as shown in the DNS wizard). Flap
+              does not enable outbound sending until those checks pass;
             </li>
             <li>
-              a From address that matches a mailbox on that workspace (mailbox From enforcement; you cannot send as
-              an arbitrary address).
+              a From address that matches a mailbox on that workspace. You cannot send as an arbitrary address on a
+              domain you have not verified.
             </li>
           </ul>
           <p className="mt-3 text-[var(--muted)]">
-            Flap does not implement custom MAIL FROM (SES MAIL FROM domain). Return-path stays on the SES default
-            unless that product work ships later.
+            Bounce and complaint feedback currently uses Amazon SES default return-path handling. Customers are not
+            asked to publish a separate MAIL FROM subdomain.
           </p>
           <p className="mt-3 text-[var(--muted)]">
             Details: <PolicyLink href="/docs/domain-verification">domain verification</PolicyLink>.
@@ -142,10 +141,9 @@ export default function HowWeSendEmailPage() {
         <section className="mt-10">
           <h2 className="text-xl font-semibold">Bounces and complaints</h2>
           <p className="mt-2 text-[var(--muted)]">
-            Product code records SES delivery events (send, delivery, bounce, complaint, reject) at{" "}
-            <code className="text-[var(--fg)]">POST /api/inbound/ses/events</code>. Outbound sends attach an SES
-            configuration set when the operator has configured one, so events can be attributed by SES message id to
-            the sending workspace.
+            Amazon SES delivery notifications (sent, delivered, bounced, complained, or rejected) are processed by
+            Flap and attributed to the workspace that sent the message. Other customers&apos; workspaces are not
+            affected by that feedback.
           </p>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-[var(--muted)]">
             <li>
@@ -153,8 +151,8 @@ export default function HowWeSendEmailPage() {
               will not keep sending to the address. Newsletter subscribers on that workspace are marked unsubscribed.
             </li>
             <li>
-              <strong className="text-[var(--fg)]">Soft bounce:</strong> stored with a 72-hour TTL; not a permanent
-              suppression.
+              <strong className="text-[var(--fg)]">Soft bounce:</strong> recorded temporarily and expires after 72
+              hours; not a permanent suppression.
             </li>
             <li>
               <strong className="text-[var(--fg)]">Complaint:</strong> workspace-scoped suppression only. Workspace A
@@ -175,20 +173,18 @@ export default function HowWeSendEmailPage() {
           <h2 className="text-xl font-semibold">Opt-out</h2>
           <p className="mt-2 text-[var(--muted)]">
             Ordinary mailbox users do not need a marketing unsubscribe header: they can reply, filter, or stop
-            writing. Newsletter (marketing) sends include a token unsubscribe URL, RFC 8058{" "}
-            <code className="text-[var(--fg)]">List-Unsubscribe</code> and{" "}
-            <code className="text-[var(--fg)]">List-Unsubscribe-Post</code>, and the customer’s physical mailing
-            address in the footer (required before a blast can queue).
+            writing. Newsletter (marketing) sends include a visible unsubscribe link, one-click unsubscribe where
+            the recipient’s mail client supports it, and the customer’s physical mailing address in the footer.
+            A newsletter cannot be sent until that address is set.
           </p>
         </section>
 
         <section className="mt-10">
-          <h2 className="text-xl font-semibold">Limits, suspension, and operator controls</h2>
+          <h2 className="text-xl font-semibold">Limits and suspension</h2>
           <p className="mt-2 text-[var(--muted)]">
             Each plan has a monthly outbound send room and newsletter caps. There is no unlimited bulk send. Flap can
-            suspend a domain or workspace from sending. Operators can restrict or suspend a workspace via an
-            authenticated ops endpoint (<code className="text-[var(--fg)]">POST /api/ops/workspace-send</code>) as a
-            kill switch if a tenant threatens reputation.
+            suspend a domain or workspace from sending if bounce or complaint rates, abuse, or policy violations
+            threaten recipients or Amazon SES reputation.
           </p>
           <p className="mt-3 text-[var(--muted)]">
             See <PolicyLink href="/docs/sending-limits">sending limits</PolicyLink> and{" "}
