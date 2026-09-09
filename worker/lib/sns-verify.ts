@@ -3,6 +3,7 @@
  * Used by /api/inbound/ses/events when the body is an SNS envelope.
  */
 import {
+  isAllowedSnsSubscribeUrl,
   isAllowedSnsSigningCertRedirectUrl,
   isAllowedSnsSigningCertUrl,
   isSnsEnvelope,
@@ -75,6 +76,56 @@ async function fetchSigningCertPem(startUrl: string): Promise<string | null> {
   }
   console.warn("SNS SigningCertURL too many redirects");
   return null;
+}
+
+/**
+ * GET SubscribeURL to confirm the SNS HTTPS subscription.
+ * Amazon often 302s this URL; `redirect: "error"` throws (logged as status 0).
+ */
+export async function confirmSnsSubscribeUrl(startUrl: string): Promise<boolean> {
+  if (!isAllowedSnsSubscribeUrl(startUrl)) return false;
+  let current = startUrl;
+  for (let hop = 0; hop < 5; hop++) {
+    if (!isAllowedSnsSubscribeUrl(current)) {
+      console.warn("SNS SubscribeURL redirect host not allowed", { hop });
+      return false;
+    }
+    let res: Response;
+    try {
+      res = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: { accept: "text/xml,application/xml,text/plain,*/*" },
+      });
+    } catch (err) {
+      console.warn("SNS SubscribeURL fetch threw", {
+        hop,
+        message: err instanceof Error ? err.message : "error",
+      });
+      return false;
+    }
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("Location");
+      if (!loc) {
+        console.warn("SNS SubscribeURL redirect without Location", { status: res.status, hop });
+        return false;
+      }
+      try {
+        current = new URL(loc, current).toString();
+      } catch {
+        console.warn("SNS SubscribeURL invalid redirect");
+        return false;
+      }
+      continue;
+    }
+    if (!res.ok) {
+      console.warn("SNS SubscribeURL HTTP error", { status: res.status, hop });
+      return false;
+    }
+    return true;
+  }
+  console.warn("SNS SubscribeURL too many redirects");
+  return false;
 }
 
 /**

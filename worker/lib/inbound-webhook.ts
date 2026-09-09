@@ -4,7 +4,7 @@ import { appOrigin } from "./system-email";
 import { verifyMailgunWebhook, verifySesInboundSignature } from "./mail-provider";
 import { trackServerEvent } from "./analytics";
 import { isAllowedSnsSubscribeUrl } from "../../shared/security-guards";
-import { verifySnsEnvelopeIfPresent } from "./sns-verify";
+import { confirmSnsSubscribeUrl, verifySnsEnvelopeIfPresent } from "./sns-verify";
 import { processSesConfigurationEvent } from "./ses-delivery";
 
 export { isAddressSuppressed } from "./suppressions";
@@ -262,9 +262,9 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
         console.warn("Rejected SNS SubscribeURL (host/protocol not allowed)");
         return c.json({ error: "Invalid SubscribeURL." }, 400);
       }
-      const confirm = await fetch(parsed.SubscribeURL, { redirect: "error" }).catch(() => null);
-      if (!confirm?.ok) {
-        console.warn("SNS SubscribeURL confirm fetch failed", { status: confirm?.status ?? 0 });
+      const confirmed = await confirmSnsSubscribeUrl(parsed.SubscribeURL);
+      if (!confirmed) {
+        console.warn("SNS SubscribeURL confirm fetch failed");
         return c.json({ error: "Could not confirm SNS subscription." }, 502);
       }
       return c.json({ ok: true, confirmed: true });
