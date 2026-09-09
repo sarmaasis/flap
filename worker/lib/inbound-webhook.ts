@@ -246,15 +246,14 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
     }
 
     const allowUnsigned = (c.env.SES_INBOUND_ALLOW_UNSIGNED || "").trim() === "true";
+    const snsVerified = sns.required && sns.ok;
     const valid = await verifySesInboundSignature(c.env, {
       body: rawBody,
       signature,
       timestamp: timestamp || undefined,
     });
-    // Never accept unsigned Notifications / events when a secret is configured.
-    // SES_INBOUND_ALLOW_UNSIGNED is the only explicit escape hatch (local/dev).
-    // If the body is an SNS envelope, native SNS verify already ran above even when allow-unsigned.
-    if (!valid && !allowUnsigned) {
+    // Native SNS HTTPS has no Flap HMAC. HMAC is required for non-SNS bodies (Lambda relay).
+    if (!valid && !allowUnsigned && !snsVerified) {
       return c.json({ error: "Invalid signature." }, 401);
     }
 
@@ -263,7 +262,11 @@ export function registerInboundWebhookRoutes(app: Hono<App>) {
         console.warn("Rejected SNS SubscribeURL (host/protocol not allowed)");
         return c.json({ error: "Invalid SubscribeURL." }, 400);
       }
-      await fetch(parsed.SubscribeURL).catch(() => undefined);
+      const confirm = await fetch(parsed.SubscribeURL, { redirect: "error" }).catch(() => null);
+      if (!confirm?.ok) {
+        console.warn("SNS SubscribeURL confirm fetch failed", { status: confirm?.status ?? 0 });
+        return c.json({ error: "Could not confirm SNS subscription." }, 502);
+      }
       return c.json({ ok: true, confirmed: true });
     }
 

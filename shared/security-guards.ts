@@ -48,6 +48,30 @@ export function isAllowedSnsSigningCertUrl(raw: string): boolean {
   }
 }
 
+/**
+ * Follow-up hops when Amazon serves the PEM via redirect (often S3).
+ * Initial SigningCertURL must still pass isAllowedSnsSigningCertUrl.
+ */
+export function isAllowedSnsSigningCertRedirectUrl(raw: string): boolean {
+  if (isAllowedSnsHttpsHost(raw)) return true;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  if (url.port && url.port !== "443") return false;
+  const host = url.hostname.toLowerCase();
+  return (
+    host === "s3.amazonaws.com" ||
+    /^s3\.[a-z0-9-]+\.amazonaws\.com$/.test(host) ||
+    /^[a-z0-9.-]+\.s3\.amazonaws\.com$/.test(host) ||
+    /^[a-z0-9.-]+\.s3\.[a-z0-9-]+\.amazonaws\.com$/.test(host)
+  );
+}
+
 function isAllowedSnsHttpsHost(raw: string): boolean {
   let url: URL;
   try {

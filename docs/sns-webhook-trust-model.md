@@ -11,7 +11,8 @@
 2. **Native AWS SNS signature (when body is an SNS envelope)**  
    - Detect envelope via `Type` + `Signature` + `SigningCertURL`.  
    - `SigningCertURL` must be HTTPS on `sns.<region>.amazonaws.com` with a non-empty path.  
-   - Fetch PEM (short TTL cache), verify RSASSA-PKCS1-v1_5 (SHA-256 for SignatureVersion 2).  
+   - Fetch PEM (short TTL cache), following HTTPS redirects only to SNS or Amazon S3 cert hosts. `redirect: "error"` is not used because Amazon often 302s the PEM.  
+   - Native SNS HTTPS destinations have no Flap HMAC; HMAC is required for non-SNS event bodies (Lambda relay).  
    - Fail closed if envelope present but verify fails.
 
 3. **SubscribeURL SSRF guard**  

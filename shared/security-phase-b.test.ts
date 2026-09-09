@@ -7,6 +7,7 @@ import {
   inboundClaimIsFreshProcessing,
   inboundClaimIsTerminalDuplicate,
   isAllowedSnsSubscribeUrl,
+  isAllowedSnsSigningCertRedirectUrl,
   isAllowedSnsSigningCertUrl,
   isSnsEnvelope,
   buildSnsStringToSign,
@@ -123,6 +124,22 @@ function extractEmail(raw: string): string {
   assert(
     !isAllowedSnsSigningCertUrl("https://evil.example/cert.pem"),
     "non-SNS SigningCertURL rejected",
+  );
+  assert(
+    isAllowedSnsSigningCertRedirectUrl("https://sns-public-keys.s3.amazonaws.com/cert.pem"),
+    "S3 virtual-hosted cert redirect allowed",
+  );
+  assert(
+    isAllowedSnsSigningCertRedirectUrl("https://s3.us-east-1.amazonaws.com/sns-public-keys/cert.pem"),
+    "regional S3 cert redirect allowed",
+  );
+  assert(
+    !isAllowedSnsSigningCertRedirectUrl("https://evil.example/cert.pem"),
+    "random redirect host rejected",
+  );
+  assert(
+    !isAllowedSnsSigningCertUrl("https://sns-public-keys.s3.amazonaws.com/cert.pem"),
+    "initial SigningCertURL still requires sns.<region>.amazonaws.com",
   );
 }
 
