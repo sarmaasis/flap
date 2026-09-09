@@ -58,9 +58,21 @@ export default function AbusePage() {
             attributed to the sending workspace so suppressions do not cross tenants.
           </p>
         </section>
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold">Complaints and enforcement</h2>
+          <p className="mt-2 text-[var(--muted)]">
+            If you received unwanted mail from a Flap-hosted domain, include headers when possible. We investigate
+            and may suppress recipients, restrict sending, or suspend the tenant. We do this to protect recipients
+            and Amazon SES reputation — not to keep a high-volume sender online at all costs.
+          </p>
+        </section>
         <p className="mt-12 text-sm text-[var(--muted)]">
           <a className="text-[var(--cta)] underline" href="/acceptable-use" onClick={(e) => { e.preventDefault(); go("/acceptable-use"); }}>
             Acceptable use
+          </a>
+          {" · "}
+          <a className="text-[var(--cta)] underline" href="/how-we-send-email" onClick={(e) => { e.preventDefault(); go("/how-we-send-email"); }}>
+            How we send email
           </a>
           {" · "}
           <a className="text-[var(--cta)] underline" href="/security" onClick={(e) => { e.preventDefault(); go("/security"); }}>

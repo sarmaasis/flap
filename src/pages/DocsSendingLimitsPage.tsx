@@ -40,8 +40,9 @@ export default function DocsSendingLimitsPage() {
         </p>
         <h2 id="newsletters">Newsletters</h2>
         <p>
-          Newsletters are for opt-in audiences and remain subject to sending limits and abuse policies. Every send
-          includes an unsubscribe link. Unsubscribed and suppressed addresses are not resent.
+          Newsletters are for opt-in audiences and remain subject to sending limits and abuse policies. Public signup
+          requires double opt-in. Every send includes an unsubscribe link and a physical mailing address. Unsubscribed
+          and suppressed addresses are not resent.
         </p>
       </DocsPage>
     </DocsShell>

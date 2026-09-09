@@ -88,6 +88,7 @@ const FOOTER_COLUMNS = [
       { href: "/terms", label: "Terms" },
       { href: "/privacy", label: "Privacy" },
       { href: "/acceptable-use", label: "Acceptable Use" },
+      { href: "/how-we-send-email", label: "How we send email" },
       { href: "/abuse", label: "Abuse" },
       { href: "/status", label: "Status" },
       { href: "/docs", label: "Docs" },

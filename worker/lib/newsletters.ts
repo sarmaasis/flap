@@ -550,7 +550,8 @@ export function registerNewsletterRoutes(app: Hono<AppEnv>) {
       physical_address: (body.physical_address ?? current.physical_address).trim().slice(0, 240),
       mailbox_id: mailboxId || "",
       public_slug: slug,
-      double_opt_in: body.double_opt_in === undefined ? current.double_opt_in : body.double_opt_in ? 1 : 0,
+      // Public signup always requires confirmation; setting stays on so UI cannot advertise single opt-in.
+      double_opt_in: 1,
       updated_at: nowMs(),
     };
     await c.env.DB.prepare(
@@ -1001,8 +1002,8 @@ export function registerNewsletterRoutes(app: Hono<AppEnv>) {
     if (max > 0 && Number(count?.n ?? 0) >= max) {
       return c.json({ error: "This list is full." }, 402);
     }
-    const doi = settings.double_opt_in !== 0;
-    const status = doi ? "pending" : "active";
+    // Public forms always double opt-in (ignore stored toggle).
+    const status = "pending";
     const id = randomId("nsub");
     const confirm = randomId("nct");
     const unsub = randomId("nut");
@@ -1013,28 +1014,25 @@ export function registerNewsletterRoutes(app: Hono<AppEnv>) {
          SET status = ?, name = ?, confirm_token = ?, unsub_token = ?, confirmed_at = ?, unsubscribed_at = NULL
          WHERE id = ?`,
       )
-        .bind(status, (body.name || "").trim().slice(0, 120), confirm, unsub, status === "active" ? now : null, existing.id)
+        .bind(status, (body.name || "").trim().slice(0, 120), confirm, unsub, null, existing.id)
         .run();
     } else {
       await c.env.DB.prepare(
         `INSERT INTO newsletter_subscribers (id, user_id, email, name, status, created_at, confirm_token, unsub_token, confirmed_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind(id, settings.user_id, email, (body.name || "").trim().slice(0, 120), status, now, confirm, unsub, status === "active" ? now : null)
+        .bind(id, settings.user_id, email, (body.name || "").trim().slice(0, 120), status, now, confirm, unsub, null)
         .run();
     }
-    if (status === "pending") {
-      const mailbox = await resolveMailbox(c.env.DB, settings.user_id, settings.mailbox_id);
-      if (!mailbox) return c.json({ error: "This list cannot send confirmation email yet." }, 503);
-      const sent = await sendConfirmEmail(c.env, {
-        mailbox,
-        fromName: settings.from_name,
-        to: email,
-        confirmUrl: `${appOrigin(c.env)}/n/c/${confirm}`,
-      });
-      if (!sent) return c.json({ error: "Could not send confirmation email. Try again later." }, 503);
-      return c.json({ ok: true, status: "pending", message: "Check your inbox to confirm." }, 201);
-    }
-    return c.json({ ok: true, status: "active", message: "You are subscribed." }, 201);
+    const mailbox = await resolveMailbox(c.env.DB, settings.user_id, settings.mailbox_id);
+    if (!mailbox) return c.json({ error: "This list cannot send confirmation email yet." }, 503);
+    const sent = await sendConfirmEmail(c.env, {
+      mailbox,
+      fromName: settings.from_name,
+      to: email,
+      confirmUrl: `${appOrigin(c.env)}/n/c/${confirm}`,
+    });
+    if (!sent) return c.json({ error: "Could not send confirmation email. Try again later." }, 503);
+    return c.json({ ok: true, status: "pending", message: "Check your inbox to confirm." }, 201);
   });
 }

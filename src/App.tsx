@@ -41,6 +41,7 @@ const AboutPage = lazy(() => import("./pages/AboutPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const SecurityPage = lazy(() => import("./pages/SecurityPage"));
 const AcceptableUsePage = lazy(() => import("./pages/AcceptableUsePage"));
+const HowWeSendEmailPage = lazy(() => import("./pages/HowWeSendEmailPage"));
 const AbusePage = lazy(() => import("./pages/AbusePage"));
 const DocsDomainVerificationPage = lazy(() => import("./pages/DocsDomainVerificationPage"));
 const DocsDeliverabilityPage = lazy(() => import("./pages/DocsDeliverabilityPage"));
@@ -107,6 +108,7 @@ export default function App() {
   if (path === "/terms") return <Screen><Legal doc="terms" /></Screen>;
   if (path === "/privacy") return <Screen><Legal doc="privacy" /></Screen>;
   if (path === "/acceptable-use") return <Screen><AcceptableUsePage /></Screen>;
+  if (path === "/how-we-send-email") return <Screen><HowWeSendEmailPage /></Screen>;
   if (path === "/abuse") return <Screen><AbusePage /></Screen>;
   if (path === "/billing-terms") return <Screen><Legal doc="billing" /></Screen>;
   if (path === "/app/settings" || path === "/settings/referrals") {

@@ -194,6 +194,7 @@ app.get("/status", (c) => servePrerenderOrSpa(c));
 app.get("/terms", (c) => servePrerenderOrSpa(c));
 app.get("/privacy", (c) => servePrerenderOrSpa(c));
 app.get("/acceptable-use", (c) => servePrerenderOrSpa(c));
+app.get("/how-we-send-email", (c) => servePrerenderOrSpa(c));
 app.get("/abuse", (c) => servePrerenderOrSpa(c));
 app.get("/billing-terms", (c) => servePrerenderOrSpa(c));
 app.get("/tools", (c) => servePrerenderOrSpa(c));

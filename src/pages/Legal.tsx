@@ -59,6 +59,7 @@ function Footer() {
         <a href="/terms" onClick={(e) => { e.preventDefault(); go("/terms"); }}>Terms</a>
         <a href="/privacy" onClick={(e) => { e.preventDefault(); go("/privacy"); }}>Privacy</a>
         <a href="/acceptable-use" onClick={(e) => { e.preventDefault(); go("/acceptable-use"); }}>Acceptable Use</a>
+        <a href="/how-we-send-email" onClick={(e) => { e.preventDefault(); go("/how-we-send-email"); }}>How we send email</a>
         <a href="/abuse" onClick={(e) => { e.preventDefault(); go("/abuse"); }}>Abuse</a>
         <a href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>Billing</a>
         <a href="mailto:support@useflap.online">Support</a>

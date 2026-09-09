@@ -162,6 +162,16 @@ export default function AboutPage() {
               </a>
             </li>
             <li>
+              <a className="text-[var(--cta)] hover:underline" href="/acceptable-use" onClick={(e) => { e.preventDefault(); go("/acceptable-use"); }}>
+                Acceptable use
+              </a>
+            </li>
+            <li>
+              <a className="text-[var(--cta)] hover:underline" href="/how-we-send-email" onClick={(e) => { e.preventDefault(); go("/how-we-send-email"); }}>
+                How we send email
+              </a>
+            </li>
+            <li>
               <a className="text-[var(--cta)] hover:underline" href="/billing-terms" onClick={(e) => { e.preventDefault(); go("/billing-terms"); }}>
                 Billing Terms
               </a>

@@ -21,6 +21,7 @@ import DocsBouncesPage from '../src/pages/DocsBouncesPage';
 import DocsSendingLimitsPage from '../src/pages/DocsSendingLimitsPage';
 import DocsAcceptableUsePage from '../src/pages/DocsAcceptableUsePage';
 import AcceptableUsePage from '../src/pages/AcceptableUsePage';
+import HowWeSendEmailPage from '../src/pages/HowWeSendEmailPage';
 import AbusePage from '../src/pages/AbusePage';
 import GuidesIndexPage from '../src/pages/GuidesIndexPage';
 import AboutPage from '../src/pages/AboutPage';
@@ -48,6 +49,7 @@ const staticPages: Record<string, ComponentType> = {
   '/docs/sending-limits': DocsSendingLimitsPage,
   '/docs/acceptable-use': DocsAcceptableUsePage,
   '/acceptable-use': AcceptableUsePage,
+  '/how-we-send-email': HowWeSendEmailPage,
   '/abuse': AbusePage,
   '/guides': GuidesIndexPage, '/about': AboutPage,
   '/security': SecurityPage, '/migrate': MigratePage, '/why-not-amazon-ses': WhyNotSesPage,

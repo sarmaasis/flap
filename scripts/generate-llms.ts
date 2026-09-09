@@ -96,6 +96,7 @@ ${BLOG_POSTS.map((p) => `- [${p.h1}](${SITE_URL}${p.path})`).join("\n")}
 - [Terms](${SITE_URL}/terms)
 - [Privacy](${SITE_URL}/privacy)
 - [Acceptable use](${SITE_URL}/acceptable-use)
+- [How we send email](${SITE_URL}/how-we-send-email)
 - [Abuse](${SITE_URL}/abuse)
 - [Billing terms](${SITE_URL}/billing-terms)
 - [robots.txt](${SITE_URL}/robots.txt)

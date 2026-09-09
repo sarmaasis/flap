@@ -637,6 +637,7 @@ export default function Landing() {
             { href: "/privacy", label: "Privacy" },
             { href: "/terms", label: "Terms" },
             { href: "/acceptable-use", label: "Acceptable Use" },
+            { href: "/how-we-send-email", label: "How we send email" },
             { href: "/abuse", label: "Abuse" },
           ].map((l) => (
             <a

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { DocsPage, DocsRelated, DocsShell } from "../components/docs/DocsKit";
+import { go } from "../lib/nav";
 import { clearJsonLd, setJsonLd, setPageMeta, webPageLd } from "../lib/seo";
 
 const PATH = "/docs/deliverability";
@@ -29,13 +30,17 @@ export default function DocsDeliverabilityPage() {
           { id: "events", label: "Events" },
           { id: "suppression", label: "Suppression layers" },
         ]}
-        rightRail={<DocsRelated links={[{ href: "/docs/bounces-and-complaints", label: "Bounces and complaints" }, { href: "/docs/sending-limits", label: "Sending limits" }]} />}
+        rightRail={<DocsRelated links={[{ href: "/docs/bounces-and-complaints", label: "Bounces and complaints" }, { href: "/how-we-send-email", label: "How we send email" }, { href: "/docs/sending-limits", label: "Sending limits" }]} />}
       >
         <h2 id="events">Events</h2>
         <p>
           Outbound sends can attach an SES configuration set. Flap records send, delivery, bounce, complaint, and
           reject events against the workspace that sent the message (via the SES message id), not the bounce
-          recipient&apos;s domain.
+          recipient&apos;s domain. Public summary:{" "}
+          <a href="/how-we-send-email" onClick={(e) => { e.preventDefault(); go("/how-we-send-email"); }}>
+            How we send email
+          </a>
+          .
         </p>
         <h2 id="suppression">Suppression layers</h2>
         <p>

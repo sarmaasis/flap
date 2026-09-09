@@ -29,6 +29,7 @@ export const DOCS_NAV: DocsNavGroup[] = [
       { href: "/docs/bounces-and-complaints", label: "Bounces and complaints", description: "Feedback handling" },
       { href: "/docs/sending-limits", label: "Sending limits", description: "Plan and account caps" },
       { href: "/docs/acceptable-use", label: "Acceptable use", description: "Anti-spam rules" },
+      { href: "/how-we-send-email", label: "How we send email", description: "SES sending practices" },
       { href: "/guides", label: "DNS guides", description: "Registrar setup walkthroughs" },
     ],
   },

@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import AppFeaturePage, { FeatureEmpty } from "../components/AppFeaturePage";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
@@ -62,7 +61,6 @@ export default function NewslettersAppPage() {
   const [fromName, setFromName] = useState("");
   const [physicalAddress, setPhysicalAddress] = useState("");
   const [publicSlug, setPublicSlug] = useState("");
-  const [doubleOptIn, setDoubleOptIn] = useState(true);
   const editor = useRef<EditorHandle>(null);
   const [editorKey, setEditorKey] = useState(0);
   const [editorHtml, setEditorHtml] = useState("<p></p>");
@@ -90,7 +88,6 @@ export default function NewslettersAppPage() {
         setFromName(res.settings.from_name || "");
         setPhysicalAddress(res.settings.physical_address || "");
         setPublicSlug(res.settings.public_slug || "");
-        setDoubleOptIn(res.settings.double_opt_in !== 0);
         if (!mailboxId) setMailboxId(res.settings.mailbox_id || res.mailboxes?.[0]?.id || "");
       }
     } catch (ex) {
@@ -218,7 +215,7 @@ export default function NewslettersAppPage() {
         physical_address: physicalAddress,
         mailbox_id: mailboxId,
         public_slug: publicSlug,
-        double_opt_in: doubleOptIn,
+        double_opt_in: true,
       });
       setSignupUrl(res.signup_url);
       setNotice("Newsletter settings saved.");
@@ -265,7 +262,8 @@ export default function NewslettersAppPage() {
       <form className={cn(tw.appFeatureCard, "gap-3 mb-6", tw.stack)} onSubmit={(e) => void saveSettings(e)}>
         <h2>Sender &amp; compliance</h2>
         <p className={cn("text-sm", tw.muted)}>
-          Every send includes your mailing address and an unsubscribe link. Public signup uses double opt-in when enabled.
+          Every send includes your mailing address and an unsubscribe link. Public signup always requires email
+          confirmation (double opt-in).
         </p>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">
           <div className={cn("gap-1.5", tw.stack)}>
@@ -320,11 +318,9 @@ export default function NewslettersAppPage() {
               </p>
             ) : null}
           </div>
-          <Checkbox
-            checked={doubleOptIn}
-            onChange={(e) => setDoubleOptIn(e.target.checked)}
-            label="Double opt-in on public signup"
-          />
+          <p className={cn("text-sm", tw.muted)}>
+            Public signup always requires email confirmation (double opt-in).
+          </p>
         </div>
         <Button type="submit" className="w-full sm:w-auto" disabled={settingsBusy || locked}>
           {settingsBusy ? "Saving…" : "Save settings"}

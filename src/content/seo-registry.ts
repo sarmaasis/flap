@@ -47,6 +47,13 @@ export const LEGAL_PAGES = [
     description: "Report spam, phishing, or abusive sending involving Flap.",
     lastmod: "2026-09-09",
   },
+  {
+    path: "/how-we-send-email",
+    title: "How we send email | Flap",
+    description:
+      "How Flap uses Amazon SES for customer mailboxes: recipient acquisition, verification, bounces, complaints, and opt-out.",
+    lastmod: "2026-09-09",
+  },
 ] as const;
 
 export type SeoPageType =

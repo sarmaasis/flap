@@ -27,7 +27,7 @@ export default function DocsAcceptableUsePage() {
         title="Acceptable use"
         description="The canonical policy lives on the public /acceptable-use page."
         toc={[{ id: "policy", label: "Policy" }]}
-        rightRail={<DocsRelated links={[{ href: "/acceptable-use", label: "Full policy" }, { href: "/abuse", label: "Report abuse" }]} />}
+        rightRail={<DocsRelated links={[{ href: "/acceptable-use", label: "Full policy" }, { href: "/how-we-send-email", label: "How we send email" }, { href: "/abuse", label: "Report abuse" }]} />}
       >
         <h2 id="policy">Policy</h2>
         <p>

@@ -348,6 +348,7 @@ function buildPages(): Page[] {
   }
 
   for (const legal of LEGAL_PAGES) {
+    if (legal.path === "/how-we-send-email") continue;
     pages.push({
       path: legal.path,
       title: legal.title,
@@ -370,6 +371,67 @@ function buildPages(): Page[] {
       },
     });
   }
+
+  pages.push({
+    path: "/how-we-send-email",
+    title: "How we send email | Flap",
+    description:
+      "How Flap uses Amazon SES for customer mailboxes: recipient acquisition, verification, bounces, complaints, and opt-out.",
+    bodyHtml: articleShell({
+      eyebrow: "Sending practices · Flap",
+      h1: "How we send email",
+      lede: "Flap is a custom-domain mailbox product at useflap.online, founder-operated by Ashish Sharma. Amazon SES carries inbound and outbound customer mail for verified domains — not a public send-as-anyone API or anonymous blast ESP.",
+      definition:
+        "Recipients are mailbox correspondents, the customer’s own transactional users, or double opt-in newsletter subscribers. Purchased, rented, scraped, and harvested lists are prohibited.",
+      sections: [
+        {
+          heading: "Recipient acquisition",
+          body: "People who email a customer mailbox and receive replies; transactional events from the customer’s own app; public newsletter forms that require email confirmation before the address is active. Dashboard imports attest permission and remain subject to acceptable use.",
+        },
+        {
+          heading: "Not an open relay",
+          body: "Send requires an authenticated workspace, a domain that is sending-ready (MX/SPF/DKIM verification; outbound blocked until evaluateOutboundDomainPolicy passes), and a From address that matches a workspace mailbox. Custom MAIL FROM is not implemented.",
+        },
+        {
+          heading: "Bounces and complaints",
+          body: "Product code processes SES events at POST /api/inbound/ses/events. Sends attach an SES configuration set when the operator has configured one. Hard bounces and complaints create workspace-scoped suppressions (72-hour TTL for soft bounces). Flap suppressions are not the SES account-level list.",
+        },
+        {
+          heading: "Opt-out",
+          body: "Mailbox users do not need marketing unsubscribe. Newsletters include List-Unsubscribe, one-click unsubscribe, a token URL, and a required physical mailing address in the footer.",
+        },
+        {
+          heading: "Limits and abuse",
+          body: "Plan monthly send caps apply. Domains and workspaces can be suspended. Operators can disable outbound send (POST /api/ops/workspace-send). Report abuse at /abuse or support@useflap.online.",
+        },
+        {
+          heading: "Expected volume",
+          body: "The account is in the SES sandbox today. Production access is requested at the standard 50,000 messages / 24 hours quota. Actual initial send volume will be hundreds to low thousands per day as paying customers onboard. Primary mail type is transactional.",
+        },
+      ],
+      faqs: [
+        {
+          q: "How do you handle bounces and complaints?",
+          a: "SES delivery events are processed in Flap, attributed to the sending workspace, with hard-bounce and complaint suppressions scoped to that tenant.",
+        },
+        {
+          q: "How can recipients opt out?",
+          a: "Correspondence is mailbox mail. Marketing/newsletter mail includes List-Unsubscribe and a token unsubscribe link.",
+        },
+      ],
+      ctaHref: "/acceptable-use",
+    }),
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "How we send email | Flap",
+      description:
+        "How Flap uses Amazon SES for customer mailboxes: recipient acquisition, verification, bounces, complaints, and opt-out.",
+      url: `${SITE_URL}/how-we-send-email`,
+      dateModified: "2026-09-09",
+      isPartOf: { "@type": "WebSite", name: "Flap", url: SITE_URL },
+    },
+  });
 
   pages.push({
     path: API_DOCS.path,
