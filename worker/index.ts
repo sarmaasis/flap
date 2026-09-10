@@ -71,13 +71,13 @@ app.use("*", async (c, next) => {
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com https://*.protect.clerk.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://challenges.cloudflare.com https://*.protect.clerk.com https://canwechat.dev",
       "worker-src 'self' blob:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: cid: https://img.clerk.com",
       "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://*.protect.clerk.com",
-      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk-telemetry.com https://*.clerk-telemetry.com https://img.clerk.com https://*.protect.clerk.com:*",
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk-telemetry.com https://*.clerk-telemetry.com https://img.clerk.com https://*.protect.clerk.com:* https://canwechat.dev wss://canwechat.dev",
     ].join("; "),
   );
 });
