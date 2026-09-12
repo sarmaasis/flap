@@ -26,19 +26,19 @@ const UPDATED = "2026-09-07";
 const FAQS = [
   {
     q: "How does billing work?",
-    a: "Free includes real mailboxes. Paid plans are Solo, Pro, Team, and Scale. Annual is 10× monthly (2 months free). You can cancel anytime.",
+    a: "Free includes real mailboxes. Paid plans are Solo, Pro, Team, and Scale. Annual is 10× monthly. You can cancel anytime.",
   },
   {
     q: "What counts as a mailbox?",
     a: "A unique address like hello@yourdomain.com. Each mailbox has its own inbox and storage. Aliases deliver into an existing mailbox.",
   },
   {
-    q: "Why upgrade if every paid plan has 50 domains?",
-    a: "Domains are intentionally high on all paid plans. You upgrade for mailboxes, team seats, storage, and monthly send/newsletter caps — capacity for the same product surface.",
+    q: "Why upgrade if every paid plan includes many domains?",
+    a: "Domains are intentionally generous on paid plans. You upgrade for mailboxes, team seats, storage, API usage, and monthly send caps.",
   },
   {
     q: "Do plans share the same features?",
-    a: "Yes on paid plans. Capacity (mailboxes, sends, seats, newsletter caps) changes, not the core inbox. Free lets you try real mailboxes before choosing a paid plan.",
+    a: "Yes on paid plans. The core multi-domain inbox stays familiar while capacity and collaboration limits grow. Free lets you try real mailboxes before choosing a paid plan.",
   },
   {
     q: "Do you support IMAP/SMTP today?",
@@ -60,8 +60,8 @@ export default function PricingPage() {
 
   useEffect(() => {
     setPageMeta({
-      title: "Email hosting pricing | Flap: from $6/month, free plan available",
-      description: `Custom-domain email hosting plans: Free $0 forever, Solo $${PLANS.solo.price_monthly}/mo (3 mailboxes, 50 domains), Pro $${PLANS.pro.price_monthly}/mo (6 mailboxes, 5 seats), Team $${PLANS.team.price_monthly}/mo. Annual billing = 2 months free. No per-domain seat tax.`,
+      title: "Email hosting pricing | Flap: free plan and founder-friendly paid plans",
+      description: `Custom-domain email hosting plans: Free $0 forever, Solo $${PLANS.solo.price_monthly}/mo, Pro $${PLANS.pro.price_monthly}/mo, Team $${PLANS.team.price_monthly}/mo. Plans grow by domains, mailboxes, send capacity, and team access.`,
       path: PATH,
     });
     track("pricing_view");
@@ -93,7 +93,7 @@ export default function PricingPage() {
         <LastUpdated date={UPDATED} />
         <p className="mt-5 max-w-2xl text-lg text-[var(--muted)]">
           Start free with real custom-domain mailboxes. Paid plans include up to {PLANS.solo.limits.domains} custom
-          domains — you upgrade for mailboxes, seats, and send capacity, not a different product. From $
+          domains — you upgrade for mailboxes, seats, storage, and send capacity. From $
           {PLANS.solo.price_monthly}/month.
         </p>
 
@@ -104,7 +104,7 @@ export default function PricingPage() {
           </p>
           <p>
             <strong className="text-[var(--fg)]">Pro</strong> — up to {PLANS.pro.limits.team_seats} seats and{" "}
-            {PLANS.pro.limits.mailboxes} mailboxes for shared support@.
+            {PLANS.pro.limits.mailboxes} mailboxes for teams that share support@.
           </p>
           <p>
             <strong className="text-[var(--fg)]">Team</strong> — studio capacity: more mailboxes and seats for client
@@ -226,7 +226,7 @@ export default function PricingPage() {
         <section className="mt-12 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
           <h2 className="text-xl font-semibold">The essentials, already included.</h2>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            Plans change capacity, not the product. Solo through Scale share these tools (IMAP/SMTP not included yet).
+            Solo through Scale keep the same multi-domain workflow while adding room for more addresses, teammates, and sends. IMAP/SMTP is not included yet.
           </p>
           <ul className="mt-5 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2 lg:grid-cols-3">
             {SHARED_STACK_FEATURES.map((f) => (
@@ -244,7 +244,7 @@ export default function PricingPage() {
               <h2 className="text-xl font-semibold">Scale</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
                 {SCALE_MIN_MAILBOXES}-{SCALE_MAX_MAILBOXES} mailboxes at ${PLANS.scale.price_monthly}/mailbox/mo
-                (${PLANS.scale.price_yearly}/mailbox/yr). 50 domains included.
+                (${PLANS.scale.price_yearly}/mailbox/yr). {PLANS.scale.limits.domains} domains included.
               </p>
             </div>
             <p className="text-3xl font-semibold tracking-tight">
@@ -296,8 +296,8 @@ export default function PricingPage() {
             </a>
           </Button>
           <Button asChild variant="outline">
-            <a href="/vs/shipmail" onClick={(e) => { e.preventDefault(); go("/vs/shipmail"); }}>
-              Flap vs Shipmail
+            <a href="/vs/google-workspace" onClick={(e) => { e.preventDefault(); go("/vs/google-workspace"); }}>
+              Compare with suites
             </a>
           </Button>
           <Button asChild variant="outline">

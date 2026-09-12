@@ -13,7 +13,7 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 ## Architecture
 
 - Inbound: DNS → Amazon SES inbound → Flap ingest (Amazon SES)
-- Outbound: Flap Compose → Amazon SES SendRawEmail (Amazon SES)
+- Outbound: Authenticated Flap workspace → verified domain + send policy → Amazon SES → delivery/bounce/complaint events → Flap suppression pipeline (Amazon SES)
 - App: Cloudflare Workers / D1 / R2
 - System mail (useflap.online): System mail for useflap.online (auth, notifications, billing) uses Cloudflare SEB - not customer SES config.
 - DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path.
@@ -22,10 +22,10 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 ## Pricing and limits (from shared/plans.ts)
 
 - Free: $0 — 2 domains, 2 mailboxes, 200 sends/mo, 1 seat(s)
-- Solo: $6/mo ($60/yr) — 50 domains, 3 mailboxes, 15000 sends/mo, 1 seat(s), catch-all
-- Pro: $12/mo ($120/yr) — 50 domains, 6 mailboxes, 40000 sends/mo, 5 seat(s), catch-all
-- Team: $29/mo ($290/yr) — 50 domains, 12 mailboxes, 120000 sends/mo, 10000 seat(s), catch-all
-- Scale: $2.5/mo ($25/yr) — 50 domains, 13 mailboxes, 130000 sends/mo, 10000 seat(s), catch-all
+- Solo: $6/mo ($60/yr) — 25 domains, 3 mailboxes, 8000 sends/mo, 1 seat(s), catch-all
+- Pro: $15/mo ($150/yr) — 40 domains, 8 mailboxes, 25000 sends/mo, 5 seat(s), catch-all
+- Team: $35/mo ($350/yr) — 75 domains, 18 mailboxes, 80000 sends/mo, 25 seat(s), catch-all
+- Scale: $3/mo ($30/yr) — 100 domains, 19 mailboxes, 95000 sends/mo, 50 seat(s), catch-all
 
 Annual billing is 20% off monthly. Catch-all is on paid plans (Solo+). Free outbound includes a Flap footer.
 
@@ -114,7 +114,7 @@ Flap vs Google Workspace is a use-case comparison: for a founder managing severa
 Flap vs Zoho Mail compares two hosted email options. Zoho Mail is a capable full mail product; Flap focuses on a simpler multi-project workflow - one inbox, many domain identities, domain-first plans at useflap.online.
 
 ### Multiple domains. One inbox. — https://useflap.online/multiple-domains-one-inbox
-“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the positioning “One inbox for every product you build.”
+“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online as a domain operations desk for product email.
 
 ### How to manage email for multiple domains — https://useflap.online/how-to-manage-email-for-multiple-domains
 Managing email for multiple domains means keeping branded send/receive working across several domains without losing threads or mixing From identities. Flap is one hosted approach: one inbox, many domain identities, guided Amazon SES DNS.

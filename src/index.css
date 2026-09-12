@@ -55,12 +55,12 @@
   --success-text: #047857;
   --error-text: #b91c1c;
   --warning-text: #92400e;
-  --accent: #f26522;
-  --accent-hover: #e05a1a;
-  --accent-text: #b84a0a;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #1e40af;
   --accent-fg: #ffffff;
-  --accent-rgb: 242, 101, 34;
-  --accent-dim: rgba(242, 101, 34, 0.10);
+  --accent-rgb: 37, 99, 235;
+  --accent-dim: rgba(37, 99, 235, 0.10);
   --chart-new: #1baf7a;
   --chart-expansion: #2a78d6;
   --chart-contraction: #eda100;
@@ -80,7 +80,7 @@
   --cal-teal-border: #14b8a6;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(20, 18, 17, 0.04), 0 12px 32px rgba(20, 18, 17, 0.06);
-  --focus-ring: 0 0 0 3px rgba(242, 101, 34, 0.35);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
   --font-ui: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-serif: Georgia, "Times New Roman", serif;
@@ -117,7 +117,7 @@
   --sidebar-active: var(--surface-active);
   --carbon: var(--foreground);
   --mark-ink: #faf9f6;
-  --mark-flap: #f26522;
+  --mark-flap: #2563eb;
 
   font-family: var(--font-ui);
   color: var(--foreground);
@@ -146,12 +146,12 @@ html[data-theme="dark"] {
   --success-text: #34d399;
   --error-text: #f87171;
   --warning-text: #d97706;
-  --accent: #f26522;
-  --accent-hover: #e05a1a;
-  --accent-text: #f26522;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #60a5fa;
   --accent-fg: #ffffff;
-  --accent-rgb: 242, 101, 34;
-  --accent-dim: rgba(242, 101, 34, 0.16);
+  --accent-rgb: 37, 99, 235;
+  --accent-dim: rgba(37, 99, 235, 0.16);
   --chart-new: #199e70;
   --chart-expansion: #3987e5;
   --chart-contraction: #c98500;
@@ -173,7 +173,7 @@ html[data-theme="dark"] {
   --danger-rgb: 248, 113, 113;
   --warn-rgb: 217, 119, 6;
   --mark-ink: #faf9f6;
-  --mark-flap: #f26522;
+  --mark-flap: #2563eb;
 }
 
 * { box-sizing: border-box; }
@@ -225,12 +225,12 @@ html[data-theme="dark"] body {
   --success-text: #047857;
   --error-text: #b91c1c;
   --warning-text: #92400e;
-  --accent: #f26522;
-  --accent-hover: #e05a1a;
-  --accent-text: #b84a0a;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #1e40af;
   --accent-fg: #ffffff;
-  --accent-rgb: 242, 101, 34;
-  --accent-dim: rgba(242, 101, 34, 0.10);
+  --accent-rgb: 37, 99, 235;
+  --accent-dim: rgba(37, 99, 235, 0.10);
   --bg: var(--surface);
   --bg-elevated: var(--surface-overlay);
   --surface-2: var(--surface-hover);

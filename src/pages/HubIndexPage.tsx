@@ -12,7 +12,7 @@ export default function HubIndexPage({ kind }: { kind: "for" | "vs" }) {
   const description =
     kind === "for"
       ? "ICP pages for indie hackers, startups, freelancers, developers, agencies, ecommerce, and creators."
-      : "Compare Flap with Google Workspace, Microsoft 365, Zoho, Shipmail, Fastmail, and more.";
+      : "Compare Flap with Google Workspace, Microsoft 365, Zoho, Fastmail, and more.";
   const nav = kind === "for" ? FOR_NAV : VS_NAV;
   const flatNav = kind === "for" ? FOR_FLAT : VS_FLAT;
   const brandLabel = kind === "for" ? "For" : "Compare";

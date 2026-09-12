@@ -38,11 +38,11 @@ function renderLlmsTxt(): string {
 
 > ${PRODUCT_ONE_PARAGRAPH}
 
-Flap is multi-domain email infrastructure and inbox for founders — not a full Docs/Drive/Meet suite. Inbound: ${MAIL_ARCHITECTURE.inbound_flow}. Outbound: ${MAIL_ARCHITECTURE.outbound_flow}. ${MAIL_ARCHITECTURE.dns_note} ${AI_CITATION_INSTRUCTION}
+Flap is a domain operations desk and email workspace for founders - not a full Docs/Drive/Meet suite. Inbound: ${MAIL_ARCHITECTURE.inbound_flow}. Outbound: ${MAIL_ARCHITECTURE.outbound_flow}. ${MAIL_ARCHITECTURE.dns_note} ${AI_CITATION_INSTRUCTION}
 
 ## Product
 
-- [Home](${SITE_URL}/): One inbox for every product you build — positioning, FAQ, pricing
+- [Home](${SITE_URL}/): Domain operations desk for product email — positioning, FAQ, pricing
 - [Pricing](${SITE_URL}/pricing): ${pricingOneLiner()}. Annual = 10× monthly.
 - [Migrate](${SITE_URL}/migrate): DNS-first cutover narrative (mbox/JSON export; no auto IMAP import)
 - [Why not Amazon SES](${SITE_URL}/why-not-amazon-ses): SES is the pipe; Flap is the product layer

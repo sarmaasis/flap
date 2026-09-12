@@ -604,7 +604,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
       "Connect every startup domain to a single Flap inbox. Send and receive as each brand identity - one inbox for every startup you build.",
     h1: "Multiple domains. One inbox.",
     definition:
-      "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online under the positioning “One inbox for every product you build.”",
+      "“Multiple domains, one inbox” means several custom domains deliver into a single mail product where you can send as each brand. Flap implements that for founders at useflap.online as a domain operations desk for product email.",
     lede: "The problem is workflow: threads scatter across forwards and forgotten trials. Flap’s job here is one inbox, many sender identities - not “which host supports N domains.”",
     updated: UPDATED,
     sections: [
@@ -1143,7 +1143,7 @@ export const SEO_PAGE_DEFS: Record<string, SeoPageDef> = {
     sections: [
       {
         heading: "Flap’s bet",
-        body: "Mailbox count is the main scaling axis (Solo 3, Pro 6, Team 12; up to 50 domains on every paid plan). Features like catch-all, filters, API keys, inbound webhooks, and Team seats show up where plans unlock them - not as vague “priority support” badges.",
+        body: `Mailbox count, domain count, seats, and send volume are the scaling axes (Solo ${PLANS.solo.limits.mailboxes} mailboxes / ${PLANS.solo.limits.domains} domains; Pro ${PLANS.pro.limits.mailboxes} mailboxes / ${PLANS.pro.limits.domains} domains; Team ${PLANS.team.limits.mailboxes} mailboxes / ${PLANS.team.limits.domains} domains). Features like catch-all, filters, API keys, inbound webhooks, and Team seats show up where plans unlock them - not as vague “priority support” badges.`,
       },
       {
         heading: "Trust and exit",

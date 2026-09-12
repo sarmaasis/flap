@@ -60,7 +60,6 @@ export const VS_PATHS = [
   "/vs/google-workspace",
   "/vs/microsoft-365",
   "/vs/zoho-mail",
-  "/vs/shipmail",
   "/vs/hydra",
   "/vs/folio",
   "/vs/cloudflare-email-routing",

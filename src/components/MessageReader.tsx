@@ -61,7 +61,7 @@ function emailSrcDoc(html: string, allowRemoteImages: boolean): string {
         color-scheme: light dark;
         --email-bg: #f6f3ee;
         --email-fg: #1c1917;
-        --email-link: #b84a0a;
+        --email-link: #1e40af;
       }
       @media (prefers-color-scheme: dark){
         :root{

@@ -10,7 +10,7 @@ export default function ResearchPage({ path }: { path: string }) {
   useEffect(() => {
     setPageMeta({
       title: "Business email cost research | Flap",
-      description: "Methodology and 2026 cost table for Workspace, Shipmail sticker prices, and Flap plans.",
+      description: "Methodology and 2026 cost table for suite pricing and Flap's multi-domain plans.",
       path: path.startsWith("/research") ? path : "/research",
     });
   }, [path]);
@@ -22,8 +22,8 @@ export default function ResearchPage({ path }: { path: string }) {
         <h1 className="mt-3 text-3xl font-semibold tracking-tight">Business email cost, 2026</h1>
         <LastUpdated date="2026-09-07" />
         <p className="mt-5 text-[var(--muted)]">
-          Illustrative USD list prices for founders comparing suites vs email-only hosts. Shipmail figures cited
-          from shipmail.to/pricing (verified 2026-09-07). Flap figures from shared/plans.ts.
+          Illustrative USD list prices for founders comparing full productivity suites with Flap's focused
+          multi-domain email plans. Flap figures come from the shared plan catalog.
         </p>
         <div className="mt-8 overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
@@ -39,11 +39,6 @@ export default function ResearchPage({ path }: { path: string }) {
                 <td className="py-2 pr-3">Google Workspace</td>
                 <td className="py-2 pr-3">~$7/user/mo</td>
                 <td className="py-2">Scales by seats × environments</td>
-              </tr>
-              <tr className="border-b border-[var(--line)]">
-                <td className="py-2 pr-3">Shipmail Solo</td>
-                <td className="py-2 pr-3">$4/mo</td>
-                <td className="py-2">2 mailboxes; up to 50 domains</td>
               </tr>
               <tr className="border-b border-[var(--line)]">
                 <td className="py-2 pr-3">Flap Solo</td>
@@ -65,8 +60,8 @@ export default function ResearchPage({ path }: { path: string }) {
         </div>
         <h2 className="mt-10 text-xl font-semibold">Methodology</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Compare sticker prices only. Deliverability, protocol support, and suite apps change total cost of ownership.
-          Flap does not claim Shipmail's IMAP/newsletter surface until those flags flip.
+          Compare sticker prices only. Deliverability, protocol support, storage usage, and suite apps change total cost of
+          ownership. Flap is best evaluated as a multi-domain email product, not a replacement for office documents or video meetings.
         </p>
         <Button className="mt-8" variant="outline" onClick={() => go("/tools/google-workspace-cost-calculator")}>
           Open cost calculator

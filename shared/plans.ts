@@ -43,42 +43,41 @@ export function monthlyEquivalentFromYearly(yearly: number): number {
   return Math.round((yearly / 12) * 100) / 100;
 }
 
-export const SCALE_MIN_MAILBOXES = 13;
+export const SCALE_MIN_MAILBOXES = 19;
 export const SCALE_MAX_MAILBOXES = 300;
-export const SCALE_UNIT_MONTHLY = 2.5;
-export const SCALE_UNIT_YEARLY = 25;
+export const SCALE_UNIT_MONTHLY = 3;
+export const SCALE_UNIT_YEARLY = 30;
 
 /**
- * Paid plans share the same product surface. Capacity differs.
+ * Paid plans use the same core workflow. Capacity differs.
  * IMAP/SMTP not included yet (webmail + API).
  */
 export const SHARED_STACK_FEATURES = [
-  "AI assistant (beta)",
-  "Up to 50 custom domains",
-  "2 aliases per mailbox (org pool)",
-  "API + SDK + CLI + MCP",
+  "Multi-domain web inbox",
+  "Reply from the receiving address",
+  "Guided MX, SPF, and DKIM setup",
+  "API keys and signed webhooks",
   "Webmail",
-  "Webhooks",
-  "Newsletters",
-  "Calendars & contacts",
-  "Shared inboxes",
-  "Booking pages",
+  "Mailbox export",
+  "Rules and saved views",
+  "Domain labels",
+  "Team access controls",
+  "Newsletter sends with caps",
+  "Calendar and booking previews",
   "Transactional email",
   "Catch-all addresses",
   "Email filtering",
-  "Spam protection auto-setup",
+  "SES-backed delivery logs",
 ] as const;
 
 /**
- * Pricing rationale (not a blind Shipmail clone):
- * Shipmail: Free=$0/0 mailboxes + card trial; Solo $4 / Pro $9 / Team $29 / Scale $2.50.
- * Flap: Free forever with 2 real mailboxes (conversion wedge); Solo $6 / Pro $12 / Team $29 / Scale $2.50.
+ * Pricing rationale:
+ * Flap keeps a useful free tier and charges around the multi-domain workflow.
  * Stack COGS: Cloudflare Workers/D1/R2 + Amazon SES (~$0.10/1k sends) + Clerk.
- * Shipmail Solo $4 / 20k sends leaves ~$2 SES headroom before CF/Clerk/support, too tight for Flap Free wedge.
- * Solo $6 / Pro $12 balances acquisition vs margin; Team/Scale stickers match Shipmail where capacity is similar.
+ * Paid plans scale by mailbox count, team access, storage, API usage, and send capacity.
  */
 export const PRICING_RATIONALE =
-  "Free forever (real mailboxes) funds itself via Solo $6+. SES outbound at Solo caps is ~$1.50–2/mo; remaining covers CF, Clerk, and support. Pro $12 is the highlighted growth plan. Team $29 and Scale $2.50/mailbox match Shipmail capacity stickers.";
+  "Free forever proves the DNS and inbox flow. Solo and Pro fund meaningful SES send caps, storage, and support. Team and Scale are priced for agencies that manage several branded domains in one place.";
 
 export function clampScaleMailboxes(n: number): number {
   const v = Math.floor(Number(n) || 0);
@@ -136,92 +135,92 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Solo",
     price_monthly: 6,
     price_yearly: yearlyPriceFromMonthly(6),
-    blurb: "One person, one inbox, up to 50 domains. The lowest-cost way to cover every project.",
+    blurb: "One founder, one operational inbox, and room for every active project domain.",
     features: [
       "3 mailboxes",
-      "15 GB storage per mailbox",
+      "12 GB pooled storage",
       "1 team member",
-      "15,000 email sends/month",
-      "1,000 newsletter sends/month",
+      "8,000 email sends/month",
+      "500 newsletter sends/month",
       "500 active subscribers",
-      "Up to 50 custom domains",
-      "Same stack as every paid plan",
+      "25 custom domains",
+      "API keys and webhooks",
     ],
     limits: {
-      domains: 50,
+      domains: 25,
       mailboxes: 3,
       aliases: 6,
-      storage_bytes: 3 * gb(15),
-      send_per_month: 15_000,
+      storage_bytes: gb(12),
+      send_per_month: 8_000,
       api_keys: 10,
       webhooks: 10,
       team_seats: 1,
       saved_views: 50,
       notify_channels: 5,
-      newsletter_sends_per_month: 1_000,
+      newsletter_sends_per_month: 500,
       newsletter_subscribers: 500,
     },
   },
   pro: {
     id: "pro",
     name: "Pro",
-    price_monthly: 12,
-    price_yearly: yearlyPriceFromMonthly(12),
-    blurb: "Small teams: shared inboxes, up to 5 seats, and 6 mailboxes across 50 domains.",
+    price_monthly: 15,
+    price_yearly: yearlyPriceFromMonthly(15),
+    blurb: "Small teams that need more branded addresses, shared work, and product email.",
     features: [
-      "6 mailboxes",
-      "15 GB storage per mailbox",
+      "8 mailboxes",
+      "40 GB pooled storage",
       "Up to 5 team members",
-      "40,000 email sends/month",
-      "5,000 newsletter sends/month",
+      "25,000 email sends/month",
+      "2,500 newsletter sends/month",
       "2,500 active subscribers",
-      "Up to 50 custom domains",
-      "Same stack as every paid plan",
+      "40 custom domains",
+      "Shared inboxes and assignments",
     ],
     highlighted: true,
     limits: {
-      domains: 50,
-      mailboxes: 6,
-      aliases: 12,
-      storage_bytes: 6 * gb(15),
-      send_per_month: 40_000,
+      domains: 40,
+      mailboxes: 8,
+      aliases: 16,
+      storage_bytes: gb(40),
+      send_per_month: 25_000,
       api_keys: 25,
       webhooks: 25,
       team_seats: 5,
       saved_views: 100,
       notify_channels: 15,
-      newsletter_sends_per_month: 5_000,
+      newsletter_sends_per_month: 2_500,
       newsletter_subscribers: 2_500,
     },
   },
   team: {
     id: "team",
     name: "Team",
-    price_monthly: 29,
-    price_yearly: yearlyPriceFromMonthly(29),
-    blurb: "Studios and agencies: unlimited seats, 12 mailboxes, and 50 domains in one account.",
+    price_monthly: 35,
+    price_yearly: yearlyPriceFromMonthly(35),
+    blurb: "Studios and agencies running client or portfolio mail from one workspace.",
     features: [
-      "12 mailboxes",
-      "25 GB storage per mailbox",
-      "Unlimited team members",
-      "120,000 email sends/month",
-      "25,000 newsletter sends/month",
+      "18 mailboxes",
+      "120 GB pooled storage",
+      "Up to 25 team members",
+      "80,000 email sends/month",
+      "10,000 newsletter sends/month",
       "10,000 active subscribers",
-      "Up to 50 custom domains",
-      "Same stack as every paid plan",
+      "75 custom domains",
+      "Agency-ready access controls",
     ],
     limits: {
-      domains: 50,
-      mailboxes: 12,
-      aliases: 24,
-      storage_bytes: 12 * gb(25),
-      send_per_month: 120_000,
+      domains: 75,
+      mailboxes: 18,
+      aliases: 36,
+      storage_bytes: gb(120),
+      send_per_month: 80_000,
       api_keys: 100,
       webhooks: 50,
-      team_seats: 10_000,
+      team_seats: 25,
       saved_views: 500,
       notify_channels: 50,
-      newsletter_sends_per_month: 25_000,
+      newsletter_sends_per_month: 10_000,
       newsletter_subscribers: 10_000,
     },
   },
@@ -230,29 +229,29 @@ export const PLANS: Record<PlanId, PlanDef> = {
     name: "Scale",
     price_monthly: SCALE_UNIT_MONTHLY,
     price_yearly: SCALE_UNIT_YEARLY,
-    blurb: "13–300 mailboxes at a flat per-mailbox rate.",
+    blurb: "For portfolios that need predictable mailbox expansion beyond Team.",
     per_mailbox: true,
     features: [
-      "$2.50 / mailbox / mo ($25 / yr)",
-      "13–300 mailboxes",
-      "25 GB storage per mailbox",
-      "10,000 sends / mailbox / mo",
-      "Unlimited team members",
-      "Up to 50 custom domains",
-      "Same stack as every paid plan",
+      "$3 / mailbox / mo ($30 / yr)",
+      "19–300 mailboxes",
+      "10 GB storage added per mailbox",
+      "5,000 sends / mailbox / mo",
+      "Up to 50 team members",
+      "100 custom domains included",
+      "Concierge domain onboarding",
     ],
     limits: {
-      domains: 50,
+      domains: 100,
       mailboxes: SCALE_MIN_MAILBOXES,
       aliases: SCALE_MIN_MAILBOXES * 2,
-      storage_bytes: SCALE_MIN_MAILBOXES * gb(25),
-      send_per_month: SCALE_MIN_MAILBOXES * 10_000,
+      storage_bytes: SCALE_MIN_MAILBOXES * gb(10),
+      send_per_month: SCALE_MIN_MAILBOXES * 5_000,
       api_keys: 200,
       webhooks: 100,
-      team_seats: 10_000,
+      team_seats: 50,
       saved_views: 1_000,
       notify_channels: 100,
-      newsletter_sends_per_month: 25_000,
+      newsletter_sends_per_month: 15_000,
       newsletter_subscribers: 10_000,
     },
   },

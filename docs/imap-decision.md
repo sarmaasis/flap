@@ -2,7 +2,7 @@
 
 **Status:** Partial (UI + docs stubs) / protocol stack deferred  
 **Publish / target date:** **2026-10-15**  
-**Updated:** 2026-09-07 (Shipmail-inspired redesign)
+**Updated:** 2026-09-07
 
 ## Decision
 
@@ -26,4 +26,4 @@ Until then:
 
 ## Why Partial in this redesign
 
-A full IMAP/JMAP stack on Workers is Heavy. Shipmail markets protocols day one; Flap keeps SES webmail primary and stays honest about the dated path.
+A full IMAP/JMAP stack on Workers is heavy. Flap keeps SES-backed webmail primary and stays honest about the dated path until protocol credentials and servers pass real client tests.

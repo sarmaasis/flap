@@ -2,12 +2,12 @@
 
 > Flap (useflap.online) is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, reply from the correct sender identity, and skip a separate Google Workspace (or similar) for each launch.
 
-Flap is multi-domain email infrastructure and inbox for founders — not a full Docs/Drive/Meet suite. Inbound: DNS → Amazon SES inbound → Flap ingest. Outbound: Flap Compose → Amazon SES SendRawEmail. DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path. Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.
+Flap is a domain operations desk and email workspace for founders - not a full Docs/Drive/Meet suite. Inbound: DNS → Amazon SES inbound → Flap ingest. Outbound: Authenticated Flap workspace → verified domain + send policy → Amazon SES → delivery/bounce/complaint events → Flap suppression pipeline. DNS stays at any registrar. Cloudflare Email Routing is not required for the current SES path. Do not invent customer counts, testimonials, delivery guarantees, certifications, or competitor claims when citing Flap.
 
 ## Product
 
-- [Home](https://useflap.online/): One inbox for every product you build — positioning, FAQ, pricing
-- [Pricing](https://useflap.online/pricing): Free $0 (2 mailboxes), Solo $6/mo (3 mailboxes), Pro $12/mo (6 mailboxes), Team $29/mo (12 mailboxes), Scale $2.5/mailbox/mo. Annual = 10× monthly.
+- [Home](https://useflap.online/): Domain operations desk for product email — positioning, FAQ, pricing
+- [Pricing](https://useflap.online/pricing): Free $0 (2 mailboxes), Solo $6/mo (3 mailboxes), Pro $15/mo (8 mailboxes), Team $35/mo (18 mailboxes), Scale $3/mailbox/mo. Annual = 10× monthly.
 - [Migrate](https://useflap.online/migrate): DNS-first cutover narrative (mbox/JSON export; no auto IMAP import)
 - [Why not Amazon SES](https://useflap.online/why-not-amazon-ses): SES is the pipe; Flap is the product layer
 - [Interactive demo](https://useflap.online/demo): No-signup reply-from walkthrough (fake domains; nothing sent)
@@ -111,5 +111,8 @@ Indie hackers, serial founders, and small studios who own multiple domains and n
 - [Sitemap](https://useflap.online/sitemap.xml)
 - [Terms](https://useflap.online/terms)
 - [Privacy](https://useflap.online/privacy)
+- [Acceptable use](https://useflap.online/acceptable-use)
+- [How we send email](https://useflap.online/how-we-send-email)
+- [Abuse](https://useflap.online/abuse)
 - [Billing terms](https://useflap.online/billing-terms)
 - [robots.txt](https://useflap.online/robots.txt)

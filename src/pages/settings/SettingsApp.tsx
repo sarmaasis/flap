@@ -2405,7 +2405,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
               <div className={tw.sectionHeading}>
                 <div>
                   <h2>Appearance</h2>
-                  <p>Theme follows your preference. Dark mode keeps Flap orange accents.</p>
+                  <p>Theme follows your preference. Dark mode keeps Flap blue accents.</p>
                 </div>
               </div>
               <ThemeToggle />
@@ -2717,7 +2717,7 @@ export default function SettingsApp({ forcedSurface }: SettingsAppProps) {
                 price_monthly: 2.5,
                 price_yearly: 25,
                 blurb: "13–300 mailboxes · per-mailbox pricing",
-                features: ["50 domains", "Per-mailbox send & storage", "Team seats"],
+                features: ["100 domains", "Per-mailbox send & storage", "Team seats"],
                 checkout_available: false,
               };
               const available = scale.checkout_available !== false && checkoutConfigured;

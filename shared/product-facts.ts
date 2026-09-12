@@ -137,4 +137,4 @@ export const TARGET_CUSTOMER =
   "Indie hackers, serial founders, and small studios who own multiple domains and need professional email without a suite per project.";
 
 /** Public positioning thesis — keep homepage and trust pages aligned. */
-export const POSITIONING_THESIS = "One inbox for every product you build.";
+export const POSITIONING_THESIS = "Run every product email from one desk.";

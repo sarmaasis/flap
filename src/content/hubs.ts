@@ -1,4 +1,4 @@
-/** Shipmail-shaped /for and /vs hubs (Flap-angled). */
+/** Role and comparison hubs written around Flap's own multi-domain workflow. */
 
 export type HubPage = {
   path: string;
@@ -18,7 +18,7 @@ export const FOR_PAGES: HubPage[] = [
     body: [
       "You keep launching domains. Flap keeps one inbox across them.",
       "Free includes real mailboxes so you can prove MX before you pay.",
-      "Solo starts at $6/mo for three mailboxes — up to 50 domains on every paid plan.",
+      "Solo starts at $6/mo for three mailboxes and generous domain capacity.",
     ],
   },
   {
@@ -46,11 +46,11 @@ export const FOR_PAGES: HubPage[] = [
   {
     path: "/for/developers",
     title: "For developers | Flap",
-    description: "REST API, webhooks, MCP drafts with confirm, thin SDKs and CLI.",
+    description: "REST API, webhooks, confirm-first drafts, thin SDKs and CLI.",
     h1: "Email for developers",
     body: [
       "Send and receive via API on paid plans.",
-      "MCP tools list domains and draft with confirm - never silent send.",
+      "Developer tools list domains and draft with confirm - never silent send.",
       "TypeScript and Python SDKs plus a thin CLI live under /sdks.",
     ],
   },
@@ -124,25 +124,13 @@ export const VS_PAGES: HubPage[] = [
     ],
   },
   {
-    path: "/vs/shipmail",
-    title: "Flap vs Shipmail | Flap",
-    description: "Honest comparison: Shipmail mailbox-flat plans vs Flap multi-domain SES hosting.",
-    h1: "Flap vs Shipmail",
-    body: [
-      "Shipmail Solo is $4/mo; Flap Solo is $6/mo (Free forever wedge + SES margin). Pro $12 / Team $29. Same paid stack (webmail first; IMAP later).",
-      "Shipmail markets IMAP/JMAP/CalDAV and newsletters as included. Flap ships webmail + SES first; IMAP credentials target 2026-10-15.",
-      "Flap Free includes real mailboxes. Shipmail Free is dashboard-only (0 mailboxes).",
-      "Architecture: Flap = Amazon SES + Cloudflare Workers. Shipmail markets its own EU-hosted mail engine.",
-    ],
-  },
-  {
     path: "/vs/hydra",
     title: "Flap vs Hydra | Flap",
     description: "Portfolio email comparison with Hydra.",
     h1: "Flap vs Hydra",
     body: [
       "Both target multi-domain founders.",
-      "Flap differentiates on SES honesty, Team seats, API/webhooks, and paper/orange product chrome.",
+      "Flap differentiates on SES honesty, Team seats, API/webhooks, and a focused multi-domain workflow.",
       "See /hydra-alternative.",
     ],
   },

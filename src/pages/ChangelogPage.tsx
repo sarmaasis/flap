@@ -13,8 +13,8 @@ const ENTRIES = [
   },
   {
     date: "2026-09-08",
-    title: "Positioning: one inbox for every product",
-    body: "Homepage and trust pages centered on multi-domain → one inbox → correct reply-from. Public /migrate and /why-not-amazon-ses guides.",
+    title: "Positioning: domain operations desk",
+    body: "Homepage and trust pages centered on domain setup, inbox triage, and correct reply-from identity. Public /migrate and /why-not-amazon-ses guides.",
   },
   {
     date: "2026-08",

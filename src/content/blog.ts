@@ -268,7 +268,7 @@ export const BLOG_POSTS: BlogPost[] = [
       "How catch-all and aliases help indie founders run many project domains - without mailbox sprawl. What Flap supports on Free vs paid plans.",
     h1: "Catch-all and aliases for indie founders",
     definition:
-      "An alias is an extra address that delivers to a mailbox you already have. Catch-all accepts any local-part on a domain. Flap supports aliases on all plans (with Free limits) and catch-all on paid plans, which helps founders absorb launch@ and typo traffic without endless mailbox creation.",
+      "An alias is an extra address that delivers to a mailbox you already have. Catch-all accepts any local-part on a domain. Flap supports aliases on all plans (with Free limits) and catch-all on paid plans, which helps founders catch launch@, typo traffic, and campaign addresses without endless mailbox creation.",
     lede: "You do not need a new mailbox for every campaign string. Aliases and catch-all keep the inbox tidy while domains multiply.",
     published: UPDATED,
     updated: UPDATED,

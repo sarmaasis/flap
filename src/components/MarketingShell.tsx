@@ -50,7 +50,7 @@ const FOOTER_COLUMNS = [
     title: "Compare",
     links: [
       { href: "/vs/google-workspace", label: "vs Google Workspace" },
-      { href: "/vs/shipmail", label: "vs Shipmail" },
+      { href: "/vs/fastmail", label: "vs Fastmail" },
       { href: "/vs/microsoft-365", label: "vs Microsoft 365" },
       { href: "/vs/zoho-mail", label: "vs Zoho Mail" },
       { href: "/vs/fastmail", label: "vs Fastmail" },

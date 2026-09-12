@@ -102,7 +102,7 @@ function articleShell(opts: {
 }): string {
   const parts: string[] = [];
   parts.push(`<article style="max-width:42rem;margin:0 auto;padding:2rem 1.25rem;font-family:system-ui,sans-serif;line-height:1.55;color:#141413">`);
-  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#F26522">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
+  parts.push(`<p style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#1E40AF">${esc(opts.eyebrow || "Flap · useflap.online")}</p>`);
   parts.push(`<h1 style="font-size:1.85rem;line-height:1.2;margin:0.75rem 0 1rem">${esc(opts.h1)}</h1>`);
   if (opts.definition) {
     parts.push(`<p style="padding:0.85rem 1rem;background:#f0efeb;border-radius:8px"><strong>In short:</strong> ${esc(opts.definition)}</p>`);
@@ -508,7 +508,7 @@ function buildPages(): Page[] {
     bodyHtml: articleShell({
       eyebrow: "Pricing",
       h1: "Transparent email hosting pricing",
-      lede: "Up to 50 domains on every paid plan. Upgrade for mailboxes, seats, and send capacity — not a different product.",
+      lede: `Plans scale by domains, mailboxes, seats, and sending room. Solo includes ${PLANS.solo.limits.domains} domains; Pro includes ${PLANS.pro.limits.domains}; Team includes ${PLANS.team.limits.domains}.`,
       definition: MARKETING.short_description,
       sections: PLAN_ORDER.map((id) => ({
         heading: `${PLANS[id].name} — $${PLANS[id].price_monthly}${PLANS[id].price_monthly ? "/mo" : ""}`,
@@ -517,8 +517,8 @@ function buildPages(): Page[] {
       })),
       faqs: [
         {
-          q: "Why upgrade if every paid plan has 50 domains?",
-          a: "You upgrade for mailboxes, team seats, storage, and monthly send caps — capacity for the same product surface.",
+          q: "Why upgrade from Solo?",
+          a: "Upgrade when you need more domains, mailboxes, team seats, storage, or monthly sending room.",
         },
         {
           q: "Can I cancel anytime?",
@@ -533,8 +533,8 @@ function buildPages(): Page[] {
     }),
     jsonLd: [softwareLd(), faqLd([
       {
-        q: "Why upgrade if every paid plan has 50 domains?",
-        a: "You upgrade for mailboxes, team seats, storage, and monthly send caps.",
+        q: "Why upgrade from Solo?",
+        a: "Upgrade when you need more domains, mailboxes, team seats, storage, or monthly sending room.",
       },
     ])],
   });
@@ -729,7 +729,7 @@ function buildPages(): Page[] {
 
 
 
-  // Shipmail-inspired marketing hubs (/security, /for, /vs, /research + children)
+  // Public marketing hubs (/security, /for, /vs, /research + children)
   pages.push({
     path: "/security",
     title: "Security | Flap",
@@ -921,7 +921,7 @@ function buildPages(): Page[] {
     path: "/vs",
     title: "Compare Flap | Flap",
     description:
-      "Compare Flap with Google Workspace, Shipmail, Hydra, Folio, Zoho, and more.",
+      "Compare Flap with Google Workspace, Microsoft 365, Hydra, Folio, Zoho, and more.",
     bodyHtml: articleShell({
       eyebrow: "Compare",
       h1: "Compare Flap",
@@ -946,19 +946,18 @@ function buildPages(): Page[] {
     path: "/research",
     title: "Business email cost research | Flap",
     description:
-      "Methodology and 2026 cost table for Workspace, Shipmail sticker prices, and Flap plans.",
+      "Methodology and 2026 cost table for suite pricing and Flap's multi-domain plans.",
     bodyHtml: articleShell({
       eyebrow: "Research",
       h1: "Business email cost, 2026",
       lede:
-        "Illustrative USD list prices for founders comparing suites vs email-only hosts. Shipmail figures cited from shipmail.to/pricing (verified 2026-09-07). Flap figures from shared/plans.ts.",
+        "Illustrative USD list prices for founders comparing full productivity suites with Flap's focused multi-domain email plans. Flap figures come from the shared plan catalog.",
       sections: [
         {
           heading: "Entry paid sticker prices",
           body: "Compare sticker prices only. Deliverability, protocol support, and suite apps change total cost of ownership.",
           bullets: [
             "Google Workspace — ~$7/user/mo (scales by seats × environments)",
-            "Shipmail Solo — $4/mo (2 mailboxes; up to 50 domains)",
             `Flap Solo — $${PLANS.solo.price_monthly}/mo (${PLANS.solo.limits.domains} domains, ${PLANS.solo.limits.mailboxes} mailboxes)`,
             `Flap Pro — $${PLANS.pro.price_monthly}/mo (highlighted; ${PLANS.pro.limits.team_seats} seats)`,
             `Flap Team — $${PLANS.team.price_monthly}/mo (${PLANS.team.limits.domains} domains, shared inboxes)`,
@@ -966,14 +965,14 @@ function buildPages(): Page[] {
         },
         {
           heading: "Methodology",
-          body: "Compare sticker prices only. Flap does not claim Shipmail's IMAP/newsletter surface until those flags flip. Use /tools/google-workspace-cost-calculator for interactive math.",
+          body: "Compare sticker prices only. Flap is best evaluated as a multi-domain email product, not a replacement for office documents or video meetings. Use /tools/google-workspace-cost-calculator for interactive math.",
         },
       ],
     }),
     jsonLd: webPageLd({
       path: "/research",
       title: "Business email cost research | Flap",
-      description: "2026 cost table comparing Workspace, Shipmail sticker prices, and Flap plans.",
+      description: "2026 cost table for founders comparing suite pricing with Flap's multi-domain plans.",
       dateModified: "2026-09-07",
     }),
   });

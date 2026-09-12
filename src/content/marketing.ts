@@ -5,28 +5,28 @@ export const SUPPORT_EMAIL = "support@useflap.online";
 
 export const MARKETING = {
   product_name: "Flap",
-  one_line: "One inbox for every product you build.",
+  one_line: "Run every product email from one desk.",
   short_description:
-    "Custom-domain business email for founders, agencies, and teams managing domains they own or are authorized to operate. One inbox, verified sending domains, correct reply-from identity.",
+    "Custom-domain email operations for founders, agencies, and teams managing domains they own or are authorized to operate. Connect domains, verify mail records, receive centrally, and reply from the right address.",
   long_description:
-    "Flap is multi-domain email infrastructure and inbox for indie hackers, serial founders, and small studios. Connect every project domain to one inbox, preserve each brand’s sender identity on reply, and skip a separate Google Workspace (or similar) subscription per launch. From $6/mo. Free plan includes real mailboxes.",
-  primary_tagline: "One inbox for every product you build.",
+    "Flap is a domain operations desk for indie hackers, serial founders, and small studios. Bring product, client, and launch domains into one mail workspace, keep sender identity correct on every reply, and avoid creating another suite account for every new project. From $6/mo. Free plan includes real mailboxes.",
+  primary_tagline: "Run every product email from one desk.",
   founder_tagline: "Email infrastructure for people who keep launching things.",
   product_hunt_tagline: "One inbox for every domain you own, without a Workspace per project",
   hero_subheadline:
-    "Connect all your custom domains, receive every message in one place, and reply automatically from the correct address.",
-  secondary_line: "No extra Workspace account. No forwarding hack. No SMTP juggling.",
-  microcopy: "Same product surface on every paid plan. Upgrade for mailboxes, seats, and send capacity.",
-  seo_title: "Flap — One Inbox for All Your Custom Domains",
+    "Connect the domains you own, receive all mail in one operational inbox, and reply from the exact address your customer used.",
+  secondary_line: "Domain setup, inbox triage, reply identity, and export in one founder-sized workspace.",
+  microcopy: "Paid plans scale mailboxes, seats, domains, and sending capacity around the same core workflow.",
+  seo_title: "Flap - Domain Operations Desk for Product Email",
   seo_description:
-    "Manage email for every SaaS, side project, client, or business domain from one inbox. Receive centrally and reply automatically from the correct address.",
+    "Run custom-domain email for products, side projects, and client domains from one operating desk. Verify DNS, receive centrally, and reply from the right address.",
   key_features: [
-    "Many domains → one inbox",
-    "Reply from the receiving address",
-    "Guided DNS (MX/SPF/DKIM)",
-    "Shared inboxes & seats when you grow",
-    "Export anytime (.mbox / JSON)",
-    "API, newsletters, bookings once domains are connected",
+    "Domain operations desk",
+    "Reply from the address that received the message",
+    "Guided DNS for MX, SPF, and DKIM",
+    "Mailbox and domain triage",
+    "Export anytime as .mbox or JSON",
+    "API, newsletters, and booking mail after domains are connected",
   ],
   architecture_line:
     "Customer mail on Amazon SES. App on Cloudflare. Your DNS stays at any registrar.",
@@ -45,7 +45,7 @@ export const CREDIBILITY = [
   { title: "Guided domain verification", body: "MX/SPF/DKIM checks with precise errors — not a vague “verification failed.”" },
   { title: "DNS you control", body: "Publish SPF and DKIM at any registrar. Customer mail runs on Amazon SES." },
   { title: "Export anytime", body: "JSON workspace backup and per-mailbox .mbox downloads from Settings." },
-  { title: "Transparent pricing", body: "Up to 50 domains on every paid plan. Capacity is mailboxes and seats, not a per-domain seat tax." },
+  { title: "Transparent pricing", body: "Plans scale by domains, mailboxes, seats, and sending room. The pricing page uses the same plan catalog as billing." },
   { title: "Founder-operated", body: "Built and supported by Ashish Sharma — see About for contact and infrastructure." },
 ] as const;
 
